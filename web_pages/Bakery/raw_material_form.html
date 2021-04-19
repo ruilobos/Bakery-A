@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="Rui Lobo">
+    <meta name="generator" content="RL 0.1">
+      
+    <link rel="shortcut icon" href="../Bakery/static/img/favicon.ico" type="image/x-icon">
+      
+    <title>Bakery - Raw Material, Suppliers and Products Management</title>
+
+    <link rel="canonical" href="https://www.ruilobo.net">
+
+    <!-- Bootstrap core CSS -->
+    <link href="../Bakery/static/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+      .bd-placeholder-img {
+        font-size: 1.125rem;
+        text-anchor: middle;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        user-select: none;
+      }
+
+      @media (min-width: 768px) {
+        .bd-placeholder-img-lg {
+          font-size: 3.5rem;
+        }
+      }
+    </style>
+    
+    <!-- Custom styles for this template -->
+    <link href="../Bakery/static/css/raw_material.css" rel="stylesheet">
+      
+  </head>
+  <body class="bg-light">
+      
+      <header class="navbar navbar-expand-md navbar-dark bg-dark">
+      <div class="container">
+        <a class="navbar-brand" href="#">
+            <img src="../Bakery/static/img/Logo1.png" width="35" height="35" class="d-inline-block align-center" alt="Portfolio Logo">
+            Bakery
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul class="navbar-nav mb-2 mb-lg-0 ms-auto">
+            <li class="nav-item">
+                <a class="nav-link" href="#about">Login</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#projects">Settings</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </header>
+      
+    <div class="bg-dark text-white">
+      <div class="container">
+        <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
+          <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+            <li><a href="#" class="nav-link px-2 text-white">Dashboard</a></li>
+            <li><a href="#" class="nav-link px-2 text-white">Raw Materials</a></li>
+            <li><a href="#" class="nav-link px-2 text-white">Base Recipes</a></li>
+            <li><a href="#" class="nav-link px-2 text-white">Products</a></li>
+          </ul>
+
+          <form class="col-12 col-lg-auto mb-3 mb-lg-0 me-lg-3">
+            <input type="search" class="form-control form-control-dark" placeholder="Search...">
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <div class="container">
+      <main>
+        <div class="py-5 text-center">
+          <h2>Raw Material</h2>
+        </div>
+
+        <div class="row g-5 row justify-content-center">
+          <div class="col-md-7 col-lg-8">
+            <form class="needs-validation" novalidate>
+              <div class="row g-3">
+                <div class="col-sm-8">
+                  <label for="firstName" class="form-label">Description</label>
+                  <input type="text" class="form-control" id="firstName" placeholder="" value="" required>
+                  <div class="invalid-feedback">
+                    Valid first name is required.
+                  </div>
+                </div>
+
+                <div class="col-sm-4">
+                  <label for="lastName" class="form-label">Code</label>
+                  <input type="text" class="form-control" id="lastName" placeholder="" value="" required>
+                  <div class="invalid-feedback">
+                    Valid last name is required.
+                  </div>
+                </div>
+                  
+                <div class="col-md-6">
+                  <label for="country" class="form-label">Supplier</label>
+                  <select class="form-select" id="country" required>
+                    <option value="">Choose...</option>
+                    <option>Pallas</option>
+                    <option>La Rousse</option>
+                  </select>
+                  <div class="invalid-feedback">
+                    Please select a valid country.
+                  </div>
+                </div>
+
+                <div class="col-sm-6">
+                  <label for="lastName" class="form-label">ACC Number</label>
+                  <input type="text" class="form-control" id="lastName" placeholder="" value="" required>
+                  <div class="invalid-feedback">
+                    Valid last name is required.
+                  </div>
+                </div>
+                  
+                <div class="col-4">
+                  <label for="email" class="form-label">Price</label>
+                  <input type="email" class="form-control" id="email" placeholder="€3,50">
+                  <div class="invalid-feedback">
+                    Please enter a valid email address for shipping updates.
+                  </div>
+                </div>
+
+                <div class="col-4">
+                  <label for="address" class="form-label">Quantity</label>
+                  <input type="text" class="form-control" id="address" placeholder="1" required>
+                  <div class="invalid-feedback">
+                    Please enter your shipping address.
+                  </div>
+                </div>
+                  
+                <div class="col-4">
+                  <label for="address" class="form-label">Unit</label>
+                  <input type="text" class="form-control" id="address" placeholder="kg" required>
+                  <div class="invalid-feedback">
+                    Please enter your shipping address.
+                  </div>
+                </div>
+
+              <div class="my-5 d-grid gap-2 d-md-flex justify-content-md-end">
+                  <button class="btn btn-warning btn-lg" type="submit">Save</button>
+                  <button class="btn btn-dark btn-lg" type="submit">Delete</button>
+              </div>
+            </div>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+    
+    <footer class="text-center pt-1 text-white-50 bg-dark">
+    <p>Developed by <a href="https://www.ruilobos.net" class="text-white">Rui Lobo</a> - &copy; 2021 
+    <a class="text-white" href="#">Privacy</a>
+    <a class="text-white" href="#">Terms</a>
+    <a class="text-white" href="#">Support</a>
+    </p>
+    </footer>
+
+    <script src="../Bakery/static/js/bootstrap.bundle.min.js"></script>
+
+    <script src="../Bakery/static/js/raw_material.js"></script>
+  </body>
+</html>

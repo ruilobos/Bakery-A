@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="Rui Lobo">
+    <meta name="generator" content="RL 0.1">
+      
+    <link rel="shortcut icon" href="../Bakery/static/img/favicon.ico" type="image/x-icon">  
+      
+    <title>Bakery - Raw Material, Suppliers and Products Management</title>
+
+    <link rel="canonical" href="https://www.ruilobo.net">
+
+    <!-- Bootstrap core CSS -->
+    <link href="../Bakery/static/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+      .bd-placeholder-img {
+        font-size: 1.125rem;
+        text-anchor: middle;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        user-select: none;
+      }
+      @media (min-width: 768px) {
+        .bd-placeholder-img-lg {
+          font-size: 3.5rem;
+        }
+      }
+    </style>
+
+    
+    <!-- Custom styles for this template -->
+    <link href="../Bakery/static/css/products_categories.css" rel="stylesheet">
+  </head>
+
+  <body>
+    
+    <header class="navbar navbar-expand-md navbar-dark bg-dark">
+      <div class="container">
+        <a class="navbar-brand" href="#">
+            <img src="../Bakery/static/img/Logo1.png" width="35" height="35" class="d-inline-block align-center" alt="Portfolio Logo">
+            Bakery
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul class="navbar-nav mb-2 mb-lg-0 ms-auto">
+            <li class="nav-item">
+                <a class="nav-link" href="#about">Login</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#projects">Settings</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </header>
+      
+    <div class="bg-dark text-white">
+      <div class="container">
+        <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
+          <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+            <li><a href="#" class="nav-link px-2 text-white">Dashboard</a></li>
+            <li><a href="#" class="nav-link px-2 text-white">Raw Materials</a></li>
+            <li><a href="#" class="nav-link px-2 text-white">Base Recipes</a></li>
+            <li><a href="#" class="nav-link px-2 text-white">Products</a></li>
+          </ul>
+
+          <form class="col-12 col-lg-auto mb-3 mb-lg-0 me-lg-3">
+            <input type="search" class="form-control form-control-dark" placeholder="Search...">
+          </form>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="container-fluid">
+      <div class="row">
+          
+        <nav id="sidebarMenu" class="col-md-1 col-lg-1 d-sm-block bg-light sidebar collapse">
+          <div class="position-sticky pt-3">
+            <ul class="nav flex-column">
+              <li class="nav-item">
+                <a class="nav-link" aria-current="page" href="#">
+                  Insert
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">
+                  Delete
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">
+                  Edit
+                </a>
+              </li>
+            </ul>
+          </div>
+        </nav>
+
+        <main class="col-md-11 ms-sm-auto col-lg-11 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2">
+            <h1 class="h2">Products Categories</h1>
+            </div>
+          
+            <div class="album py-2">
+                <div class="container">
+
+                    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/kamil-s-bbNssNJlsrk-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Beverages</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/honey-fangs-DH-1BF5hFoo-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Cakes</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/rebecca-campbell-wNGD6Qnb1xA-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Desserts</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/paul-hanaoka-EAl48ZpxjWo-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Financier & Madeleine</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/abe-livi-3pmMaQ7Ig58-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">French Toasts</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/ella-olsson-fxJTl_gDh28-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Hot Foods</a></h4>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/wes-hicks-r0DusB-OgRM-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Macarons</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/rudy-issa-VXwbfqQ4ISE-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Pastries</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/eaters-collective-uhJfaJ6c9fY-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Sandwiches</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/sarah-kilian-Kgcc8TKKEkg-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Scone, Crepe & Porridge</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card shadow-sm">
+                            <img class="card-img-top" src="../Bakery/static/img/ben-lei-pQhV76X37P0-unsplash.jpg" alt="BlueBuilding image" data-holder-rendered="true">
+                            <div class="card-body">
+                              <h4 class="card-text text-center"><a class="nav-link" href="#">Sweets</a></h4>
+                            </div>
+                          </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+      </div>
+    </div>
+      
+      
+    <footer class="text-center pt-1 text-white-50 bg-dark">
+    <p>Developed by <a href="https://www.ruilobos.net" class="text-white">Rui Lobo</a> - &copy; 2021 
+    <a class="text-white" href="#">Privacy</a>
+    <a class="text-white" href="#">Terms</a>
+    <a class="text-white" href="#">Support</a>
+    </p>
+    </footer>
+
+    <script src="../Bakery/static/js/bootstrap.bundle.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js" integrity="sha384-uO3SXW5IuS1ZpFPKugNNWqTZRRglnUJK6UAZ/gxOX80nxEkN9NcGZTftn6RzhGWE" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js" integrity="sha384-zNy6FEbO50N+Cg5wap8IKA4M/ZnLJgzc6w2NqACZaK0u0FXfOWRRJOnQtpZun8ha" crossorigin="anonymous"></script>
+    </body>
+</html>
