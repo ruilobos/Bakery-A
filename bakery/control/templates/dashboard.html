@@ -57,7 +57,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+                <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -85,7 +85,7 @@
 
     <div class="container-fluid">
       <div class="row">
-        <nav id="sidebarMenu" class="col-md-1 col-lg-1 d-sm-block bg-light sidebar collapse">
+        <nav id="sidebarMenu" class="col-md-1 col-lg-1 d-sm-block bg-light sidebar">
           <div class="position-sticky pt-3">
             
           </div>
@@ -100,20 +100,20 @@
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Unit Cost</th>
-                  <th>Net Price</th>
-                  <th>Selling Price</th>
-                  <th>Margin</th>
+                  <th>Unit Cost (€)</th>
+                  <th>Net Price (€)</th>
+                  <th>Selling Price (€)</th>
+                  <th>Margin (%)</th>
                 </tr>
               </thead>
               <tbody>
                 {% for product in product_list %}
                   <tr>
                     <td>{{ product.name }}</td>
-                    <td>{{ product.unit_cost }}</td>
-                    <td>{{ product.net_price }}</td>
+                    <td>{{ unit_cost|get_item:product.name }}</td>
+                    <td>{{ net_value|get_item:product.name }}</td>
                     <td>{{ product.price }}</td>
-                    <td>{{ product.margin_percent }}</td>
+                    <td>{{ margin_percent|get_item:product.name }}</td>
                   </tr>
                 {% empty %}
                   <p>No products yet.</p>
@@ -122,7 +122,6 @@
             </table>
           </div>
         </main>
-
       </div>
     </div>
       

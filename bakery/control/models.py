@@ -2,7 +2,6 @@ from django.db import models
 from django.urls import reverse
 
 # Create your models here.
-
 class RawMaterial(models.Model):
     UNIT_CHOICES = (
         ('KG', 'kg'),
@@ -19,7 +18,6 @@ class RawMaterial(models.Model):
         ('MEAT', 'Meat'),
         ('PACKING', 'Packing'),
     )
-
     description = models.CharField("Description", max_length=100)
     code = models.CharField("Code", max_length=30, blank=True)
     supplier = models.ForeignKey("Supplier", on_delete=models.SET_NULL, null=True)
@@ -66,9 +64,8 @@ class Base_recipes(models.Model):
         ('L', 'l'),
         ('UNIT', 'unit'),
     )
-
     name = models.CharField("Base Recipe Name", max_length=100)
-    ingredients = models.ManyToManyField('Recipe_Ingredients', blank=True) 
+    #ingredients = models.ManyToManyField('Recipe_Ingredients', blank=True) 
     recipe_yeld = models.IntegerField("Recipe Yield") 
     yield_unit = models.CharField("Yield Unit", max_length=5, choices=UNIT_CHOICES)
 
@@ -76,20 +73,51 @@ class Base_recipes(models.Model):
         return self.name
 
     def get_absolute_url(self):
-        return reverse("xxxxxxxxxx", args=[str(self.id)])
+        return reverse("control:base_recipe", args=[str(self.id)])
 
-    @property
-    def cost_recipe(self):
-        cost_recipe = 0
-        for iten in self.ingredients.all():
-            cost_recipe += (iten.quantity * iten.ingredient.price)
-            
-        return cost_recipe
 
     class Meta:
         verbose_name = "Base Recipe"
         verbose_name_plural = "Base Recipes"
         ordering = ['name']
+
+
+class Bs_Ingredients(models.Model):
+    CATEGORY_CHOICES = (
+        ('BEVERAGE', 'Beverage'),
+        ('BREAD', 'Bread'),
+        ('DAIRY & EGGS', 'Dairy & Eggs'),
+        ('DRY GOODS', 'Dry Goods'),
+        ('FISH', 'Fish'),
+        ('FRUIT & VEG', 'Fruit & Veg'),
+        ('MEAT', 'Meat'),
+        ('PACKING', 'Packing'),
+    )
+    UNIT_CHOICES = (
+        ('KG', 'kg'),
+        ('L', 'l'),
+        ('UNIT', 'unit'),
+    )
+    ingredient = models.ForeignKey("RawMaterial", on_delete=models.SET_NULL, null=True)
+    base_recipe = models.ForeignKey("Base_recipes", on_delete=models.SET_NULL, null=True)
+    quantity = models.DecimalField("Quantity", max_digits=5, decimal_places=3)
+    unit = models.CharField("Unit", max_length=5, choices=UNIT_CHOICES)
+
+    def __str__(self):
+        return self.ingredient.description
+
+    def get_absolute_url(self):
+        return reverse("control:base_recipe", args=[str(self.base_recipe.id)])
+
+    @property
+    def cost(self):
+        cost = "{:.2f}".format(self.quantity*self.ingredient.price)
+        return cost
+
+    class Meta:
+        verbose_name = "Base Recipe Ingredient"
+        verbose_name_plural = "Base Recipies Ingredients"
+        ordering = ['ingredient']
 
 
 class Recipe_Ingredients(models.Model):
@@ -108,9 +136,8 @@ class Recipe_Ingredients(models.Model):
         ('L', 'l'),
         ('UNIT', 'unit'),
     )
-
     ingredient = models.ForeignKey("RawMaterial", on_delete=models.SET_NULL, null=True)
-    category = models.CharField("Category", max_length=30, choices=CATEGORY_CHOICES)
+    product = models.ForeignKey("Product", on_delete=models.SET_NULL, null=True)
     quantity = models.DecimalField("Quantity", max_digits=5, decimal_places=3)
     unit = models.CharField("Unit", max_length=5, choices=UNIT_CHOICES)
 
@@ -118,16 +145,43 @@ class Recipe_Ingredients(models.Model):
         return self.ingredient.description
 
     def get_absolute_url(self):
-        return reverse("xxxxxxxxxx", args=[str(self.id)])
+        return reverse("control:products", args=[str(self.product.categorie)])
 
+    @property
+    def cost(self):
+        cost = "{:.2f}".format(self.quantity*self.ingredient.price)
+        return cost
+
+    @property
+    def net_price(self):
+        net_price = "{:.2f}".format(self.product.price*(1-self.product.vat))
+        return net_price
+
+    @property
+    def margin_percent(self):
+        cost_recipe = 0
+        for iten in self.ingredients.all():
+            cost_recipe += (iten.quantity * iten.ingredient.price)
+        unit_cost = cost_recipe/self.recipe_yeld
+        margin_value = (self.price-(self.price*self.vat))-unit_cost
+        net_price = self.price-(self.price*self.vat)
+        margin = margin_value/net_price
+        margin_percent = "{:.2f}".format(margin*100)  
+        return margin_percent
+
+    @property
+    def margin_value(self):
+        cost_recipe = 0
+        for iten in self.ingredients.all():
+            cost_recipe += (iten.quantity * iten.ingredient.price)
+        unit_cost = cost_recipe/self.recipe_yeld
+        margin_value = "{:.2f}".format((self.price-(self.price*self.vat))-unit_cost)
+        return margin_value
 
     class Meta:
         verbose_name = "Recipe Ingredient"
         verbose_name_plural = "Recipe Ingredients"
         ordering = ['ingredient']
-
-
-
 
 
 class Product(models.Model):
@@ -149,15 +203,13 @@ class Product(models.Model):
         ('SCONE, CREPE & PORRIDGE', 'Scone, Crepe & Porridge'),
         ('SWEETS', 'Sweets'),
     )
-
     name = models.CharField("Product Name", max_length=100)
     categorie = models.CharField("Category", max_length=30, choices=CATEGORY_CHOICES)
-    ingredients = models.ManyToManyField('Recipe_Ingredients', blank=True)
+    #ingredients = models.ManyToManyField('Recipe_Ingredients', blank=True, related_name='ingredients')
     recipe_yeld = models.DecimalField("Recipe Yield", max_digits=6, decimal_places=2) 
     yield_unit = models.CharField("Yield Unit", max_length=5, choices=UNIT_CHOICES)
     price = models.DecimalField("Selling Price (€)", max_digits=6, decimal_places=2)
     vat = models.DecimalField("VAT (%)", max_digits=6, decimal_places=2)
-
 
     def __str__(self):
         return self.name
@@ -165,6 +217,19 @@ class Product(models.Model):
     def get_absolute_url(self):
         return reverse("products_categories", args=[str(self.id)])
 
+    class Meta:
+        verbose_name = "Product"
+        verbose_name_plural = "Products"
+        ordering = ['name']
+
+
+
+
+
+
+
+
+        """
     @property
     def cost_recipe(self):
         cost_recipe = 0
@@ -182,44 +247,4 @@ class Product(models.Model):
         unit_cost = costrecipe/self.recipe_yeld
 
         return unit_cost
-
-    @property
-    def net_price(self):
-        net_price = "{:.2f}".format(self.price-(self.price*self.vat))
-            
-        return net_price
-
-    @property
-    def margin_percent(self):
-        cost_recipe = 0
-        for iten in self.ingredients.all():
-            cost_recipe += (iten.quantity * iten.ingredient.price)
-
-        unit_cost = cost_recipe/self.recipe_yeld
-
-        margin_value = (self.price-(self.price*self.vat))-unit_cost
-
-        net_price = self.price-(self.price*self.vat)
-
-        margin = margin_value/net_price
-
-        margin_percent = "{:.2f}".format(margin*100)
-            
-        return margin_percent
-
-    @property
-    def margin_value(self):
-        cost_recipe = 0
-        for iten in self.ingredients.all():
-            cost_recipe += (iten.quantity * iten.ingredient.price)
-
-        unit_cost = cost_recipe/self.recipe_yeld
-
-        margin_value = "{:.2f}".format((self.price-(self.price*self.vat))-unit_cost)
-            
-        return margin_value
-
-    class Meta:
-        verbose_name = "Product"
-        verbose_name_plural = "Products"
-        ordering = ['name']
+    """

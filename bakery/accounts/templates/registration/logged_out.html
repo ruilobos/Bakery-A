@@ -52,14 +52,9 @@
             <div class="form-signin text-center">
               <img class="mb-4" src="../../static/img/Logo1.png" alt="" width="90" height="">
               <h1 class="h3 mb-3 fw-normal">Logged out!</h1>
-
-              <form class="mt-5" method="post" action="{% url 'login' %}">
-                <input class="w-100 btn btn-lg btn-dark" type="submit" value="Click here to login again."/>
-                <input type="hidden" name="next" value="{{ next }}" />
-              </form>
-              
-                {# Assumes you setup the password_reset view in your URLconf #}
-                <p><a href="{% url 'password_reset' %}" class="text-black">Lost password?</a></p>
+          
+              {# Assumes you setup the password_reset view in your URLconf #}
+              <p><a href="{% url 'password_reset' %}" class="text-black">Lost password?</a></p>
             </div>
         </div>
       

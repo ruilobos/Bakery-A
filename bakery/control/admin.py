@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import RawMaterial, Supplier, Base_recipes, Recipe_Ingredients, Product
+from .models import RawMaterial, Supplier, Base_recipes, Recipe_Ingredients, Product, Bs_Ingredients
 
 # Register your models here.
 class RawMaterialAdmin(admin.ModelAdmin):
@@ -25,12 +25,18 @@ class Base_Recipe_Admin(admin.ModelAdmin):
 admin.site.register(Base_recipes, Base_Recipe_Admin)
 
 
+class Bs_IngredientsAdmin(admin.ModelAdmin):
+    list_display = ('ingredient', 'base_recipe', 'quantity', 'unit')
+    list_filter = ['ingredient']
+
+admin.site.register(Bs_Ingredients,Bs_IngredientsAdmin)
+
+
 class Recipe_IngredientsAdmin(admin.ModelAdmin):
-    list_display = ('ingredient', 'category', 'base_recipes', 'quantity', 'unit')
-    list_filter = ['category']
+    list_display = ('ingredient', 'product', 'quantity', 'unit')
+    list_filter = ['ingredient']
 
 admin.site.register(Recipe_Ingredients, Recipe_IngredientsAdmin)
-
 
 class ProductAdmin(admin.ModelAdmin):
     list_display = ('name', 'recipe_yeld', 'yield_unit', 'price', 'vat')

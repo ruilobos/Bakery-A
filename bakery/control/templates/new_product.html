@@ -57,7 +57,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+              <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -95,7 +95,12 @@
                 <form action="" method="post">
                   {% csrf_token %}
                   <table>
-                    <p>{{ form.as_table }}</p>
+                    <p>Product Name: {{ form.name }}</p>
+                    <p>Category: {{ form.categorie }}</p>
+                    <p>Recipe Yield: {{ form.recipe_yeld }}</p>
+                    <p>Yield Unit: {{ form.yield_unit }}</p>
+                    <p>Selling Price (€): {{ form.price }}</p>
+                    <p>VAT (%): {{ form.vat }}</p>
                   </table>
                   <input type="submit" value="Submit">
                 </form>

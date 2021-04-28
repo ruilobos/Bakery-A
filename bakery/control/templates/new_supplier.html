@@ -57,7 +57,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+              <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -94,7 +94,7 @@
                 <form action="" method="post">
                   {% csrf_token %}
                   <table>
-                  {{ form.as_table }}
+                    <p>{{ form.as_table }}</p>
                   </table>
                   <input type="submit" value="Submit">
                 </form>
@@ -102,7 +102,6 @@
             </div>  
           </div>
         </div>
-
       </main>
     </div>
     
@@ -114,8 +113,7 @@
       </p>
     </footer>
 
-    <script src="../../static/js/bootstrap.bundle.min.js"></script>
-
-    <script src="../../static/js/supplier.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/supplier.js"></script>
   </body>
 </html>

@@ -57,7 +57,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+              <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -85,18 +85,19 @@
 
     <div class="container-fluid">
       <div class="row">
-        <nav id="sidebarMenu" class="col-md-1 col-lg-1 d-sm-block bg-light sidebar collapse">
+        <nav id="sidebarMenu" class="col-md-1 col-lg-1 d-sm-block bg-light sidebar">
           <div class="position-sticky pt-3">
             <ul class="nav flex-column">
               <li class="nav-item">
+                {% if request.user.is_staff %}
                 <a class="nav-link" aria-current="page" href="{% url 'control:raw_materials_create' %}">
-                  Insert
+                  New Raw Material
                 </a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="{% url 'control:suppliers' %}">
-                  Suppliers
+                {% else %}
+                <a>
+
                 </a>
+                {% endif %}
               </li>
             </ul>
           </div>
@@ -114,15 +115,19 @@
                     <th>Supplier</th>
                     <th>Code</th>
                     <th>ACC Number</th>
-                    <th>Price</th>
+                    <th>Price (€)</th>
                     <th>Qty</th>
                     <th>Unit</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody> 
                   {% for raw_material in rw_list %}
                     <tr>
+                      {% if request.user.is_staff %}
                       <td><a class="text-decoration-none text-dark" href="{% url 'control:raw_materials_update' raw_material.pk %}">{{ raw_material.description }}</a></td>
+                      {% else %}
+                      <td>{{ raw_material.description }}</td>
+                      {% endif %}
                       <td>{{ raw_material.supplier }}</td>
                       <td>{{ raw_material.code }}</td>
                       <td>{{ raw_material.supplier.accNumber }}</td>

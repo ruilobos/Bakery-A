@@ -57,7 +57,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+              <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -86,7 +86,7 @@
       <main class="mb-5">
         <div class="py-5 text-center">
           <h2>Delete Product</h2>
-          <p>Are you sure you want to delete the base product?</p>
+          <p>Are you sure you want to delete this base product?</p>
           <form action="" method="POST" >
             {% csrf_token %}
             <input type="submit" value="Yes, delete.">

@@ -57,7 +57,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+              <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -87,7 +87,6 @@
         <div class="py-5 text-center">
           <h2>Raw Material</h2>
         </div>
-
         <div class="container mb-5">
           <div class="row justify-content-center">
             <div class="col-md-4 col-lg-4">
@@ -95,7 +94,7 @@
                 <form action="" method="post">
                   {% csrf_token %}
                   <table>
-                  {{ form.as_table }}
+                    <p>{{ form.as_table }}</p>
                   </table>
                   <input type="submit" value="Submit">
                 </form>
@@ -111,15 +110,14 @@
     </div>
     
     <footer class="text-center pt-1 text-white-50 bg-dark">
-    <p>Developed by <a href="https://www.ruilobo.net" class="text-white">Rui Lobo</a> - &copy; 2021 
-    <a class="text-white" href="#">Privacy</a>
-    <a class="text-white" href="#">Terms</a>
-    <a class="text-white" href="#">Support</a>
-    </p>
+      <p>Developed by <a href="https://www.ruilobo.net" class="text-white">Rui Lobo</a> - &copy; 2021 
+      <a class="text-white" href="#">Privacy</a>
+      <a class="text-white" href="#">Terms</a>
+      <a class="text-white" href="#">Support</a>
+      </p>
     </footer>
 
-    <script src="../..php/static/js/bootstrap.bundle.min.js"></script>
-
-    <script src="../../static/js/raw_material.js"></script>
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/raw_material.js"></script>
   </body>
 </html>

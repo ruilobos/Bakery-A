@@ -57,7 +57,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+              <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -103,20 +103,18 @@
             </div>  
           </div>
         </div>
-
       </main>
     </div>
     
     <footer class="text-center pt-1 text-white-50 bg-dark">
-    <p>Developed by <a href="https://www.ruilobo.net" class="text-white">Rui Lobo</a> - &copy; 2021 
-    <a class="text-white" href="#">Privacy</a>
-    <a class="text-white" href="#">Terms</a>
-    <a class="text-white" href="#">Support</a>
-    </p>
+      <p>Developed by <a href="https://www.ruilobo.net" class="text-white">Rui Lobo</a> - &copy; 2021 
+      <a class="text-white" href="#">Privacy</a>
+      <a class="text-white" href="#">Terms</a>
+      <a class="text-white" href="#">Support</a>
+      </p>
     </footer>
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
-
     <script src="/static/js/edit_base_recipe.js"></script>
   </body>
 </html>

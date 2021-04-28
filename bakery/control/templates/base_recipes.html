@@ -60,7 +60,7 @@
               {% endif %}
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#projects">Settings</a>
+              <a class="nav-link" href="{% url 'control:settings' %}">Settings</a>
             </li>
           </ul>
         </div>
@@ -89,13 +89,19 @@
     <div class="container-fluid">
       <div class="row">
           
-        <nav id="sidebarMenu" class="col-md-1 col-lg-1 d-sm-block bg-light sidebar collapse">
+        <nav id="sidebarMenu" class="col-md-1 col-lg-1 d-sm-block bg-light sidebar">
           <div class="position-sticky pt-3">
             <ul class="nav flex-column">
               <li class="nav-item">
+                {% if request.user.is_staff %}
                 <a class="nav-link" aria-current="page" href="{% url 'control:base_recipe_create' %}">
                   New Base Recipe
                 </a>
+                {% else %}
+                <a>
+
+                </a>
+                {% endif %}
               </li>
             </ul>
           </div>
@@ -110,7 +116,7 @@
             <div class="container">
               <div class="row">
                 {% for base_recipe in base_recipes %}
-                <div id="card" class="col-3 mb-4">
+                <div id="card" class="col-sm-3 mb-4">
                   <div class="card shadow-sm p-4">
                     <i class="fas fa-book-reader fa-3x mb-3"></i>
                     <h3 class="card-text mb-3">{{ base_recipe.name }}</h3>
