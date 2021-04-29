@@ -124,6 +124,7 @@ class RawMaterialsList(ListView):
         }
         return context
 
+
 class Raw_material_Create(CreateView):
     model = RawMaterial
     fields = '__all__'
