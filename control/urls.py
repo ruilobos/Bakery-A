@@ -29,10 +29,9 @@ urlpatterns = [
     #-------------------------------------#
     path('base_recipes/', views.Base_recipesList.as_view(), name='base_recipes'),
 
-    #path('base_recipes/ingredients/create', views.Ingredient_Create.as_view(), name='ingredient_create'), 
-    path('base_recipes/ingredients/create/<int:pk>', views.Br_Ingre_Create.as_view(), name='br_ingre_create'), #falta implementar - copiar do produto
-    path('base_recipes/ingredients/<int:pk>/update/', views.Br_Ingre_Update.as_view(), name='br_ingre_update'), #falta implementar - copiar do produto
-    path('base_recipes/ingredients/<int:pk>/delete/', views.Br_Ingre_Delete.as_view(), name='br_ingre_delete'), #falta implementar - copiar do produto
+    path('base_recipes/ingredients/create/<int:pk>', views.Br_Ingre_Create.as_view(), name='br_ingre_create'), 
+    path('base_recipes/ingredients/<int:pk>/update/', views.Br_Ingre_Update.as_view(), name='br_ingre_update'), 
+    path('base_recipes/ingredients/<int:pk>/delete/', views.Br_Ingre_Delete.as_view(), name='br_ingre_delete'), 
 
     path('base_recipes/<int:pk>', views.Base_recipe.as_view(), name='base_recipe'),
     path('base_recipes/create/', views.Base_recipes_Create.as_view(), name='base_recipe_create'),
@@ -43,7 +42,6 @@ urlpatterns = [
     #Products Urls
     #-------------------------------------#
     path('products/', views.products_categories, name='products_categories'),
-    #path('products/ingredients/', views.Pro_Ingre_List.as_view(), name='pro_ingre_list'),
 
     path('products/ingredients/create/<str:pk>', views.Pro_Ingre_Create.as_view(), name='pro_ingre_create'),
     path('products/ingredients/<int:pk>/update/', views.Pro_Ingre_Update.as_view(), name='pro_ingre_update'),

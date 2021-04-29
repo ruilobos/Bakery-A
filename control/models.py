@@ -65,7 +65,6 @@ class Base_recipes(models.Model):
         ('UNIT', 'unit'),
     )
     name = models.CharField("Base Recipe Name", max_length=100)
-    #ingredients = models.ManyToManyField('Recipe_Ingredients', blank=True) 
     recipe_yeld = models.IntegerField("Recipe Yield") 
     yield_unit = models.CharField("Yield Unit", max_length=5, choices=UNIT_CHOICES)
 
@@ -205,7 +204,6 @@ class Product(models.Model):
     )
     name = models.CharField("Product Name", max_length=100)
     categorie = models.CharField("Category", max_length=30, choices=CATEGORY_CHOICES)
-    #ingredients = models.ManyToManyField('Recipe_Ingredients', blank=True, related_name='ingredients')
     recipe_yeld = models.DecimalField("Recipe Yield", max_digits=6, decimal_places=2) 
     yield_unit = models.CharField("Yield Unit", max_length=5, choices=UNIT_CHOICES)
     price = models.DecimalField("Selling Price (€)", max_digits=6, decimal_places=2)
@@ -221,30 +219,3 @@ class Product(models.Model):
         verbose_name = "Product"
         verbose_name_plural = "Products"
         ordering = ['name']
-
-
-
-
-
-
-
-
-        """
-    @property
-    def cost_recipe(self):
-        cost_recipe = 0
-        for iten in self.ingredients.all():
-            cost_recipe += (iten.quantity * iten.ingredient.price)
-            
-        return cost_recipe
-
-    @property
-    def unit_cost(self):
-        costrecipe = 0
-        for iten in self.ingredients.all():
-            costrecipe += (iten.quantity * iten.ingredient.price)
-
-        unit_cost = costrecipe/self.recipe_yeld
-
-        return unit_cost
-    """

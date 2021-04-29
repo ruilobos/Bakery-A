@@ -32,7 +32,6 @@ class Dashboard(ListView):
 
     def get_queryset(self, **kwargs):
         try:
-            print('teste')
             queryset = Recipe_Ingredients.objects.all()
         except Recipe_Ingredients.DoesNotExist:
             queryset = None
@@ -70,7 +69,6 @@ class Dashboard(ListView):
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 cost = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
             net_value[product] = "{:.2f}".format(float(cost))
-        print(net_value)
 
         # Margin percent
         price_list = []
@@ -190,7 +188,6 @@ class Base_recipe(ListView):
 
     def get_queryset(self, **kwargs):
         try:
-            print('teste')
             queryset = Bs_Ingredients.objects.filter(id__icontains=self.kwargs['pk'])
         except Base_recipes.DoesNotExist:
             queryset = None
@@ -200,8 +197,6 @@ class Base_recipe(ListView):
         context =  super(Base_recipe, self).get_context_data(**kwargs)
         queryset = Bs_Ingredients.objects.filter(base_recipe__id__icontains=self.kwargs['pk'])
         queryset2 = Base_recipes.objects.get(id__icontains=self.kwargs['pk'])
-        print(queryset)
-        print(queryset2)
         
         # Recipe Cost
         price_list = []
@@ -253,8 +248,7 @@ class Base_recipes_Update(UpdateView):
     model = Base_recipes
     fields = '__all__'
     template_name = 'edit_base_recipe.html'
-    #success_url = reverse_lazy('control:base_recipes')
-    
+        
 
 class Base_recipes_Delete(DeleteView):
     model = Base_recipes
@@ -262,27 +256,24 @@ class Base_recipes_Delete(DeleteView):
     success_url = reverse_lazy('control:base_recipes')
 
 
-class Br_Ingre_Create(CreateView): # Falta Implementar
+class Br_Ingre_Create(CreateView):
     model = Bs_Ingredients
     fields = ['ingredient', 'quantity', 'unit']
     template_name = 'new_ingredient.html'
 
     def form_valid(self, form):
-        print(self.kwargs['pk'])
         form.instance.base_recipe_id = self.kwargs['pk']
         return super(Br_Ingre_Create, self).form_valid(form)
 
-class Br_Ingre_Update(UpdateView): # Falta Implementar
+class Br_Ingre_Update(UpdateView):
     model = Bs_Ingredients
     fields = ['ingredient', 'quantity', 'unit']
     template_name = 'ingredient.html'
-    #success_url = reverse_lazy('control:base_recipe')
     
 
-class Br_Ingre_Delete(DeleteView): # Falta Implementar
+class Br_Ingre_Delete(DeleteView):
     model = Bs_Ingredients
     template_name = 'delete_ingredient.html'
-    #success_url = reverse_lazy('control:base_recipes')
    
 
 
@@ -299,7 +290,6 @@ class Pro_Ingre_Create(CreateView):
     template_name = 'new_ingredient.html'
 
     def form_valid(self, form):
-        print(self.kwargs['pk'])
         form.instance.product_id = self.kwargs['pk']
         return super(Pro_Ingre_Create, self).form_valid(form)
    
@@ -308,7 +298,6 @@ class Pro_Ingre_Update(UpdateView):
     model = Recipe_Ingredients
     fields = ['ingredient', 'quantity', 'unit']
     template_name = 'ingredient.html'
-    #success_url = reverse_lazy('control:products_categories')
 
 
 class Pro_Ingre_Delete(DeleteView):
@@ -324,7 +313,6 @@ class Product_List(ListView):
 
     def get_queryset(self, **kwargs):
         try:
-            print('teste')
             queryset = Recipe_Ingredients.objects.filter(product__categorie__icontains=self.kwargs['pk'])
         except Recipe_Ingredients.DoesNotExist:
             queryset = None
@@ -377,7 +365,6 @@ class Product_List(ListView):
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 cost = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
             net_value[product] = "{:.2f}".format(float(cost))
-        print(net_value)
         
         # Margin value
         price_list = []
@@ -511,7 +498,6 @@ def userslist(request):
     context = {}
     User = get_user_model()
     users = list(User.objects.all())
-    print(users)
     context['users'] = users
     return render(request, template_name, context)
 
@@ -534,89 +520,3 @@ class User_Delete(DeleteView):
     model = RawMaterial
     template_name = 'delete_user.html'
     success_url = reverse_lazy('control:users')
-
-
-
-
-
-
-
-"""
-class Pro_Ingre_List(ListView):
-    model = Product
-    template_name = 'products.html'
-    context_object_name = 'product_list'
-
-    def get_queryset(self, **kwargs):
-        try:
-            print('teste')
-            queryset = Product.objects.filter(categorie__icontains=self.kwargs['pk'])
-        except Product.DoesNotExist:
-            queryset = None
-            return queryset
-    
-    def get_context_data(self, **kwargs):
-        context =  super(Product_List, self).get_context_data(**kwargs)
-        queryset = Product.objects.filter(categorie__icontains=self.kwargs['pk'])
-        queryset2 = self.kwargs['pk']
-        #queryset3 = Recipe_Ingredients.filter(product__iconcains='kg').
-        queryset3 = Recipe_Ingredients.all()
-        print('teste')
-        print(queryset3)
-        context = {
-            'categorie' : queryset2,
-            'product_list' : queryset,
-            'ingre_list' : queryset3
-        }
-        return context
-"""
-
-"""
-class Product_List(ListView):
-    model = Product
-    template_name = 'products.html'
-    context_object_name = 'product_list'
-
-    def get_queryset(self, **kwargs):
-        try:
-            queryset = Product.objects.filter(categorie__icontains=self.kwargs['pk'])
-        except Product.DoesNotExist:
-            queryset = None
-            return queryset
-    
-    def get_context_data(self, **kwargs):
-        context =  super(Product_List, self).get_context_data(**kwargs)
-        queryset = Product.objects.filter(categorie__icontains=self.kwargs['pk'])
-        print(queryset)
-        queryset2 = self.kwargs['pk']
-        context = {
-            'categorie' : queryset2,
-            'product_list' : queryset
-        }
-        return context
-"""
-
-"""
-class Pro_Ingre_List(ListView):
-    model = Recipe_Ingredients
-    template_name = 'products.html'
-    context_object_name = 'product_list'
-
-    def get_queryset(self, **kwargs):
-        try:
-            queryset = Recipe_Ingredients.objects.filter(categorie__icontains=self.kwargs['pk'])
-        except Recipe_Ingredients.DoesNotExist:
-            queryset = None
-            return queryset
-    
-    def get_context_data(self, **kwargs):
-        context =  super(Product_List, self).get_context_data(**kwargs)
-        queryset = Recipe_Ingredients.objects.filter(categorie__icontains=self.kwargs['pk'])
-        queryset2 = self.kwargs['pk']
-        
-        context = {
-            'categorie' : queryset2,
-            'product_list' : queryset,
-        }
-        return context
-"""
