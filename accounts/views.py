@@ -4,8 +4,7 @@ from django.contrib.auth import authenticate, login
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 
-# Create your views here.
-
+# Login function using django user modules.
 def user_login(request):
     if request.method == 'POST':
         username = request.POST.get('username')

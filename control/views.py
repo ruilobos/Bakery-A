@@ -16,6 +16,8 @@ from django.template.defaulttags import register
 #-------------------------------------------------#
 # Generic Functions
 #-------------------------------------------------#
+
+# Retun as a dictionary iten
 ...
 @register.filter
 def get_item(dictionary, key):
@@ -25,6 +27,8 @@ def get_item(dictionary, key):
 #-------------------------------------------------#
 #Dashboard Views
 #-------------------------------------------------#
+
+# List all products
 class Dashboard(ListView):
     model = Recipe_Ingredients
     template_name = 'dashboard.html'
@@ -42,7 +46,7 @@ class Dashboard(ListView):
         queryset = Recipe_Ingredients.objects.all()
         queryset2 = Product.objects.all()
         
-        # Unit Cost
+        # Calculate Unit Cost
         price_list = []
         unit_cost = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -56,7 +60,7 @@ class Dashboard(ListView):
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
             unit_cost[product] = "{:.2f}".format(float(cost))
 
-        # Net Price
+        # Calculate Net Price
         price_list = []
         net_value = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -70,7 +74,7 @@ class Dashboard(ListView):
                 cost = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
             net_value[product] = "{:.2f}".format(float(cost))
 
-        # Margin percent
+        # Calculate Margin percent
         price_list = []
         margin_percent = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -99,10 +103,13 @@ class Dashboard(ListView):
 #-------------------------------------------------#
 #Raw Materials Views
 #-------------------------------------------------#
+
+# Render Raw Material Categories Page
 def rw_categories(request):
     return render(request, 'rw_categories.html')
 
 
+# List all Raw Materials in each categorie
 class RawMaterialsList(ListView):
     model = RawMaterial
     template_name = 'raw_materials.html'
@@ -125,6 +132,7 @@ class RawMaterialsList(ListView):
         return context
 
 
+# Create a new Raw Material
 class Raw_material_Create(CreateView):
     model = RawMaterial
     fields = '__all__'
@@ -132,6 +140,7 @@ class Raw_material_Create(CreateView):
     success_url = reverse_lazy('control:rw_categories')
    
 
+# Update a Raw Material
 class Raw_material_Update(UpdateView):
     model = RawMaterial
     fields = '__all__'
@@ -139,6 +148,7 @@ class Raw_material_Update(UpdateView):
     success_url = reverse_lazy('control:rw_categories')
     
 
+# Delete a Raw Material
 class Raw_material_Delete(DeleteView):
     model = RawMaterial
     template_name = 'delete_raw_material.html'
@@ -148,11 +158,14 @@ class Raw_material_Delete(DeleteView):
 #-------------------------------------------------#
 #Suppliers Views
 #-------------------------------------------------#
+
+# List all Suppliers
 class SuppliersList(ListView):
     model = Supplier
     template_name = 'suppliers.html'
 
 
+# Create a new Supplier
 class Supplier_Create(CreateView):
     model = Supplier
     fields = '__all__'
@@ -160,6 +173,7 @@ class Supplier_Create(CreateView):
     success_url = reverse_lazy('control:suppliers')
    
 
+# Update a Supplier
 class Supplier_Update(UpdateView):
     model = Supplier
     fields = '__all__'
@@ -167,6 +181,7 @@ class Supplier_Update(UpdateView):
     success_url = reverse_lazy('control:suppliers')
     
 
+# Delete a Supplier
 class Supplier_Delete(DeleteView):
     model = Supplier
     template_name = 'delete_supplier.html'
@@ -175,13 +190,16 @@ class Supplier_Delete(DeleteView):
 
 #-------------------------------------------------#
 #Base Recipes Views
-#-------------------------------------------------#
+#-------------------------------------------------#.
+
+# List all Base Recipes (Inicial Page)
 class Base_recipesList(ListView):
     model = Base_recipes
     template_name = 'base_recipes.html'
     context_object_name = 'base_recipes'
 
 
+# Show Base Recipe Details Page
 class Base_recipe(ListView):
     model = Bs_Ingredients
     template_name = 'base_recipe.html'
@@ -199,7 +217,7 @@ class Base_recipe(ListView):
         queryset = Bs_Ingredients.objects.filter(base_recipe__id__icontains=self.kwargs['pk'])
         queryset2 = Base_recipes.objects.get(id__icontains=self.kwargs['pk'])
         
-        # Recipe Cost
+        # Calculate Recipe Cost
         price_list = []
         recipe_cost = {}
         for iten in Bs_Ingredients.objects.all():
@@ -213,7 +231,7 @@ class Base_recipe(ListView):
                 cost += (float(ingredient.ingredient.price) * (float(ingredient.quantity)))
             recipe_cost[product] = "{:.2f}".format(float(cost))
 
-        # Unit Cost
+        # Calculate Unit Cost
         price_list = []
         unit_cost = {}
         for iten in Bs_Ingredients.objects.all():
@@ -237,6 +255,7 @@ class Base_recipe(ListView):
         return context
 
 
+# Create a new Base Recipe
 class Base_recipes_Create(CreateView):
     model = Base_recipes
     fields = '__all__'
@@ -245,18 +264,21 @@ class Base_recipes_Create(CreateView):
     success_url = reverse_lazy('control:base_recipes')
 
 
+# Update a Base Recipe
 class Base_recipes_Update(UpdateView):
     model = Base_recipes
     fields = '__all__'
     template_name = 'edit_base_recipe.html'
         
 
+# Delete a Base Recipe
 class Base_recipes_Delete(DeleteView):
     model = Base_recipes
     template_name = 'delete_base_recipe.html'
     success_url = reverse_lazy('control:base_recipes')
 
 
+# Add ingredient to the Base Recipe
 class Br_Ingre_Create(CreateView):
     model = Bs_Ingredients
     fields = ['ingredient', 'quantity', 'unit']
@@ -266,12 +288,15 @@ class Br_Ingre_Create(CreateView):
         form.instance.base_recipe_id = self.kwargs['pk']
         return super(Br_Ingre_Create, self).form_valid(form)
 
+
+# Update ingredient in Base Recipe
 class Br_Ingre_Update(UpdateView):
     model = Bs_Ingredients
     fields = ['ingredient', 'quantity', 'unit']
     template_name = 'ingredient.html'
     
 
+# Delete ingredient in Base Recipe
 class Br_Ingre_Delete(DeleteView):
     model = Bs_Ingredients
     template_name = 'delete_ingredient.html'
@@ -281,10 +306,13 @@ class Br_Ingre_Delete(DeleteView):
 #-------------------------------------------------#
 #Products Views
 #-------------------------------------------------#
+
+# List products categorie
 def products_categories(request):
     return render(request, 'products_categories.html')
 
 
+# Create a new product
 class Pro_Ingre_Create(CreateView):
     model = Recipe_Ingredients
     fields = ['ingredient', 'quantity', 'unit']
@@ -295,18 +323,21 @@ class Pro_Ingre_Create(CreateView):
         return super(Pro_Ingre_Create, self).form_valid(form)
    
 
+# Update a Product
 class Pro_Ingre_Update(UpdateView):
     model = Recipe_Ingredients
     fields = ['ingredient', 'quantity', 'unit']
     template_name = 'ingredient.html'
 
 
+# Delete a Product
 class Pro_Ingre_Delete(DeleteView):
     model = Recipe_Ingredients
     template_name = 'delete_ingredient.html'
     success_url = reverse_lazy('control:products_categories')
 
 
+# List all Products in each categorie
 class Product_List(ListView):
     model = Recipe_Ingredients
     template_name = 'products.html'
@@ -325,7 +356,7 @@ class Product_List(ListView):
         queryset2 = self.kwargs['pk']
         queryset3 = Product.objects.filter(categorie__icontains=self.kwargs['pk'])
         
-        # Recipe Cost
+        # Calculate Recipe Cost
         price_list = []
         recipe_cost = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -339,7 +370,7 @@ class Product_List(ListView):
                 cost += (float(ingredient.ingredient.price) * (float(ingredient.quantity)))
             recipe_cost[product] = "{:.2f}".format(float(cost))
 
-        # Unit Cost
+        # Calculate Unit Cost
         price_list = []
         unit_cost = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -353,7 +384,7 @@ class Product_List(ListView):
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
             unit_cost[product] = "{:.2f}".format(float(cost))
 
-        # Net Price
+        # Calculate Net Price
         price_list = []
         net_value = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -367,7 +398,7 @@ class Product_List(ListView):
                 cost = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
             net_value[product] = "{:.2f}".format(float(cost))
         
-        # Margin value
+        # Calculate Margin value
         price_list = []
         margin_value = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -382,7 +413,7 @@ class Product_List(ListView):
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
             margin_value[product] = "{:.2f}".format((net_price - cost))
 
-        # Margin percent
+        # Calculate Margin percent
         price_list = []
         margin_percent = {}
         for iten in Recipe_Ingredients.objects.all():
@@ -411,6 +442,7 @@ class Product_List(ListView):
         return context
 
 
+# Add new ingredient to the product
 class Product_Create(CreateView):
     model = Product
     fields = '__all__'
@@ -418,6 +450,7 @@ class Product_Create(CreateView):
     success_url = reverse_lazy('control:products_categories')
    
 
+# Update a ingredient in product
 class Product_Update(UpdateView):
     model = Product
     fields = '__all__'
@@ -425,6 +458,7 @@ class Product_Update(UpdateView):
     success_url = reverse_lazy('control:products_categories')
     
 
+# Delete a ingredient in Product
 class Product_Delete(DeleteView):
     model = Product
     template_name = 'delete_product.html'
@@ -434,14 +468,18 @@ class Product_Delete(DeleteView):
 #-------------------------------------------------#
 #Settings Views
 #-------------------------------------------------#
+
+# Render Settings Page
 def settings(request):
     return render(request, 'settings.html')
 
 
+# Render Export to CSV Page
 def export_to_csv(request):
     return render(request, 'export_to_csv.html')
 
 
+# Export Supplier DB to CSV
 def export_suppliers(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="suppliers.csv"'
@@ -455,6 +493,7 @@ def export_suppliers(request):
     return response
 
 
+# Export Raw Material DB to CSV
 def export_raw_materials(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="raw_materials.csv"'
@@ -468,6 +507,7 @@ def export_raw_materials(request):
     return response
 
 
+# Export Base Recipes DB to CSV
 def export_base_recipes(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="base_recipes.csv"'
@@ -481,6 +521,7 @@ def export_base_recipes(request):
     return response
 
 
+# Export Products DB to CSV
 def export_products(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="products.csv"'
@@ -494,6 +535,7 @@ def export_products(request):
     return response
 
 
+# List all web app users
 def userslist(request):
     template_name = 'users.html'
     context = {}
@@ -503,6 +545,7 @@ def userslist(request):
     return render(request, template_name, context)
 
 
+# Create a new user
 class User_Create(CreateView):
     model = get_user_model()
     fields = '__all__'
@@ -510,13 +553,14 @@ class User_Create(CreateView):
     success_url = reverse_lazy('control:users')
    
 
+# Update a User
 class User_Update(UpdateView):
     model = get_user_model()
     fields = '__all__'
     template_name = 'user.html'
     success_url = reverse_lazy('control:users')
     
-
+# Delete a User
 class User_Delete(DeleteView):
     model = RawMaterial
     template_name = 'delete_user.html'

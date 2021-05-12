@@ -75,7 +75,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'bakery.wsgi.application'
 
 
-# Database
+# Database - PorstgreSQL
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
 DATABASES = {

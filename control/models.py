@@ -1,7 +1,10 @@
 from django.db import models
 from django.urls import reverse
 
-# Create your models here.
+
+#-------------------------------------#
+# Create RawMaterial DB.
+#-------------------------------------#
 class RawMaterial(models.Model):
     UNIT_CHOICES = (
         ('KG', 'kg'),
@@ -29,6 +32,7 @@ class RawMaterial(models.Model):
     def __str__(self):
         return self.description
 
+    # URL to redirect
     def get_absolute_url(self):
         return reverse("raw_material", args=[str(self.id)])
 
@@ -38,6 +42,9 @@ class RawMaterial(models.Model):
         ordering = ['description']
     
 
+#-------------------------------------#
+# Create Supplier DB
+#-------------------------------------#
 class Supplier(models.Model):
     name = models.CharField("Supplier Name", max_length=100, primary_key=True)
     accNumber = models.CharField("ACC Number",max_length=30, blank=True) 
@@ -49,8 +56,9 @@ class Supplier(models.Model):
     def __str__(self):
         return self.name
 
+    # URL to redirect
     def get_absolute_url(self):
-        return reverse("xxxxxxxxxx", args=[str(self.id)])
+        return reverse("", args=[str(self.id)])
 
     class Meta:
         verbose_name = "Supplier"
@@ -58,6 +66,9 @@ class Supplier(models.Model):
         ordering = ['name']
 
 
+#-------------------------------------#
+# Create Base_recipes DB
+#-------------------------------------#
 class Base_recipes(models.Model):
     UNIT_CHOICES = (
         ('KG', 'kg'),
@@ -71,9 +82,9 @@ class Base_recipes(models.Model):
     def __str__(self):
         return self.name
 
+    # URL to redirect
     def get_absolute_url(self):
         return reverse("control:base_recipe", args=[str(self.id)])
-
 
     class Meta:
         verbose_name = "Base Recipe"
@@ -81,6 +92,9 @@ class Base_recipes(models.Model):
         ordering = ['name']
 
 
+#-------------------------------------#
+# Create Bs_Ingredients DB
+#-------------------------------------#
 class Bs_Ingredients(models.Model):
     CATEGORY_CHOICES = (
         ('BEVERAGE', 'Beverage'),
@@ -105,9 +119,11 @@ class Bs_Ingredients(models.Model):
     def __str__(self):
         return self.ingredient.description
 
+    # URL to redirect
     def get_absolute_url(self):
         return reverse("control:base_recipe", args=[str(self.base_recipe.id)])
 
+    # function to calculate the unit cost
     @property
     def cost(self):
         cost = "{:.2f}".format(self.quantity*self.ingredient.price)
@@ -119,6 +135,9 @@ class Bs_Ingredients(models.Model):
         ordering = ['ingredient']
 
 
+#-------------------------------------#
+# Create Recipe_Ingredients DB
+#-------------------------------------#
 class Recipe_Ingredients(models.Model):
     CATEGORY_CHOICES = (
         ('BEVERAGE', 'Beverage'),
@@ -143,19 +162,23 @@ class Recipe_Ingredients(models.Model):
     def __str__(self):
         return self.ingredient.description
 
+    # URL to redirect
     def get_absolute_url(self):
         return reverse("control:products", args=[str(self.product.categorie)])
 
+    # function to calculate the unit cost
     @property
     def cost(self):
         cost = "{:.2f}".format(self.quantity*self.ingredient.price)
         return cost
 
+    # function to calculate the net price
     @property
     def net_price(self):
         net_price = "{:.2f}".format(self.product.price*(1-self.product.vat))
         return net_price
 
+    # function to calculate the margin percent
     @property
     def margin_percent(self):
         cost_recipe = 0
@@ -168,6 +191,7 @@ class Recipe_Ingredients(models.Model):
         margin_percent = "{:.2f}".format(margin*100)  
         return margin_percent
 
+    # function to calculate the margin value
     @property
     def margin_value(self):
         cost_recipe = 0
@@ -183,6 +207,9 @@ class Recipe_Ingredients(models.Model):
         ordering = ['ingredient']
 
 
+#-------------------------------------#
+# Create Product DB
+#-------------------------------------#
 class Product(models.Model):
     UNIT_CHOICES = (
         ('KG', 'kg'),
@@ -212,6 +239,7 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+    # URL to redirect
     def get_absolute_url(self):
         return reverse("products_categories", args=[str(self.id)])
 
