@@ -7,5 +7,5 @@ services:
     ports:
       - "9001:8000"
     environment:
-      DATABASE_URL: postgres://postgres:r1l2_postgre@simple:5432/simple
+      DATABASE_URL: postgres://postgres:r1l2_postgre@postgres:5432/simple
     restart: always
