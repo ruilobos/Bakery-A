@@ -56,6 +56,7 @@ Turn Bakery from a prototype Django application into a secure, maintainable, tes
 - `django-environ` -> current stable version
 - `asgiref`, `sqlparse`, `tzdata`/`pytz` -> align with selected Django release requirements
 - Review whether `mathfilters` is still needed; remove if calculations move to views/services
+- Add `django-storages[s3]` + `boto3` once user-uploaded media (product photos, profile pictures) moves to S3-compatible object storage — see Phase 2/3/7 below and `docs/decisions.md` ADR-005
 
 ## Phase 1 - Stabilize the Repository
 
@@ -121,7 +122,10 @@ Turn Bakery from a prototype Django application into a secure, maintainable, tes
 - Replace unsafe `print()` login diagnostics with structured logging that never records passwords
 - Validate and sanitize all form input
 - Add server-side protection for export endpoints
-- Review file/media handling and either implement it properly or remove unused media settings
+- Implement media handling properly instead of leaving it half-configured: remove the broken
+  leftover `MEDIA_ROOT` path and move user-uploaded media (product photos, profile pictures — see
+  Phase 3) to S3-compatible object storage, with credentials held as environment variables, never
+  hardcoded (Cloudflare R2 is the lead candidate — see `docs/tech_stack.md` and ADR-005)
 
 ## Phase 3 - Database Redesign and Data Governance
 
@@ -131,6 +135,21 @@ Turn Bakery from a prototype Django application into a secure, maintainable, tes
 - Preserve historical business data
 - Improve query performance and data integrity
 - Prepare for backups, restore drills, and controlled schema evolution
+- Introduce multi-tenancy: one shared database, tenant-scoped rows, per `docs/decisions.md`
+  ADR-006/ADR-008 — the app is confirmed multi-tenant SaaS, not single-bakery
+
+### Multi-Tenancy (new, per ADR-006/ADR-008)
+
+- Add a `Bakery` model (the tenant) as the root of the tenant hierarchy
+- Add a tenant FK to every business table that currently has none: `Supplier`, `RawMaterial`,
+  `Base_recipes`, `Bs_Ingredients`, `Product`, `Recipe_Ingredients`, and the future `Profile` model
+- Enforce tenant scoping at the query layer everywhere (managers/service layer that always filter
+  by the current tenant) — this is a correctness- and security-critical convention, not optional;
+  see Phase 6 for dedicated cross-tenant isolation tests
+- Scope user roles/permissions (Phase 2) per tenant, not globally — a bakery's admin/owner
+  administers only their own tenant's data
+- Database topology stays as-is: app and database remain separate services/containers regardless
+  of tenancy model (ADR-007) — multi-tenancy is a schema/row-scoping decision, not an infra one
 
 ### Schema Review and Refactor
 
@@ -159,12 +178,23 @@ Turn Bakery from a prototype Django application into a secure, maintainable, tes
 - Ensure VAT representation is consistent and documented
 - Decide whether product pricing history must be versioned
 - Consider storing calculated values as derived data only, not editable business data
+- Add a `photo` field on `Product` for a product image, stored in object storage rather than local
+  disk (see "Media & User Profiles" below and `docs/tech_stack.md`)
 
 #### Ingredient Relations
 
 - Keep separate through tables for recipe ingredients if business workflows differ
 - Otherwise evaluate a shared ingredient line model with a typed parent reference
 - Add uniqueness constraints to avoid duplicate ingredient lines for the same parent/item/unit combination
+
+#### Media & User Profiles
+
+- Add a profile picture field for app users — likely a `Profile` model with a one-to-one to
+  Django's `User` rather than a custom user model, to avoid a disruptive auth migration
+- Both this and the `Product.photo` field above store only a reference (object storage key/URL) in
+  Postgres; the binary file itself lives in object storage, never in the database
+- Treat profile pictures as personal data from day one — see `docs/gdpr.md` data inventory and data
+  subject rights (an account deletion must also delete the stored photo, not just the DB row)
 
 ### Database Best Practices
 
@@ -194,6 +224,13 @@ Turn Bakery from a prototype Django application into a secure, maintainable, tes
 - Add seed/reference data strategy for categories and units
 - Create backup, restore, and retention procedures
 - Add migration rollback guidance for every schema change release
+- Build a tenant-scoped **full data export** (ADR-008): given a tenant, export all of that
+  tenant's rows across every tenant-scoped table in a portable, DBMS-agnostic format (plain SQL
+  `CREATE TABLE`/`INSERT` statements, or a per-table CSV bundle + relationship manifest) — not a
+  Postgres-specific `pg_dump`, so a departing tenant can import it elsewhere
+- Build a dedicated **GDPR personal-data export** (ADR-009), separate from both the above and the
+  existing bulk admin CSV export: scoped to one data subject, containing only that subject's
+  personal data across models — see `docs/gdpr.md` §3 Portability
 
 ### Database Operations for Production
 
@@ -222,6 +259,7 @@ Turn Bakery from a prototype Django application into a secure, maintainable, tes
   - VAT
   - price ranges
   - uniqueness constraints
+  - uploaded file type and size for product photos and profile pictures
 - Use form widgets and help text for clearer operator workflows
 
 ### Query and Performance Review
@@ -267,6 +305,7 @@ The project does not need a full SPA to become production-ready. A modern server
 
 - Build real search/filter flows or remove fake search inputs
 - Improve forms, validation errors, empty states, and destructive action confirmations
+- Add image upload/preview UI for product photos and user profile pictures, with a clear empty-state placeholder when no photo is set
 - Improve accessibility:
   - semantic HTML
   - form labels
@@ -319,10 +358,16 @@ The project does not need a full SPA to become production-ready. A modern server
 
 ### Deployment and Infrastructure
 
-- Replace legacy Heroku assumptions with a documented deployment target
-- Standardize Docker for local development and production builds
+- Replace legacy Heroku assumptions with a documented deployment target — narrowed to Railway,
+  Render, or DigitalOcean App Platform (see `docs/decisions.md` ADR-003)
+- Standardize Docker for local development and production builds — deploy via the existing
+  Dockerfile on whichever host is chosen rather than that platform's native buildpack, so behavior
+  stays identical across all three candidates (see ADR-004)
 - Fix `docker-compose.yaml` so it defines all required services correctly
 - Separate local compose from production deployment definitions
+- Provision an S3-compatible object storage bucket (Cloudflare R2 — see ADR-005) for user-uploaded
+  media, decoupled from app compute so it's unaffected by which of the three hosts is picked;
+  optionally front it with a custom domain/CDN
 - Add:
   - static asset build step
   - migration release step
