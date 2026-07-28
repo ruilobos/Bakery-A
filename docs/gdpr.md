@@ -8,6 +8,11 @@ treat an `Open` row as permission to build against it.
 
 This is not legal advice — get a real legal/DPO review before relying on this for compliance.
 
+Backlog counterpart: Epic 11 (`gdpr-data-inventory`) in
+[`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md) carries one task per open item below;
+Epic 15 (`feature-gdpr-data-export`) carries the §3 Portability fix. Decisions get made here, tasks
+get tracked there.
+
 ## 0. Controller / processor model (multi-tenant)
 
 Per [decisions.md](decisions.md) ADR-006, Bakery is now confirmed as a multi-tenant SaaS product —
@@ -80,13 +85,13 @@ Open — currently no retention policy exists; data appears to be kept indefinit
 
 ## 6. Security measures
 
-Cross-reference with `PRODUCTION_UPDATE_PLAN.md` Phase 2 (secrets management, HTTPS/HSTS,
-access control) — GDPR Article 32 requires "appropriate technical and organizational measures,"
-which overlaps heavily with that plan. Don't duplicate the security work here; just track GDPR-
-specific gaps:
+Cross-reference with [`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md) Epic 2 (secrets
+management, HTTPS/HSTS, access control) — GDPR Article 32 requires "appropriate technical and
+organizational measures," which overlaps heavily with that epic. Don't duplicate the security work
+here; just track GDPR-specific gaps:
 
 - [ ] Stop logging plaintext passwords on failed login (`accounts/views.py`) — highest priority.
-- [ ] Confirm encryption in transit (HTTPS enforced) once Phase 2 lands.
+- [ ] Confirm encryption in transit (HTTPS enforced) once Epic 2 lands.
 - [ ] Confirm backups are encrypted at rest, if/when a backup strategy is defined.
 - [ ] Access logging for who viewed/exported personal data (audit trail).
 

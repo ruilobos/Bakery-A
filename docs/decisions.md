@@ -28,7 +28,7 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
 ## ADR-001: Branching strategy for the redesign
 
 - **Date:** 2026-07-16
-- **Status:** Proposed
+- **Status:** Superseded by ADR-010 (`main` no longer mirrors production; a separate `production` branch does)
 - **Context:** The app has real production usage history and is being modernized in phases
   (see `PRODUCTION_UPDATE_PLAN.md`) while requirements/stack/GDPR scope are still being decided
   (see [project_requirements.md](project_requirements.md), [tech_stack.md](tech_stack.md),
@@ -101,7 +101,7 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
 ## ADR-004: Deploy via the existing custom Dockerfile, not each platform's native buildpack
 
 - **Date:** 2026-07-21
-- **Status:** Proposed
+- **Status:** Accepted
 - **Context:** Railway, Render, and DigitalOcean App Platform (ADR-003) each support two build
   paths: a custom `Dockerfile` (already present in this repo) or the platform's own native
   buildpack (Railway: Railpack, replacing Nixpacks; Render: Cloud Native Buildpacks; DigitalOcean:
@@ -127,7 +127,7 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
 ## ADR-005: Store user-uploaded media (product photos, profile pictures) in S3-compatible object storage
 
 - **Date:** 2026-07-21
-- **Status:** Proposed
+- **Status:** Accepted
 - **Context:** The redesign adds two user-upload features — product photos and user profile
   pictures (see [project_requirements.md](project_requirements.md) feature backlog and
   [gdpr.md](gdpr.md), since profile pictures are personal data). None of the three hosting
@@ -253,7 +253,115 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
   be cross-referenced from `gdpr.md` §3 (Portability) as the concrete fix for that row's "Open"
   status.
 
-## ADR-010: <next decision goes here>
+## ADR-010: Revise branch/environment strategy — `main` as dev/test integration, `production` as the deploy branch, with tagged releases (supersedes ADR-001)
+
+- **Date:** 2026-07-21
+- **Status:** Accepted
+- **Context:** ADR-001 assumed `main` mirrors what's live in production. Revisiting before CI/CD
+  (Phase 6/7) is built: a dedicated pre-production integration/testing branch, an explicit
+  promotion step to production, and named release points for rollback are wanted — and the model
+  needs to work with whichever of Railway/Render/DigitalOcean (ADR-003) is eventually chosen. Each
+  candidate's dev/staging/preview support was checked 2026-07-21 — see
+  [tech_stack.md](tech_stack.md) "Dev/staging/preview environment support" — and all three can run
+  the model below regardless of which is finally picked.
+- **Decision:**
+  - `main` becomes the **integration/dev-test branch**, not what real users hit. Phase/feature
+    branches (naming unchanged from ADR-001 — `phase-N-slug`, `feature-slug`, `gdpr-slug`,
+    `stack-slug`) branch off `main` and merge back via PR.
+  - Every merge to `main` auto-deploys to a persistent staging/dev environment on the chosen
+    platform (a second Railway environment / Render service / DigitalOcean App tracking `main`).
+  - A new `production` branch holds what's actually live. Promotion is a deliberate, separate
+    step: open a PR from `main` → `production` once the staged build is validated; merging it
+    triggers the platform's production deployment.
+  - Every merge to `production` is tagged with a semantic version (e.g. `v0.3.0`) and published as
+    a GitHub Release (auto-generated notes from PR titles) — a named, referenceable rollback
+    point.
+  - Both `main` and `production` are protected: no direct pushes, no force-pushes, changes only
+    via PR. Required-status-check enforcement is added once Phase 6 stands up real CI (nothing to
+    check against yet). `production` gets a required-approval rule once more than one person
+    touches the repo (0 required approvals for now, since this is currently a solo project — raise
+    it later).
+- **Alternatives considered:** Keeping `main` as the deployed branch (original ADR-001) —
+  rejected, no safe integration point to validate changes before real users see them. Full
+  GitFlow (`develop` + `main` + release + hotfix branches) — rejected as more ceremony than this
+  project needs; two branches (`main` for integration, `production` for deploy) gets the same
+  safety with less overhead. Mandatory per-PR ephemeral previews as a third tier — not required
+  yet given cost/complexity (Render gates it behind a paid tier); left as an optional per-host
+  enhancement, most naturally available on Railway.
+- **Consequences:** Requires a second environment/app resource on whichever host is picked — a
+  real cost factor to weigh in the final hosting pick. Requires creating the `production` branch
+  and configuring branch protection on both `main` and `production` in GitHub.
+  `docs/roadmap.md` branch naming is unaffected; only the destination of the final promotion step
+  changes.
+
+## ADR-011: Move a minimal CI check into Phase 1; Phase 6 becomes the full CI/CD build-out
+
+- **Date:** 2026-07-21
+- **Status:** Accepted
+- **Context:** Branch protection on `main`/`production` (ADR-010) now requires every change to go
+  through a PR, but the original plan put all CI/CD in Phase 6 — meaning five phases of PRs would
+  merge on manual review alone, with zero automated verification, before any pipeline exists. Full
+  CI/CD (comprehensive tests, coverage gates, security scanning, deploy automation) can't fully
+  move earlier: it depends on a test suite that doesn't exist until Phase 6 writes it, and on a
+  hosting platform that hasn't been picked yet (see [tech_stack.md](tech_stack.md) "Hosting
+  candidates").
+- **Decision:** Split "CI/CD" into two touchpoints instead of one phase. A minimal CI pipeline
+  moves into Phase 1 — `python manage.py check`, a migrations-check, a Docker build validation,
+  and a basic lint pass, running on every PR against `main`/`production` via GitHub Actions.
+  Phase 6 keeps the full pipeline (real test suite, complete formatting/lint enforcement, security
+  scanning) and extends the Phase 1 workflow rather than replacing it; the deploy-automation half
+  of CI/CD (auto-deploy to staging/production per ADR-010) is added once Phase 7 has an actual
+  host chosen.
+- **Alternatives considered:** Moving all of Phase 6 to now — rejected, most of its scope (the
+  test suite itself, full lint/format enforcement, security scanning, deploy automation) has
+  prerequisites that don't exist yet (tests, chosen host) and would either run against nothing or
+  need to be redone once those prerequisites land. Leaving CI/CD entirely in Phase 6 as originally
+  scoped — rejected now that branch protection is live; PRs would merge on manual review only for
+  the first five phases.
+- **Consequences:** Phase 1 gains a small new deliverable (a basic GitHub Actions workflow) that
+  wasn't in its original scope. Phase 6's CI/CD section is reworded to "extend" rather than
+  "create" the pipeline. No change to the overall phase count or execution order — this splits one
+  phase's scope across two touchpoints rather than reordering phases.
+
+## ADR-012: `PRODUCTION_UPDATE_PLAN.md` becomes a task backlog; all undecided material lives in `docs/`
+
+- **Date:** 2026-07-28
+- **Status:** Accepted
+- **Context:** `PRODUCTION_UPDATE_PLAN.md` had grown into a hybrid: actionable work, stack
+  recommendations that were never decided, rationale, sequencing, and release scoping all in one
+  narrative document. Nothing in it was individually trackable, and it repeated (and sometimes
+  drifted from) material that already lived in `docs/tech_stack.md`, `docs/project_requirements.md`,
+  `docs/gdpr.md`, and `docs/roadmap.md`. Separately, several `Accepted` ADRs (005, 006, 008, 009,
+  010, 011) had consequences spread across the plan's prose with no guarantee every one had been
+  picked up as work.
+- **Decision:**
+  - `PRODUCTION_UPDATE_PLAN.md` is now a **backlog**. Each phase, discovery workstream, and feature
+    is an **Epic** (numbered 1–16, mapping 1:1 to the branch rows in `docs/roadmap.md`), and each
+    epic holds numbered tasks (`3.12` = Epic 3, task 12) with a status of
+    `Not started` / `In progress` / `Blocked` / `Done`. Task IDs are stable and never renumbered.
+  - Epics 1–8 keep the original phase numbers, so existing references to "Phase N" in this log and
+    elsewhere still resolve — Phase N is Epic N.
+  - **Undecided material does not live in the backlog.** Candidate stack choices, product/business
+    questions, privacy questions, and sequencing/milestones were moved into `tech_stack.md`,
+    `project_requirements.md`, `gdpr.md`, and `roadmap.md` respectively. The backlog references
+    them; it does not restate them.
+  - **Every decision becomes a task.** Any `Accepted` ADR or `Decided` row in `docs/` must be
+    represented by at least one task in an epic, tracked in the backlog's "Decision → task coverage"
+    table. A task blocked on an `Open` row is marked `Blocked` with a pointer to the decision task
+    (Epics 9/10/11) that unblocks it — so an undecided question can no longer be implemented by
+    accident.
+- **Alternatives considered:** A separate issue tracker (GitHub Issues/Projects) — better tooling,
+  but it splits the working context away from the repo and away from Claude Code sessions, which is
+  where this project's planning actually happens; revisit if more people join. Leaving the plan as
+  prose and tracking tasks only in `roadmap.md` — rejected, `roadmap.md` tracks branches at
+  phase granularity, which is far too coarse for ~140 discrete pieces of work.
+- **Consequences:** The plan file is longer but mechanically usable — work can be picked up, closed,
+  and referenced by ID from commits/PRs. Two files must now be kept in sync: epic status in
+  `roadmap.md`, task status in the backlog. Adding a phase means adding both a roadmap row and an
+  epic. Every future ADR gains a step: add its tasks to the relevant epic and a row to the coverage
+  table in the same session.
+
+## ADR-013: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed

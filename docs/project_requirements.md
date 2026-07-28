@@ -1,10 +1,14 @@
 # Project Requirements
 
 How to use this file: this is the running source of truth for *what the app should do*, separate
-from `PRODUCTION_UPDATE_PLAN.md` (which is about *engineering quality* — security, deps, tests,
-CI/CD) and `tech_stack.md` (*what it's built with*). Fill in sections as you decide them; leave
-`Status: Open` rows alone until you've actually made the call. When a requirement changes scope
-meaningfully, log why in [decisions.md](decisions.md).
+from [`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md) (the task backlog — epics and
+tasks, no undecided material) and `tech_stack.md` (*what it's built with*). Fill in sections as you
+decide them; leave `Status: Open` rows alone until you've actually made the call. When a requirement
+changes scope meaningfully, log why in [decisions.md](decisions.md).
+
+Once something here is decided, it must also appear as a task in an epic in the backlog. Epic 10
+(`requirements-discovery`) is the backlog counterpart of this file: one task per group of `Open`
+rows below.
 
 ## Vision
 
@@ -88,12 +92,29 @@ Carried over from the old README/plan as candidates, not commitments:
 | Multi-tenancy (`Bakery` model + tenant scoping across all business models) | | Confirmed direction — see [decisions.md](decisions.md) ADR-006/ADR-008. Required foundation for Phase 3; not optional | Decided (direction) |
 | Tenant full data export, portable/DBMS-importable format | | Lets a departing tenant take their full dataset with them — see ADR-008. Potential product differentiator, not just a compliance mechanism | Decided (direction) |
 | GDPR personal-data export (dedicated, subject-scoped) | | Second export alongside the bulk CSV export, scoped to one data subject — see ADR-009 and [gdpr.md](gdpr.md) §3 Portability | Decided (direction) |
+| Better user & role management (per-tenant role assignment, inviting/removing users, self-service tenant admin) | | Beyond the security-hardening baseline in Epic 2 — this is the product-facing administration surface. Depends on the role matrix above | Open |
+
+## Business rules & data semantics
+
+Open business questions that the Phase 3 schema redesign is blocked on. These are questions about
+what the numbers *mean*, not about how to model them — the structural counterparts live in
+[tech_stack.md](tech_stack.md) "Data model — structural open questions".
+
+| Question | Why it matters | Status |
+|---|---|---|
+| Does `RawMaterial.price` mean price per purchase unit, or price per normalized base unit? | Every cost/margin figure in the app depends on the answer; today it's implicit | Open |
+| What are the canonical units used for costing, and how are purchase units converted to them? | Needed before normalized unit handling can be implemented | Open |
+| How should VAT be represented (rate vs. amount, inclusive vs. exclusive), and where is it applied? | Currently inconsistent between products and the dashboard math | Open |
+| Must product pricing history be versioned, or is only the current price meaningful? | Determines whether Phase 3 adds price-history tables; also feeds the historical-trends feature above | Open |
+| Which entities must remain historically visible after "deletion" (suppliers? raw materials? products?) | Determines where soft delete/archive replaces hard delete | Open |
+| Is supplier name genuinely required to be unique, once it stops being the primary key? | Determines whether a unique constraint survives the PK change | Open |
+| Should the Django admin and the in-app settings area expose the same operations, or should one be narrowed? | Two overlapping administration surfaces is a permissions and support risk | Open |
 
 ## Non-functional requirements
 
 | Area | Requirement | Status |
 |---|---|---|
-| Security | see `PRODUCTION_UPDATE_PLAN.md` Phase 2 | Tracked elsewhere |
+| Security | see [`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md) Epic 2 | Tracked elsewhere |
 | GDPR / data protection | see [gdpr.md](gdpr.md) | Tracked elsewhere |
 | Performance | Open — any target (response time, concurrent users)? | Open |
 | Accessibility | Open — target WCAG level? | Open |

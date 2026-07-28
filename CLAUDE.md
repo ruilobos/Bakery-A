@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bakery is a Django web app (originally an MSc capstone prototype) that lets a bakery track raw materials, suppliers, and products, and computes per-product cost/margin from recipe ingredient data. It is currently being hardened from prototype to production quality — see `PRODUCTION_UPDATE_PLAN.md` for the authoritative, phased roadmap (security hardening, dependency/runtime upgrades, DB redesign, testing, CI/CD, observability). Treat that file as the source of truth for planned work; don't re-derive priorities from scratch.
+Bakery is a Django web app (originally an MSc capstone prototype) that lets a bakery track raw materials, suppliers, and products, and computes per-product cost/margin from recipe ingredient data. It is currently being hardened from prototype to production quality — see `PRODUCTION_UPDATE_PLAN.md`, the authoritative **task backlog**: every phase/workstream is an Epic (numbered 1–16, mapping 1:1 to the branch rows in `docs/roadmap.md`) holding numbered, individually-tracked tasks (`3.12` = Epic 3, task 12). Treat that file as the source of truth for planned work; don't re-derive priorities from scratch. Reference task IDs in plans, commits, and PRs. A task marked `Blocked` is blocked on an `Open` decision in `docs/` — make and log the decision first, don't implement it (see ADR-012).
 
 This is also a broader redesign in progress — new features, GDPR compliance, and a possible tech
 stack change are still being decided, not just the engineering hardening in
@@ -12,7 +12,7 @@ stack change are still being decided, not just the engineering hardening in
 
 ## Planning & documentation (`docs/`)
 
-Four living documents track decisions that aren't in the code yet. Read the relevant one(s)
+Five living documents track decisions that aren't in the code yet. Read the relevant one(s)
 before proposing anything in that area — don't re-derive a requirement or stack choice from
 scratch if it's already marked `Open` or `Decided` there:
 
@@ -27,23 +27,27 @@ scratch if it's already marked `Open` or `Decided` there:
 - `docs/decisions.md` — append-only ADR log. Every real decision (stack, architecture, data
   model, process — including the branch strategy in ADR-001) gets logged here with context and
   alternatives considered, not just stated in chat. Never delete an entry; supersede it instead.
-- `docs/roadmap.md` — the phase/branch tracker: every phase from `PRODUCTION_UPDATE_PLAN.md`
-  plus new-feature/GDPR/stack-decision phases, each with a branch name, status, and scope
-  summary. Check this before starting work to confirm which phase/branch a task belongs to, and
+- `docs/roadmap.md` — the phase/branch/epic tracker: one row per epic in the backlog, with its
+  branch name, status, and scope summary, plus the suggested execution order and the first-release
+  milestone. Check this before starting work to confirm which epic/branch a task belongs to, and
   update its status as work moves (`Not started` → `Planned` → `In progress` → `In review` →
-  `Done`).
+  `Done`). Epic-level status lives here; task-level status lives in the backlog.
 
 Rows/sections marked `Open` in these docs are not settled — don't write code as if they were
-decided. When a decision is actually made (in conversation or otherwise), update the relevant doc
-**and** add an ADR to `docs/decisions.md` in the same session.
+decided. When a decision is actually made (in conversation or otherwise), update the relevant doc,
+add an ADR to `docs/decisions.md`, **and** turn that decision into task(s) inside the right epic in
+`PRODUCTION_UPDATE_PLAN.md` (plus a row in its "Decision → task coverage" table) — all in the same
+session. Planning and undecided material belongs in `docs/`; the backlog holds only work.
 
 ### Workflow this repo follows
 
-Per ADR-001 in `docs/decisions.md`: `main` stays deployable; each phase or feature gets its own
-branch (e.g. `phase-1-repo-cleanup`, `gdpr-data-inventory`) opened as a PR against `main`, planned
-in Plan Mode before implementation starts, and merged before the next phase branch begins. Don't
-start broad, undiscussed work across multiple phases/areas in one session — confirm which
-phase/branch a task belongs to first.
+Per ADR-010 in `docs/decisions.md` (supersedes ADR-001): `main` is the integration/dev-test
+branch, not what's deployed to real users — a separate `production` branch holds what's live.
+Each phase or feature gets its own branch (e.g. `phase-1-repo-cleanup`, `gdpr-data-inventory`)
+opened as a PR against `main`, planned in Plan Mode before implementation starts, and merged
+before the next phase branch begins. Promote validated work from `main` to `production` via its
+own PR, tagged as a GitHub Release on merge. Don't start broad, undiscussed work across multiple
+phases/areas in one session — confirm which phase/branch a task belongs to first.
 
 ## Commands
 
