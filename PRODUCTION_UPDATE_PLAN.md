@@ -221,6 +221,12 @@ historical business data.
 | 3.41 | Separate application and database credentials per environment | Not started | |
 | 3.42 | Add connection pooling if traffic or deployment topology requires it | Blocked | Need/approach `Open` — 9.18 |
 | 3.43 | Monitor slow queries and add indexes based on observed workload | Not started | Needs 7.1/7.2 in place to observe |
+| 3.44 | Maintain a **host-independent logical backup** (`pg_dump`) alongside whatever native snapshot the host provides, and prove it by restoring onto a *different* PostgreSQL instance — not the one it came from | Not started | [ADR-015](docs/decisions.md) rule 5. **This is what actually makes the host replaceable** — a Railway volume snapshot cannot be restored onto Clever Cloud or Scaleway. Extends 3.38/3.40; the restore drill is the part that counts |
+| 3.45 | Restrict the schema to core PostgreSQL and widely-available extensions; any host-specific feature needs its own ADR | Not started | [ADR-015](docs/decisions.md) rule 6. Pairs with the version pin in 9.3 — pin to a version every candidate host actually offers |
+| 3.46 | Commit the exact dump and restore commands as scripts in the repo, with the flags settled — not prose in a runbook | Not started | [ADR-015](docs/decisions.md) rule 5. `pg_dump` defaults emit `OWNER`/`GRANT` statements referencing roles that don't exist on the new host — the single most common cross-host restore failure. Settle `--no-owner --no-privileges` (plus explicit re-granting) and the dump format now, not during a migration |
+| 3.47 | Define the post-restore verification: per-table row counts against source, constraint/FK validation, sequence positions, and a `REINDEX` pass | Not started | This is what "proven restore" in 3.44 actually means. `REINDEX` matters because text index ordering depends on the OS collation (glibc/ICU version) — a cross-host restore can leave indexes subtly wrong while everything *looks* fine |
+| 3.48 | Automate the restore drill on a schedule — restore the latest dump into a throwaway PostgreSQL and run 3.47's checks, reporting failures | Not started | **The key one.** App migration is low-risk because deploys rehearse it constantly; a database restore path that runs once a year is where the surprises live. A drill that runs weekly makes migration day routine rather than novel |
+| 3.49 | Verify that `migrate` from an empty database reproduces the production schema exactly, and forbid manual DDL outside Django migrations | Not started | If production has drifted from what the migrations produce, the schema is no longer reproducible anywhere — this quietly breaks both host migration and 12.10's PR-environment seeding |
 
 ---
 
@@ -345,13 +351,15 @@ historical business data.
 | 7.7 | Fix `docker-compose.yaml` so it defines all required services correctly, with app and database as separate services | Not started | [ADR-007](docs/decisions.md); drop the external `bakery_simple` network assumption |
 | 7.8 | Separate the local compose definition from the production deployment definition | Not started | |
 | 7.9 | Remove legacy Heroku assumptions from the repo (`settings/heroku.py`, `runtime.txt`, Procfile) | Not started | Superseded by 1.5 + Epic 12 |
-| 7.10 | Add a static asset build step to the release process | Not started | |
-| 7.11 | Add a migration release step | Not started | |
+| 7.10 | Add a static asset build step to the release process | Not started | `collectstatic` currently runs at image build time. After the 1.5 settings split, make sure it does **not** require `DATABASE_URL`/`SECRET_KEY` to be present at build — a production settings module that raises on missing env vars will break the image build |
+| 7.11 | Add a migration release step, and **remove `migrate` from the container start command** in both the `Dockerfile` `CMD` and `docker-compose.yaml` | Not started | [ADR-015](docs/decisions.md) rule 4. Migrating on boot makes every replica race to migrate, and ties the schema change to container start rather than to the release |
 | 7.12 | Write and test the rollback procedure, using the release tags from 1.10 | Not started | |
-| 7.13 | Document every environment variable the app requires, per environment | Not started | |
+| 7.13 | Document every environment variable the app requires, per environment, as a committed `.env.example` (names and example values only — never real secrets) | Not started | [ADR-015](docs/decisions.md) rule 8 — this file is the migration checklist; if it's only in a host's dashboard, moving host becomes archaeology |
 | 7.14 | Run the app under Gunicorn (or the process manager appropriate to the chosen host) in production | Blocked | Server/version `Open` — 9.4 |
 | 7.15 | Automate deploys: merge to `main` → staging environment, merge to `production` → production environment | Blocked | Needs the host chosen in 12.1 — [ADR-010](docs/decisions.md) |
 | 7.16 | Keep serving static assets via whitenoise; confirm it still fits once a CDN/object storage is in play | Not started | Decided "no change" in [tech_stack.md](docs/tech_stack.md) — this is a verification task |
+| 7.17 | Bind Gunicorn to `$PORT` with a local fallback (`--bind 0.0.0.0:${PORT:-8000}`) instead of the hardcoded `:8000` in the `Dockerfile` `CMD` | Not started | [ADR-015](docs/decisions.md) rule 3. Railway, Render, Fly, DigitalOcean, Clever Cloud and Heroku all inject the port they expect the container to listen on; a hardcoded port needs per-host workarounds |
+| 7.18 | Confirm no persistent state is written to the app container's local disk — only PostgreSQL and object storage | Not started | [ADR-015](docs/decisions.md) rule 7. Pairs with 2.13 (the broken `MEDIA_ROOT`) and Epic 13 |
 
 ---
 
@@ -369,6 +377,7 @@ historical business data.
 | 8.6 | Write the secret-rotation runbook | Not started | |
 | 8.7 | Write the incident-response runbook | Not started | Must align with the GDPR breach process (11.8) |
 | 8.8 | Document the branch/promotion/release process for contributors | Not started | [ADR-010](docs/decisions.md) |
+| 8.9 | Write the host-migration runbook: provision elsewhere, restore the logical dump, move env vars, verify (3.47), cut DNS over, decommission | Not started | [ADR-015](docs/decisions.md). Derive it from the actual Railway setup while it's fresh; it's the executable form of 11.14's revisit option. Must cover: a maintenance window timed against Irish bakery business hours (tenants share one timezone in phase 1), lowering DNS TTL beforehand, keeping the old database **read-only but alive** until verification passes (12.6), and the rollback trigger. Object storage does **not** move — R2 is independent of the app host per [ADR-005](docs/decisions.md) |
 
 ---
 
@@ -383,7 +392,7 @@ in [decisions.md](docs/decisions.md)". No implementation happens in this epic.
 |---|---|---|---|
 | 9.1 | Decide the target Python version, and whether a follow-up validation pass on the next minor release is in scope | Not started | Currently 3.8 in `runtime.txt`, 3.9-slim in the Dockerfile |
 | 9.2 | Decide the target Django version and the upgrade route (direct to current LTS vs. staged) | Not started | Currently 3.2 |
-| 9.3 | Decide the pinned PostgreSQL version | Not started | |
+| 9.3 | Decide the pinned PostgreSQL version | Not started | [ADR-015](docs/decisions.md) rule 6 — pick a version every candidate host actually offers, so a logical dump restores cleanly elsewhere. Feeds 3.45 |
 | 9.4 | Decide the WSGI/ASGI server and version | Not started | Unblocks 7.14 |
 | 9.5 | Decide the PostgreSQL driver strategy (`psycopg2-binary` vs. `psycopg[binary]` v3) | Not started | |
 | 9.6 | Decide target versions for `whitenoise`, `django-environ`, `Pillow`, and the `asgiref`/`sqlparse`/`tzdata` set | Not started | Must align with 9.2 |
@@ -396,7 +405,7 @@ in [decisions.md](docs/decisions.md)". No implementation happens in this epic.
 | 9.13 | Decide the frontend stack: templating approach, CSS framework/version, asset pipeline, interactivity layer, and whether an SPA is needed | Not started | Unblocks 5.4, 5.6, 5.7 |
 | 9.14 | Decide the CI/CD pipeline shape beyond the Epic 1 minimum | Not started | Unblocks 6.12 |
 | 9.15 | Decide error tracking and uptime monitoring tooling | Not started | Unblocks 7.2, 7.5 |
-| 9.16 | Decide the backup/restore/PITR strategy | Not started | Unblocks 3.38, 3.40 |
+| 9.16 | Decide the backup/restore/PITR strategy — must cover **both** the host's native snapshots (fast rollback) and a portable logical dump (host replaceability) | Not started | Unblocks 3.38, 3.40, 3.44. [ADR-015](docs/decisions.md) rule 5. Note Railway offers no PITR — a PITR requirement needs tooling beyond the platform |
 | 9.17 | Decide formatting/linting and testing tooling (including template linting) | Not started | Unblocks 5.8, 6.10, 6.11 |
 | 9.18 | Decide the outstanding data-model questions: ingredient-line model shape, units/categories as enums vs. lookup tables, dashboard caching, connection pooling | Not started | Unblocks 3.19, 3.26, 3.42, 4.14 |
 | 9.19 | Decide the tenant export format and generation mechanism | Not started | Direction fixed by [ADR-008](docs/decisions.md); tool choice open. Unblocks 14.1 |
@@ -469,7 +478,7 @@ shortlist. Only production is hosted — the dev/test environment is local Docke
 | 12.6 | Migrate production data off the home server, with a verified restore on the new host | Not started | Do not decommission the old host until verified |
 | 12.7 | Execute the DPA with Railway and add it as a subprocessor | Not started | Feeds 11.6. Railway is a US company — the EU region covers storage location, not processor access |
 | 12.8 | Set the deployment region to **EU West (Amsterdam)** *before* creating any service, so both the app and the Postgres volume are provisioned in the EU | Not started | [ADR-013](docs/decisions.md). **Railway's default is US West** — the personal data lives in the database, so a default-region Postgres puts it in California. Volumes follow their service's region, and EU-West Metal supports volumes on Hobby (since 2025-03-14), so this is purely a sequencing requirement. Moving a volume later forces a migration **with downtime**. Confirm the region on both services after provisioning. Feeds 11.6 |
-| 12.9 | Configure automated PostgreSQL backup schedules on Railway | Not started | [ADR-013](docs/decisions.md) — **not** enabled by default. Daily/weekly/monthly, combinable, no PITR. Executes whatever 9.16 decides |
+| 12.9 | Configure automated PostgreSQL backup schedules on Railway — for fast same-host rollback, **not** as the portable backup | Not started | [ADR-013](docs/decisions.md) — **not** enabled by default. Daily/weekly/monthly, combinable, no PITR. Railway's snapshots are copy-on-write volume snapshots and are **not restorable on another host** — the portable `pg_dump` in 3.44 is what covers that. Executes whatever 9.16 decides |
 | 12.10 | Provide migrations + seed data for the release-PR environment, which comes up with an empty database | Not started | [ADR-014](docs/decisions.md) — Railway PR environments clone services and config but not volume data, so without this the preview is an unusable login page |
 
 ---
@@ -571,6 +580,7 @@ a new ADR lands, along with the tasks it creates.
 | [ADR-011](docs/decisions.md) — Minimal CI in Epic 1, full pipeline in Epic 6 | 1.11, 6.12 |
 | [ADR-013](docs/decisions.md) — Railway (Hobby, EU West) as the hosting platform | 12.1 ✅, 12.2, 12.3, 12.6, 12.7, 12.8, 12.9, 11.14, 11.15 |
 | [project_requirements.md](docs/project_requirements.md) — Ireland-first market, then wider EU | 11.8, 11.14, 12.8 |
+| [ADR-015](docs/decisions.md) — Host portability as a standing design constraint | 1.5, 3.44–3.49, 7.6, 7.7, 7.9, 7.10, 7.11, 7.13, 7.17, 7.18, 8.9, 9.3, 9.16 |
 | [ADR-014](docs/decisions.md) — Local Docker dev/test env, no hosted staging, release-PR preview | 1.12, 6.15, 12.4, 12.5, 12.10 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise (no change) | 7.16 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |

@@ -467,7 +467,56 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
     is that it must be verified locally before a release PR is merged.
   - Revisit this ADR when a second developer joins or the first real tenant is onboarded.
 
-## ADR-015: <next decision goes here>
+## ADR-015: Host portability is a standing design constraint
+
+- **Date:** 2026-08-03
+- **Status:** Accepted
+- **Context:** [ADR-013](decisions.md) picked Railway while explicitly deferring the EU-owned
+  alternatives, and set a revisit trigger before expansion beyond Ireland (task 11.14). That deferral
+  is only honest if moving hosts stays cheap. Left unmanaged, platform-specific behaviour accumulates
+  quietly — a native backup format here, a platform env var there — until "we can migrate later" has
+  become false without anyone deciding it. ADR-004 (Dockerfile) and ADR-007 (separate database)
+  already point the right way but were decided for other reasons and don't cover the database,
+  configuration, or state.
+- **Decision:** The application and its database must remain deployable on **any host that can run a
+  Docker image and a PostgreSQL service**, requiring configuration changes only — never code changes.
+  Concretely:
+  1. **The `Dockerfile` is the only build artifact** ([ADR-004](decisions.md)). No platform buildpack,
+     no platform-specific build configuration committed to the repo.
+  2. **All configuration comes from environment variables.** No settings module named after a host
+     (the current `settings/heroku.py` is exactly the anti-pattern — 1.5, 7.9). `DATABASE_URL` is the
+     database contract, since every candidate host provides it.
+  3. **Bind to `$PORT` with a local fallback**, never a hardcoded port — most platforms inject the
+     port they expect the container to listen on (7.17).
+  4. **Migrations run as an explicit release/deploy step**, never inside the container start command
+     (7.11) — baking them into `CMD` makes every replica race to migrate on boot.
+  5. **The database must be restorable from a host-independent logical dump** (`pg_dump`), maintained
+     *in addition to* whatever native snapshot the host offers (3.44). Native snapshots are for fast
+     same-host rollback; the logical dump is what actually makes the host replaceable.
+  6. **Core PostgreSQL and widely-available extensions only.** Anything host-specific requires its own
+     ADR justifying the lock-in (3.45).
+  7. **Persistent state lives only in PostgreSQL and S3-compatible object storage**
+     ([ADR-005](decisions.md)) — never on the app container's local disk, which no platform
+     guarantees across redeploys.
+  8. **Every environment variable is documented in a committed `.env.example`** (7.13) — that file is
+     the migration checklist.
+- **Accepted lock-in, explicitly not fought:** Railway's git-watch deploy automation (7.15) and the
+  release-PR preview environment ([ADR-014](decisions.md), 12.5). Both are workflow conveniences,
+  neither touches data, and rebuilding them elsewhere is roughly a day's work. Native volume backups
+  (12.9) are also fine to use — provided rule 5's portable dump exists alongside them.
+- **Alternatives considered:** Accept platform lock-in for convenience — rejected; it would silently
+  foreclose the residency revisit that ADR-013 depends on, which is the one decision most likely to
+  need reversing. A full infrastructure abstraction (Kubernetes, Terraform, a provider-agnostic
+  control plane) — rejected as wildly disproportionate for a two-service app; Docker plus environment
+  variables plus a logical dump covers essentially the same ground at a fraction of the complexity.
+- **Consequences:** Adds small constraints to several existing tasks and a handful of new ones (7.17,
+  3.44, 3.45, 8.9), none large. **Portability is verified continuously and for free:** the local
+  `docker-compose` environment from [ADR-014](decisions.md) runs the same image on plain Docker with
+  no platform involved — if the app runs there, it runs anywhere, so a break in portability shows up
+  as a broken local environment rather than as a nasty discovery during a migration. The main ongoing
+  cost is discipline: a future ADR that wants a host-specific feature must argue against this one.
+
+## ADR-016: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed

@@ -91,6 +91,7 @@ server-driven interactivity) over a client-side framework.
 | Hosting | Self-hosted: home server running Docker via Portainer; PostgreSQL in a separate container on the same machine. (Moved off Heroku after Heroku discontinued its free dyno/Postgres tier.) | Railway, Render, or DigitalOcean App Platform — narrowed per ADR-003; see "Hosting candidates" below | **Railway, Hobby plan, EU West (Amsterdam)** — ~$6/mo (see ADR-013) | Decided |
 | Dev/test environment | Runs on the developer's machine ad hoc | Local `docker-compose` (same Dockerfile as production, app and DB as separate containers) — no persistent hosted staging environment | Local Docker Compose (see ADR-014) | Decided |
 | Containerization | `Dockerfile` + `docker-compose.yaml` (expects external `bakery_simple` network) | Keep the custom Dockerfile as the deploy artifact on whichever host is chosen, rather than that platform's native buildpack — see ADR-004 and "Deployment method" below | Custom Dockerfile | Decided |
+| Host portability | Partially there by accident: `heroku.py` already reads `DATABASE_URL`, whitenoise serves static, media is S3-compatible. Undermined by a hardcoded port, `migrate` inside the container `CMD`, a host-named settings module, and no portable database dump | Any Docker + PostgreSQL host must be reachable with configuration changes only, never code changes — see "Host portability rules" below | Standing constraint (see ADR-015) | Decided |
 | Static/media storage | whitenoise for static assets; local `MEDIA_ROOT` config exists but points to a broken leftover path (`bluebiulding/media`) and nothing uses it yet | Keep whitenoise for static assets. For user-uploaded media (new: product photos, profile pictures), use S3-compatible object storage — see "Static & media file storage" below | Cloudflare R2 (see ADR-005) | Decided |
 | CI/CD | none | pipeline: install → lint → test → security scan → build | — | Open |
 | Error tracking / monitoring | none | Sentry or equivalent | — | Open |
@@ -191,6 +192,64 @@ Railway not gating PR environments behind a plan tier is what makes the middle r
 Render the equivalent would require the Pro workspace at $19/user/mo. The preview is scoped to the
 release PR because local Docker already covers feature-branch verification; what it *can't* cover is
 whether the merged code runs **on Railway**, which is exactly what the release preview checks.
+
+### Host portability rules (per ADR-015)
+
+The app and database must stay deployable on **any host that runs a Docker image and a PostgreSQL
+service**, with configuration changes only. This exists because ADR-013 deferred the EU-owned hosts
+and set a revisit trigger before EU expansion (11.14) — that option is only real if moving stays
+cheap.
+
+| # | Rule | Current state | Task |
+|---|---|---|---|
+| 1 | The `Dockerfile` is the only build artifact — no platform buildpack | ✅ Already true (ADR-004) | 7.6 |
+| 2 | All config from environment variables; no host-named settings module | ⚠️ `settings/heroku.py` still exists | 1.5, 7.9 |
+| 3 | Bind to `$PORT` with a local fallback | ❌ Hardcoded `:8000` in the `Dockerfile` `CMD` | 7.17 |
+| 4 | Migrations are a release step, not part of the container start command | ❌ `migrate &&` is inside `CMD` and the compose command | 7.11 |
+| 5 | A host-independent logical dump (`pg_dump`), restore-tested on a *different* instance | ❌ Backups are "unknown/undocumented" | 3.44, 9.16 |
+| 6 | Core PostgreSQL and widely-available extensions only | ✅ True today; needs to stay true | 3.45, 9.3 |
+| 7 | Persistent state only in PostgreSQL and object storage, never container disk | ⚠️ Broken `MEDIA_ROOT` leftover points at local disk | 2.13, 7.18 |
+| 8 | Every environment variable documented in a committed `.env.example` | ❌ Doesn't exist | 7.13 |
+
+`DATABASE_URL` is the database contract — every candidate host (Railway, Render, DigitalOcean, Fly,
+Clever Cloud, Scaleway) provides it, and `heroku.py` already consumes it via `django-environ`'s
+`env.db()`. That part of the existing code is worth preserving through the settings split.
+
+**Accepted lock-in:** Railway's git-watch deploy automation (7.15) and the release-PR preview
+environment (ADR-014, 12.5). Workflow conveniences, no data involved, roughly a day to rebuild
+elsewhere. Railway's native volume snapshots (12.9) are fine to use *alongside* rule 5's portable
+dump — they're for fast same-host rollback, not for moving.
+
+**Portability is tested continuously and for free.** The local `docker-compose` environment (ADR-014)
+runs the same image on plain Docker with no platform involved, so a break in portability shows up as
+a broken local environment rather than as a discovery mid-migration.
+
+#### Making database migration as routine as app migration
+
+App migration is low-risk because **every deploy rehearses it**. The database restore path, left
+alone, runs for the first time on the day it matters. Closing that gap is mostly about exercising the
+path, plus four traps worth naming:
+
+| Trap | Why it bites | Task |
+|---|---|---|
+| `pg_dump` default flags | Emits `OWNER`/`GRANT` referencing roles that don't exist on the target — the most common cross-host restore failure | 3.46 |
+| Collation differences | Text index ordering depends on the host's glibc/ICU version; indexes can be subtly wrong after a cross-host restore while everything looks fine. `REINDEX` after restore | 3.47 |
+| Unverified restores | "It restored without errors" is not "the data is complete" — needs row counts, constraint validation, sequence positions | 3.47 |
+| Schema drift | If production has manual DDL that the migrations don't produce, the schema can't be rebuilt anywhere — also breaks PR-environment seeding (12.10) | 3.49 |
+
+The one that changes the risk profile is **3.48: an automated restore drill on a schedule.** Restoring
+the latest dump into a throwaway PostgreSQL every week, with 3.47's checks, converts migration from a
+novel procedure into one that has already run fifty times.
+
+**Two things that make this easier than it sounds at this scale:**
+
+- **The dataset is small** (one bakery's raw materials, recipes, products — megabytes, not gigabytes).
+  A dump/restore completes in seconds, so a short maintenance window is entirely adequate. Logical
+  replication for near-zero-downtime cutover is available in PostgreSQL but is unnecessary complexity
+  here — revisit only if the data grows by orders of magnitude.
+- **Object storage doesn't move.** Media lives in Cloudflare R2, independent of the app host by design
+  (ADR-005). A host migration moves compute and database only — the uploaded files stay exactly where
+  they are, with no re-upload and no URL changes.
 
 ### Static & media file storage (product photos, profile pictures)
 
