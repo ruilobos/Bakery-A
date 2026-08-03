@@ -104,10 +104,30 @@ controller) — not just infrastructure vendors below.
 | Processor | Purpose | Data involved | DPA in place? | Status |
 |---|---|---|---|---|
 | Bakery-the-product (this app), re: each bakery tenant | Runs the multi-tenant app on the tenant's behalf | All personal data belonging to that tenant (staff accounts, supplier contacts, profile pictures once built) | Not yet — needs a DPA template usable per tenant | Open (new, see ADR-006) |
-| Hosting — currently self-hosted (home server, Docker/Portainer); narrowed to Railway, Render, or DigitalOcean App Platform, see `tech_stack.md` ADR-003 | Runs the app, stores the DB | Everything | Open — needed once one of the three is chosen | Open |
+| **Railway** (chosen host — ADR-013; currently still self-hosted on the home server until Epic 12 executes) | Runs the app, stores the DB | Everything | **Required** — task 12.7 | Open — DPA not yet executed. US-incorporated: data stored in EU West (Amsterdam), but see §7.1 below on transfer safeguards |
 | Databricks (new — AI insights/batch analytics service, ADR-002) | Reads app data to compute margin alerts / analytics | Whatever the batch job queries — confirm it's limited to product/pricing/recipe data and excludes user accounts or supplier contact personal data unless proven necessary | Needed once a paid Databricks workspace is set up | Open |
 | Object storage for media (Cloudflare R2 — see `tech_stack.md` ADR-005) | Stores uploaded files, including profile pictures once that feature ships | Profile pictures (personal), product photos (not personal) | Needed before the profile-picture feature goes live | Open |
 | Any email provider (if added) | Notifications | User emails | Open | Open |
+
+### 7.1 Data residency and international transfers
+
+All tenants are Irish in phase 1 (see [project_requirements.md](project_requirements.md) "Target
+market"), so GDPR applies to every tenant from day one.
+
+**Storage location — satisfied.** GDPR treats the EU as a single space: Article 1(3) provides that
+free movement of personal data within the Union may not be restricted for data-protection reasons.
+Irish tenants' data therefore does **not** have to be stored in Ireland, and Railway's EU West
+(Amsterdam) region satisfies the residency obligation. Both the app **and** the PostgreSQL
+service/volume must sit in that region — the personal data is in the database, so an app in
+Amsterdam with a default-region (US West) database would place the actual data in the US. Railway's
+default is US West, so the region must be set before any service is created (task 12.8).
+
+**Transfer safeguards — Open.** Railway is US-incorporated, so US law can reach the parent company
+even for data held in the EU. This is a Chapter V question answered by contractual safeguards
+(SCCs and/or the EU-US Data Privacy Framework, whose predecessors Safe Harbour and Privacy Shield
+were both annulled by the CJEU). To resolve: confirm Railway's current certification/SCC position
+and record it here as part of the DPA work in task 12.7. [ADR-013](decisions.md) documents why this
+risk was accepted for the Ireland phase, and sets a revisit trigger before EU expansion (task 11.14).
 
 ## 8. Breach notification process
 
@@ -115,7 +135,14 @@ _Who gets notified, how fast, and how, if personal data is exposed?_ GDPR requir
 relevant supervisory authority within 72 hours of becoming aware of a breach, and affected
 individuals "without undue delay" if there's high risk to them.
 
-Open — no process currently defined.
+**Supervisory authority: the Irish Data Protection Commission (DPC)**, since phase-1 tenants are all
+Irish. Note the processor position from §0 — as processor, Bakery-the-product's first obligation on
+becoming aware of a breach is to notify the **affected tenant (the controller) without undue delay**;
+the tenant then notifies the DPC. The per-tenant DPA must state this, and the 72-hour clock is the
+controller's, which means the notification path to tenants has to be fast enough not to consume it.
+
+Open — no process currently defined; the authority and the processor→controller path above are now
+settled inputs to defining it (task 11.8).
 
 ## 9. DPIA (Data Protection Impact Assessment)
 
@@ -132,7 +159,11 @@ exactly this change).
 
 ## Open questions
 
-- Which jurisdiction(s) will this actually be deployed in / whose data protection law applies?
+- ~~Which jurisdiction(s) will this actually be deployed in / whose data protection law applies?~~
+  Resolved: phase-1 tenants are all Irish, so Irish/EU law applies and the Irish DPC is the
+  supervisory authority; data is stored in the EU (Amsterdam) per [ADR-013](decisions.md). See §7.1
+  and §8 above. EU expansion beyond Ireland is a separate, still-Open question — see
+  [project_requirements.md](project_requirements.md) "Target market".
 - ~~Is there a single data controller (the bakery owner) or could this become multi-tenant SaaS
   with Bakery-the-product as processor and each bakery as controller?~~ Resolved: multi-tenant
   SaaS confirmed, Bakery-the-product as processor / each bakery tenant as controller — see §0 above

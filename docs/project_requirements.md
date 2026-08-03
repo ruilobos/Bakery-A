@@ -22,6 +22,24 @@ serving many bakeries' data concurrently, each scoped to its own tenant. The res
 (who the buyer/user personas are beyond "a bakery", pricing/plan structure, go-to-market) is still
 Open.
 
+### Target market (Decided)
+
+**Phase 1: Ireland.** All initial tenants are Irish bakeries. **Phase 2: wider EU**, timing and
+countries Open.
+
+This is not only a sales matter — it drives several technical and compliance positions:
+
+| Consequence | Where it lands |
+|---|---|
+| Irish Data Protection Commission is the supervisory authority (72-hour breach notification) | [gdpr.md](gdpr.md) §8 |
+| All tenants are EU-based, so GDPR applies to every tenant from day one — no non-EU carve-out | [gdpr.md](gdpr.md) §0 |
+| Hosting must store data in the EU/EEA; Amsterdam qualifies for Irish customers (Art. 1(3) free movement — data need not stay *in* Ireland) | [ADR-013](decisions.md), [gdpr.md](gdpr.md) §7 |
+| EU-owned hosting is a weak differentiator in Ireland but a stronger one in continental Europe — hence the residency revisit trigger at expansion | [ADR-013](decisions.md), task 11.14 |
+| Language/locale: English only for phase 1; multi-language and multi-currency become questions at EU expansion | Open — feeds the i18n question below |
+
+Still Open: pricing/plan structure, how tenants are onboarded, whether phase 1 is a paid beta or
+free pilot, and which EU countries come next.
+
 ## User roles / personas
 
 `PRODUCTION_UPDATE_PLAN.md` proposes: admin/owner, manager, staff/operator, read-only/auditor.

@@ -81,7 +81,7 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
 ## ADR-003: Narrow hosting candidates to Railway, Render, and DigitalOcean App Platform
 
 - **Date:** 2026-07-21
-- **Status:** Accepted
+- **Status:** Accepted — the final pick among the three is closed by ADR-013 (Railway)
 - **Context:** The broader hosting survey in [tech_stack.md](tech_stack.md) "Hosting candidates"
   compared eight options (Railway, Render, DigitalOcean App Platform, Fly.io, Sevalla, Koyeb,
   Hetzner+Coolify, Oracle Cloud "Always Free"). That's too wide a set to finish deciding on; a
@@ -256,7 +256,9 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
 ## ADR-010: Revise branch/environment strategy — `main` as dev/test integration, `production` as the deploy branch, with tagged releases (supersedes ADR-001)
 
 - **Date:** 2026-07-21
-- **Status:** Accepted
+- **Status:** Accepted — the persistent-staging-environment clause is amended by ADR-014 (the dev/test
+  environment is local Docker Compose, not a hosted staging environment). The branch model itself
+  (`main` integration → `production` deploy, tagged releases, branch protection) is unchanged.
 - **Context:** ADR-001 assumed `main` mirrors what's live in production. Revisiting before CI/CD
   (Phase 6/7) is built: a dedicated pre-production integration/testing branch, an explicit
   promotion step to production, and named release points for rollback are wanted — and the model
@@ -361,7 +363,111 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
   epic. Every future ADR gains a step: add its tasks to the relevant epic and a row to the coverage
   table in the same session.
 
-## ADR-013: <next decision goes here>
+## ADR-013: Railway (Hobby plan) as the hosting platform
+
+- **Date:** 2026-08-03
+- **Status:** Accepted
+- **Context:** ADR-003 narrowed hosting to Railway, Render, and DigitalOcean App Platform but
+  deliberately left the final pick open. Epic 12 can't start without it, and Epic 7 (observability /
+  deployment hardening) depends on Epic 12. Pricing and platform capabilities were re-confirmed
+  against Railway's pricing page and docs on 2026-08-03.
+- **Decision:** Host on **Railway, Hobby plan** ($5/mo, including $5 of usage credit), with the app
+  and PostgreSQL as separate services ([ADR-007](decisions.md)), built from the repo's `Dockerfile`
+  rather than Railpack ([ADR-004](decisions.md)), deployed to the **EU West (Amsterdam)** region for
+  GDPR data residency.
+  - **Expected cost ~$6/mo.** Railway bills actual per-second usage: ~$10.14/GB-month RAM,
+    ~$20.29/vCPU-month, ~$0.16/GB-month volume, $0.05/GB egress. For this workload — app ~0.3 GB
+    (~$3.04), Postgres ~0.2 GB (~$2.03), CPU ~$0.41, a 2 GB volume ~$0.32, negligible egress.
+  - **Railway's free options are explicitly rejected.** The 30-day trial deletes stateful volumes 30
+    days after credits expire, and the Free plan ($1/mo credit, 0.5 GB RAM, one service) cannot run
+    an app and a database together — which ADR-007 requires.
+- **Alternatives considered:** **Render** — persistent staging works on any plan, but per-PR previews
+  are gated behind the Pro workspace ($19/user/mo) and paid Postgres starts at ~$15/mo, putting a
+  realistic total near ~$22/mo. **DigitalOcean App Platform** — ~$12–20/mo, bundles managed backups
+  and monitoring and is the closest of the three to a "professional" baseline, but is roughly 2–3×
+  Railway's cost for a single-bakery workload with no capability this project needs today. Both stay
+  viable fallbacks if Railway's Hobby limits or lack of SLA become a problem.
+- **Consequences:**
+  - Closes the open pick in ADR-003; unblocks Epic 12 and, through it, Epic 7.
+  - **The region must be set before any service is created.** Railway's default region is US West,
+    and the personal data lives in the *database* — an app in Amsterdam with a default-region Postgres
+    stores the actual data in California. Volumes follow the region of the service they attach to, and
+    EU-West Metal supports volumes on Hobby (since 2025-03-14, superseding the February 2025 launch
+    limitation), so this is a sequencing requirement, not a capability gap. Moving a volume afterwards
+    forces a migration **with downtime** (task 12.8).
+  - **Backups are not automatic on Railway** — daily (6-day retention), weekly (1 month), or monthly
+    (3 months) schedules must be configured explicitly, billed incrementally. No PITR. This partly
+    answers the `Open` Backups row in [tech_stack.md](tech_stack.md), but the full strategy is still
+    9.16's job.
+  - **Hobby has no uptime SLA and no HA Postgres.** Acceptable while pre-launch and solo; revisit at
+    Pro ($20/mo per workspace, not per seat) once real tenants are onboarded under
+    [ADR-006](decisions.md).
+  - **Data residency vs. vendor ownership — the accepted risk.** Storage location is satisfied:
+    GDPR treats the EU as one space (Art. 1(3) free movement), so Amsterdam serves Irish customers
+    exactly as Dublin would. What Amsterdam does *not* solve is that Railway is a US company, so US
+    law can reach the parent even for data held in the EU. That leaves a Chapter V transfer question
+    answered by contractual safeguards (SCCs / the EU-US Data Privacy Framework), whose two
+    predecessors — Safe Harbour (2015) and Privacy Shield (2020) — were both annulled by the CJEU.
+    This risk is **accepted, not dismissed**, on three grounds: the initial market is Ireland, where
+    US-owned cloud is the norm and carries little commercial friction; the exposure is shared by
+    nearly every business running on AWS/Azure/Google Cloud; and SCCs remain as a fallback if the
+    current framework falls. A DPA and subprocessor entry are required regardless (12.7 → 11.6).
+  - **Revisit trigger — before expanding beyond Ireland.** EU-owned alternatives (Clever Cloud
+    ~€16–26/mo, Scaleway ~€16/mo, both France) were priced at roughly 2.5–3× Railway — about $150/yr
+    in absolute terms, which is not what decides this. What decides it is the market: continental
+    buyers (Germany/France especially) treat EU ownership as a purchasing criterion in a way Irish
+    buyers generally do not. Re-evaluate residency **before onboarding tenants outside Ireland**,
+    while migration is still merely annoying rather than a coordinated multi-tenant cutover. ADR-004
+    (Docker) and ADR-007 (separate database) are what keep that option cheap — preserve both.
+
+## ADR-014: Local Docker Compose is the dev/test environment; no persistent hosted staging (amends ADR-010)
+
+- **Date:** 2026-08-03
+- **Status:** Accepted (amends ADR-010's persistent-staging clause)
+- **Context:** ADR-010 requires every merge to `main` to auto-deploy to a persistent staging/dev
+  environment on the chosen platform. On Railway ([ADR-013](decisions.md)) that means a second
+  always-on app **and** Postgres, roughly doubling the bill to ~$12/mo — for an environment that a
+  single developer leaves idle almost all of the time. The project currently has one developer and no
+  live tenants.
+- **Decision:**
+  - The dev/test environment is **local**: `docker-compose` on the developer's machine, using the
+    same `Dockerfile` Railway deploys ([ADR-004](decisions.md)) with app and Postgres as separate
+    containers ([ADR-007](decisions.md)). It costs nothing and is already running during development.
+  - **No persistent hosted staging environment.** Railway runs one environment, tracking `production`.
+  - Testing responsibility splits by branch:
+    - **Feature branch** — automated unit tests, run locally and in CI on the PR into `main`.
+    - **`main`** — manual/integration verification of the *merged* result, run locally against
+      `docker-compose` after pulling `main`. This catches interactions between separately-developed
+      features, which isolated branch testing cannot.
+    - **`main` → `production` PR** — the release gate; merging it deploys to Railway.
+  - Because local verification never exercises Railway itself, enable a **Railway PR environment on
+    the `main` → `production` release PR only** — a temporary full copy (app, its own Postgres, its
+    own URL), auto-created when the release PR opens and auto-destroyed on merge. Railway does not
+    gate PR environments behind a plan tier; at a few releases a month lasting a day or two each this
+    costs well under $1/mo. It is deliberately **not** enabled on feature PRs, where it would mostly
+    re-check what local testing already covered.
+  - Refreshing the local environment is a **manual, developer-initiated step** — GitHub cannot push to
+    a developer's machine — reduced to one command by a repo script (task 1.12).
+- **Alternatives considered:** A persistent hosted staging environment, as ADR-010 originally
+  specified — rejected on cost/benefit for a solo, pre-launch project; it becomes necessary the moment
+  `main` needs to be verifiable by someone other than its author. PR environments on **every** feature
+  PR — rejected as largely redundant with local testing, and it multiplies the database-seeding
+  problem below. A self-hosted GitHub Actions runner auto-refreshing the local machine on merge —
+  rejected as disproportionate machinery for a command the developer can run themselves, and it only
+  works while that machine is on.
+- **Consequences:**
+  - Cuts expected hosting cost from ~$12/mo to ~$6/mo.
+  - Makes the local Docker setup **load-bearing**: it is now the only integration-test environment, so
+    drift between `docker-compose.yaml`/`Dockerfile` and production is a correctness problem, not just
+    an inconvenience.
+  - Railway PR environments clone services and configuration but **not volume data**, so the
+    release-PR environment starts with an empty database and needs migrations plus seed data to be
+    usable — new work that didn't previously exist (task 12.10).
+  - `main` is **not** required to be green at every moment (nothing deploys from it); the binding rule
+    is that it must be verified locally before a release PR is merged.
+  - Revisit this ADR when a second developer joins or the first real tenant is onboarded.
+
+## ADR-015: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed

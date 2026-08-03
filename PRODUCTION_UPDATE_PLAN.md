@@ -88,6 +88,7 @@ ship safely through a PR.
 | 1.9 | Configure branch protection on both `main` and `production`: PR-only, no direct pushes, no force-pushes (0 required approvals while solo) | Not started | [ADR-010](docs/decisions.md) |
 | 1.10 | Define the release step: every merge to `production` is tagged with a semantic version and published as a GitHub Release with auto-generated notes | Not started | [ADR-010](docs/decisions.md) |
 | 1.11 | Add a minimal GitHub Actions workflow on every PR against `main`/`production`: `python manage.py check`, `python manage.py makemigrations --check --dry-run`, `docker build` validation, basic lint pass | Not started | [ADR-011](docs/decisions.md). No test run (none exist yet) and no deploy step (no host yet) — verification only; extended in 6.12 |
+| 1.12 | Add a script that refreshes and launches the local dev environment in one command — pull `main`, rebuild the containers, run migrations — so the post-merge integration check is a single step | Not started | [ADR-014](docs/decisions.md). Run **manually** by the developer; GitHub cannot trigger a local machine. Missing the migration step is the most common cause of a confusing local failure |
 
 ---
 
@@ -318,6 +319,7 @@ historical business data.
 | 6.12 | Extend the Epic 1 workflow (do not replace it) with: dependency install, full lint/format enforcement, the real test suite, and security checks | Not started | [ADR-011](docs/decisions.md) |
 | 6.13 | Enable required status checks on `main` and `production`, blocking merge when checks fail | Not started | [ADR-010](docs/decisions.md) |
 | 6.14 | Block deployments when checks fail | Not started | Deploy automation itself is 7.15 |
+| 6.15 | Run the unit test suite on every PR into `main` as the feature-branch quality gate | Not started | [ADR-014](docs/decisions.md) — the automated half of the test split. Integration verification of merged `main` stays manual, run locally against `docker-compose`. Part of 6.12's extended workflow |
 
 ---
 
@@ -443,6 +445,8 @@ This work is not legal advice — a real legal/DPO review is a prerequisite to r
 | 11.11 | Confirm no tracking/analytics cookies exist; define the consent path if that changes | Not started | §4 |
 | 11.12 | Name the point of contact for data subject requests | Not started | Depends on 10.7 |
 | 11.13 | Confirm backups are encrypted at rest once a backup strategy exists | Not started | §6. Depends on 9.16 |
+| 11.14 | Re-evaluate hosting residency and vendor ownership **before onboarding any tenant outside Ireland** | Not started | [ADR-013](docs/decisions.md) §7.1. The accepted US-parent transfer risk was weighed against an Irish-only market; continental EU buyers weigh EU ownership differently. EU-owned alternatives priced ~2.5–3× at decision time (Clever Cloud, Scaleway). Migration stays cheap only while ADR-004/ADR-007 hold |
+| 11.15 | Confirm Railway's transfer-safeguard position (DPF certification and/or SCCs) and record it in [gdpr.md](docs/gdpr.md) §7.1 | Not started | Part of the DPA work in 12.7. §7.1 is `Open` until this lands |
 
 ---
 
@@ -450,19 +454,23 @@ This work is not legal advice — a real legal/DPO review is a prerequisite to r
 
 **Branch:** `stack-hosting-migration` · **Depends on:** Epic 9 · **Blocks:** Epic 7
 
-Move the Django app and PostgreSQL off the self-hosted home server (Docker/Portainer) onto a managed
-platform. The field is narrowed to Railway, Render, and DigitalOcean App Platform per
-[ADR-003](docs/decisions.md); the final pick is still open.
+Move the Django app and PostgreSQL off the self-hosted home server (Docker/Portainer) onto
+**Railway (Hobby plan, EU West)**, chosen per [ADR-013](docs/decisions.md) from the ADR-003
+shortlist. Only production is hosted — the dev/test environment is local Docker Compose
+([ADR-014](docs/decisions.md)).
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
-| 12.1 | Pick the host among the three candidates — re-confirm current pricing and include the cost of a second (staging) environment — and log it as an ADR | Not started | [ADR-003](docs/decisions.md), [ADR-010](docs/decisions.md) |
+| 12.1 | Pick the host among the three candidates — re-confirm current pricing and include the cost of a second (staging) environment — and log it as an ADR | **Done** | Railway (Hobby), 2026-08-03 — [ADR-013](docs/decisions.md). Staging cost is what drove [ADR-014](docs/decisions.md)'s local-dev decision |
 | 12.2 | Provision app compute and managed PostgreSQL as separate services | Not started | [ADR-007](docs/decisions.md) |
-| 12.3 | Configure the deployment to build from the repo's `Dockerfile`, not the platform buildpack | Not started | [ADR-004](docs/decisions.md); pairs with 7.6 |
-| 12.4 | Set up two environments: one tracking `main` (staging/dev), one tracking `production` | Not started | [ADR-010](docs/decisions.md) |
-| 12.5 | Enable per-PR ephemeral preview environments if the chosen host supports them without extra cost | Not started | Optional — see [tech_stack.md](docs/tech_stack.md) "Dev/staging/preview environment support" |
+| 12.3 | Configure the deployment to build from the repo's `Dockerfile`, not Railpack | Not started | [ADR-004](docs/decisions.md); pairs with 7.6 |
+| 12.4 | Set up a single Railway environment tracking `production`; do **not** provision a persistent hosted staging environment | Not started | [ADR-014](docs/decisions.md) amends [ADR-010](docs/decisions.md) — the `main` tier runs locally instead |
+| 12.5 | Enable a Railway PR environment on the `main` → `production` release PR only — not on feature PRs | Not started | [ADR-014](docs/decisions.md). No plan-tier gate on Railway; <$1/mo at a few releases a month |
 | 12.6 | Migrate production data off the home server, with a verified restore on the new host | Not started | Do not decommission the old host until verified |
-| 12.7 | Execute the DPA with the chosen provider | Not started | Feeds 11.6 |
+| 12.7 | Execute the DPA with Railway and add it as a subprocessor | Not started | Feeds 11.6. Railway is a US company — the EU region covers storage location, not processor access |
+| 12.8 | Set the deployment region to **EU West (Amsterdam)** *before* creating any service, so both the app and the Postgres volume are provisioned in the EU | Not started | [ADR-013](docs/decisions.md). **Railway's default is US West** — the personal data lives in the database, so a default-region Postgres puts it in California. Volumes follow their service's region, and EU-West Metal supports volumes on Hobby (since 2025-03-14), so this is purely a sequencing requirement. Moving a volume later forces a migration **with downtime**. Confirm the region on both services after provisioning. Feeds 11.6 |
+| 12.9 | Configure automated PostgreSQL backup schedules on Railway | Not started | [ADR-013](docs/decisions.md) — **not** enabled by default. Daily/weekly/monthly, combinable, no PITR. Executes whatever 9.16 decides |
+| 12.10 | Provide migrations + seed data for the release-PR environment, which comes up with an empty database | Not started | [ADR-014](docs/decisions.md) — Railway PR environments clone services and config but not volume data, so without this the preview is an unusable login page |
 
 ---
 
@@ -561,6 +569,9 @@ a new ADR lands, along with the tasks it creates.
 | [ADR-009](docs/decisions.md) — Dedicated GDPR personal-data export | 15.1–15.6 |
 | [ADR-010](docs/decisions.md) — `main` integration / `production` deploy, tagged releases | 1.8, 1.9, 1.10, 6.13, 7.12, 7.15, 8.8, 12.4 |
 | [ADR-011](docs/decisions.md) — Minimal CI in Epic 1, full pipeline in Epic 6 | 1.11, 6.12 |
+| [ADR-013](docs/decisions.md) — Railway (Hobby, EU West) as the hosting platform | 12.1 ✅, 12.2, 12.3, 12.6, 12.7, 12.8, 12.9, 11.14, 11.15 |
+| [project_requirements.md](docs/project_requirements.md) — Ireland-first market, then wider EU | 11.8, 11.14, 12.8 |
+| [ADR-014](docs/decisions.md) — Local Docker dev/test env, no hosted staging, release-PR preview | 1.12, 6.15, 12.4, 12.5, 12.10 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise (no change) | 7.16 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 

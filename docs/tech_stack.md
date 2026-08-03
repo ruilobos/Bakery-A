@@ -88,28 +88,50 @@ server-driven interactivity) over a client-side framework.
 
 | Topic | Current | Candidate | Decision | Status |
 |---|---|---|---|---|
-| Hosting | Self-hosted: home server running Docker via Portainer; PostgreSQL in a separate container on the same machine. (Moved off Heroku after Heroku discontinued its free dyno/Postgres tier.) | Railway, Render, or DigitalOcean App Platform — narrowed per ADR-003; see "Hosting candidates" below | — | Open |
+| Hosting | Self-hosted: home server running Docker via Portainer; PostgreSQL in a separate container on the same machine. (Moved off Heroku after Heroku discontinued its free dyno/Postgres tier.) | Railway, Render, or DigitalOcean App Platform — narrowed per ADR-003; see "Hosting candidates" below | **Railway, Hobby plan, EU West (Amsterdam)** — ~$6/mo (see ADR-013) | Decided |
+| Dev/test environment | Runs on the developer's machine ad hoc | Local `docker-compose` (same Dockerfile as production, app and DB as separate containers) — no persistent hosted staging environment | Local Docker Compose (see ADR-014) | Decided |
 | Containerization | `Dockerfile` + `docker-compose.yaml` (expects external `bakery_simple` network) | Keep the custom Dockerfile as the deploy artifact on whichever host is chosen, rather than that platform's native buildpack — see ADR-004 and "Deployment method" below | Custom Dockerfile | Decided |
 | Static/media storage | whitenoise for static assets; local `MEDIA_ROOT` config exists but points to a broken leftover path (`bluebiulding/media`) and nothing uses it yet | Keep whitenoise for static assets. For user-uploaded media (new: product photos, profile pictures), use S3-compatible object storage — see "Static & media file storage" below | Cloudflare R2 (see ADR-005) | Decided |
 | CI/CD | none | pipeline: install → lint → test → security scan → build | — | Open |
 | Error tracking / monitoring | none | Sentry or equivalent | — | Open |
 | Uptime monitoring / alerting | none | external uptime check + alerting against the app health endpoint | — | Open |
-| Backups | unknown/undocumented | documented PostgreSQL backup + restore + PITR strategy, with a drilled restore | — | Open |
+| Backups | unknown/undocumented | documented PostgreSQL backup + restore + PITR strategy, with a drilled restore. Note the host constraint (ADR-013): Railway backups are **not automatic** — daily (6-day retention), weekly (1 month), and monthly (3 months) schedules are configurable and combinable, billed incrementally (copy-on-write), and there is **no PITR**. A PITR requirement would need tooling beyond Railway's built-in backups. | — | Open — 9.16 |
 
 ### Hosting candidates (for the Django app + PostgreSQL)
 
-Per ADR-003 in [decisions.md](decisions.md), the field is narrowed to these three — pick one and
-log it as an ADR. Cost estimates assume this app's actual scope (single bakery, handful of
-concurrent users, small dataset); sourced via web search 2026-07-21, confirm current pricing
-before committing.
+**Resolved: Railway (Hobby) — see ADR-013.** Kept below for reference and as fallback options; not
+being re-evaluated unless Railway's Hobby limits or lack of SLA become a problem.
+
+Per ADR-003 in [decisions.md](decisions.md), the field was narrowed to these three. Cost estimates
+assume this app's actual scope (single bakery, handful of concurrent users, small dataset); sourced
+via web search 2026-07-21, with Railway's figures re-confirmed 2026-08-03.
 
 | Option | App compute | Database | Est. total/mo | GitHub auto-deploy | Notes |
 |---|---|---|---|---|---|
-| **Railway** | Hobby plan, $5/mo base includes $5 usage credit, billed per-second beyond that | ~$1–3/mo on light workloads, same usage pool | **~$5–10/mo** | Native, low setup effort | Cheapest of the three; no cold starts |
+| **Railway** ✅ **chosen** | Hobby plan, $5/mo base includes $5 usage credit, billed per-second beyond that | ~$2/mo on light workloads, same usage pool | **~$6/mo** (re-confirmed 2026-08-03) | Native, low setup effort | Cheapest of the three; no cold starts. Free options rejected — see ADR-013 |
 | **Render** | Starter $7/mo (always-on) or free tier (sleeps after ~15 min idle) | Free Postgres is deleted after 30–90 days depending on source — not viable long-term; paid Postgres from ~$15/mo | ~$22/mo paid, or $0 short-term on free tier | Native, deploy on push/release | Simplest DX, but the free database's expiry makes the free tier a trial, not a real option |
 | **DigitalOcean App Platform** | $5/mo | Managed Postgres from $15/mo (HA doubles it to $60/mo); a non-HA "dev" database is ~$7/mo/512MB | ~$12–20/mo | Native | Priciest baseline here but closest to "professional" — managed backups/monitoring bundled |
 
-None of the three is picked yet — resolve as an ADR in [decisions.md](decisions.md) once chosen.
+#### Railway cost basis (verified 2026-08-03)
+
+Railway bills **actual** per-second usage, not allocated capacity. Converted to a 730-hour month:
+~**$10.14/GB-month** RAM, ~**$20.29/vCPU-month**, ~**$0.16/GB-month** volume, **$0.05/GB** egress.
+
+| Item | Assumed usage | Cost/mo |
+|---|---|---|
+| App service (gunicorn) | ~0.3 GB RAM | $3.04 |
+| PostgreSQL service | ~0.2 GB RAM | $2.03 |
+| CPU, both services | ~0.02 vCPU avg | $0.41 |
+| Volume (Postgres data) | 2 GB | $0.32 |
+| Egress | <1 GB | ~$0.05 |
+| **Total** | | **~$5.85/mo** |
+
+Hobby's $5 base includes $5 of usage, so the effective bill is ~$6/mo. Plan limits (48 GB RAM,
+48 vCPU, 6 replicas per service) are far above anything this app needs and aren't a deciding factor.
+
+**Free tiers are not viable here** (the reason ADR-013 commits to paid Hobby): the 30-day trial
+grants $5 once and **deletes stateful volumes** 30 days after credits expire; the Free plan's $1/mo
+credit and 0.5 GB RAM / one service cannot run an app *and* a database, which ADR-007 requires.
 
 <details>
 <summary>Considered and set aside (per ADR-003) — kept for reference, not being re-evaluated</summary>
@@ -152,10 +174,23 @@ Verified 2026-07-21 — relevant to the branch strategy in ADR-010 (`main` = sta
 | Render | Two persistent services, each tracking its own branch | "Preview Environments" per PR at a unique URL — requires the Pro workspace plan ($19/user/month) | Persistent staging works on any plan; per-PR previews add real monthly cost on top |
 | DigitalOcean App Platform | Two Apps, each tracking a different branch with auto-deploy; "Environment Support" (via Projects) groups them as Dev/Staging/Production | `deploy_pr_review` App Spec setting enables an ephemeral per-PR preview app | Both available without a plan-tier gate, but as separate App/database resources — roughly doubles the single-app cost estimate above once staging is added |
 
-None of this rules out any of the three — all can run the `main` (staging) / `production` (live)
-two-branch model from ADR-010. Railway is the only one where a full 3-tier flow (PR preview +
-staging + production) doesn't add plan-tier or per-resource cost; worth weighing if per-PR
-previews end up mattering.
+None of this ruled out any of the three — all can run the `main` (integration) / `production` (live)
+two-branch model from ADR-010.
+
+**Resolved (ADR-014): the staging tier is local, not hosted.** Rather than paying for a persistent
+staging environment on Railway (which would roughly double the bill to ~$12/mo for something a solo
+developer leaves idle), the chosen model is:
+
+| Tier | Where it runs | Lifetime | Cost |
+|---|---|---|---|
+| Dev / integration test | Developer's machine, `docker-compose` | Always, during development | $0 |
+| Release preview | Railway PR environment, on the `main` → `production` PR **only** | While that PR is open (a day or two) | <$1/mo |
+| Production | Railway, tracking `production` | Always-on | ~$6/mo |
+
+Railway not gating PR environments behind a plan tier is what makes the middle row affordable — on
+Render the equivalent would require the Pro workspace at $19/user/mo. The preview is scoped to the
+release PR because local Docker already covers feature-branch verification; what it *can't* cover is
+whether the merged code runs **on Railway**, which is exactly what the release preview checks.
 
 ### Static & media file storage (product photos, profile pictures)
 
