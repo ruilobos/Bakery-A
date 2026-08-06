@@ -29,10 +29,10 @@ epic-level status; the backlog owns task-level status.
 | # | Phase | Branch | Status | Scope summary | Notes / links |
 |---|---|---|---|---|---|
 | 1 | Stabilize the repository | `phase-1-repo-cleanup` | Not started | Remove generated artifacts from VCS, settings package split, dead code cleanup, **`production` branch + branch protection + release tagging (ADR-010)**, **minimal CI pipeline (lint/check/Docker build validation) on every PR**, local dev-env refresh script (ADR-014) | See [decisions.md](decisions.md) ADR-010, ADR-011, ADR-014 |
-| 2 | Security & configuration hardening | `phase-2-security-hardening` | Not started | Secrets to env vars, `DEBUG=False` outside dev, auth/authorization on all views, stop logging plaintext passwords | See [gdpr.md](gdpr.md) §6 — overlaps with GDPR Article 32 |
-| 3 | Database redesign & data governance | `phase-3-db-redesign` | Not started | Schema fixes (Supplier PK, quantity types, naming), **multi-tenancy (`Bakery` model + tenant FK across all business tables, per ADR-006/ADR-008)**, migration strategy, retention practices, tenant full-data export + GDPR personal-data export tooling | See [tech_stack.md](tech_stack.md) DB row and [decisions.md](decisions.md) ADR-006/007/008/009 |
-| 4 | Backend modernization | `phase-4-backend-modernization` | Not started | Services layer for costing/margin logic, real ModelForms, query performance | |
-| 5 | Frontend modernization | `phase-5-frontend-modernization` | Not started | Shared `base.html`, asset pipeline, accessibility, real search/filter | See [tech_stack.md](tech_stack.md) Frontend section |
+| 2 | Security & configuration hardening | `phase-2-security-hardening` | Not started | Secrets to env vars, `DEBUG=False` outside dev, auth/authorization on all views, **three per-tenant roles (Owner/Staff/Read-only) with capability-named checks, Django admin restricted to superusers**, stop logging plaintext passwords | See [gdpr.md](gdpr.md) §6 — overlaps with GDPR Article 32. Role model decided in ADR-020, admin surface in ADR-019; 2.8 is no longer blocked |
+| 3 | Database redesign & data governance | `phase-3-db-redesign` | Not started | Schema fixes (Supplier PK, quantity types, naming), **multi-tenancy (`Bakery` model + tenant FK across all business tables, per ADR-006/ADR-008)**, **the ADR-018 money/unit model (purchase-unit prices, kg/l/each conversion table, dated VAT-rate table, dated sale-price rows, decimal precision + rounding rule)**, migration strategy, retention practices, tenant full-data export + GDPR personal-data export tooling | See [tech_stack.md](tech_stack.md) DB row and [decisions.md](decisions.md) ADR-006/007/008/009/018. **Review the design against Epic 17 (traceability) before implementing** — it adds an event layer to the same tables |
+| 4 | Backend modernization | `phase-4-backend-modernization` | Not started | Services layer for costing/margin logic (**including recursive costing through nested base recipes, with a depth guard, and cost provenance returned alongside every figure**), real ModelForms, query performance | See ADR-022. The inline `float()` costing in `control/views.py` is deleted, not patched — it cannot express unit conversion, net-of-VAT storage, dated prices, or recursion |
+| 5 | Frontend modernization | `phase-5-frontend-modernization` | Not started | Shared `base.html`, asset pipeline, **WCAG 2.2 Level A**, responsive tables, **`gettext` + single currency formatter (no hardcoded `€`)**, real search/filter | See [tech_stack.md](tech_stack.md) Frontend section and ADR-021. Accessibility and translation-readiness are **build-in, not retrofit** — they are the reason ADR-021 was decided before this epic starts |
 | 6 | Testing & quality gates | `phase-6-testing-ci` | Not started | Unit/integration tests, ruff/black, **extending** the Phase 1 minimal CI into the full pipeline (tests + security checks + deploy gating) | Builds on [decisions.md](decisions.md) ADR-011's Phase 1 foundation |
 | 7 | Observability & operations | `phase-7-observability` | Not started | Structured logging, error tracking, health checks, deployment hardening | |
 | 8 | Documentation & team readiness | `phase-8-docs` | Not started | README rewrite, architecture docs, runbooks | |
@@ -42,18 +42,20 @@ epic-level status; the backlog owns task-level status.
 | # | Phase | Branch | Status | Scope summary | Notes / links |
 |---|---|---|---|---|---|
 | 9 | Tech stack decisions | `stack-decisions` | Not started | Resolve every `Open` row in [tech_stack.md](tech_stack.md); log each as an ADR | Blocks Phases 3–5 above and the hosting migration below |
-| 10 | Requirements discovery | `requirements-discovery` | Not started | Resolve personas, functional/non-functional requirements, business data semantics, and feature backlog priority in [project_requirements.md](project_requirements.md) | Blocks Phase 2's role model, Phase 3's schema semantics, and the new-feature phases below. Multi-tenancy already resolved (ADR-006) |
+| 10 | Requirements discovery | `requirements-discovery` | In progress | Resolve personas, functional/non-functional requirements, business data semantics, and feature backlog priority in [project_requirements.md](project_requirements.md) | **10.1–10.7 all done** (2026-08-06) via ADR-016 → ADR-024. **No longer blocks Epic 2, Epic 3's schema semantics, or Epic 5.** Remaining are follow-ups this pass created: 10.8/10.9 (traceability regulator check + retention floor), 10.10 (tenant seed data), 10.11 (next EU countries), 10.12 (allergen scope → Epic 18), 10.13 (VAT rate assignment), 10.14 (multi-tenant users), 10.15 (WCAG revisit), 10.16 (stale-price threshold), 10.17 (tenant-editable reference data) |
 | 11 | GDPR data inventory & policy | `gdpr-data-inventory` | Not started | Complete the data inventory and policy sections in [gdpr.md](gdpr.md) | Blocks any consent/erasure/audit-log implementation, and the profile-picture feature |
 
-## New features (Epics 12–16 — add rows as they're prioritized in `project_requirements.md`)
+## New features (Epics 12–18 — add rows as they're prioritized in `project_requirements.md`)
 
 | # | Feature | Branch | Status | Scope summary | Notes / links |
 |---|---|---|---|---|---|
 | 12 | Hosting migration (off home server) | `stack-hosting-migration` | Not started | Move Django app + PostgreSQL off the self-hosted home server/Portainer setup to **Railway (Hobby, EU West)** per ADR-013, deployed via the existing Dockerfile rather than Railpack (ADR-004). Production only — the dev/test tier stays local per ADR-014 | Host now chosen (12.1 done); remaining work is provisioning, EU-region volume verification, backups, and the data migration. See [tech_stack.md](tech_stack.md) "Hosting candidates" |
-| 13 | Media storage for user uploads (product photos, profile pictures) | `feature-media-storage` | Not started | Add `Product`/profile image fields, integrate S3-compatible object storage (Cloudflare R2 lead candidate) via `django-storages`, decoupled from app hosting | See ADR-005 in [decisions.md](decisions.md), [tech_stack.md](tech_stack.md) "Static & media file storage", and [gdpr.md](gdpr.md) — profile pictures are personal data and the legal basis must be resolved before implementation |
+| 13 | Media storage for user uploads (**product photos only** this round) | `feature-media-storage` | Not started | Add a `Product` image field and integrate S3-compatible object storage (Cloudflare R2) via `django-storages`, decoupled from app hosting. **Profile pictures deferred** — ADR-024 rates them `Won't (this round)` | See ADR-005 and **ADR-024** in [decisions.md](decisions.md). Priority: product photos are **Could**, so this epic sits behind the Musts and Shoulds. Deferring profile pictures takes 11.3 (their legal basis) off the critical path |
 | 14 | Tenant full data export (portable/DBMS-importable) | `feature-tenant-data-export` | Not started | Given a tenant, export all of its rows across every tenant-scoped table as portable SQL or a CSV bundle + manifest, importable into another DBMS | See ADR-008 in [decisions.md](decisions.md) and [tech_stack.md](tech_stack.md) "Tenant data export tooling". Depends on Phase 3's `Bakery` tenant model existing first |
 | 15 | GDPR personal-data export (subject-scoped) | `feature-gdpr-data-export` | Not started | Second, separate export scoped to one data subject's personal data across models — the actual Article 20 portability fix, distinct from the bulk admin CSV export and the tenant-wide export above | See ADR-009 in [decisions.md](decisions.md) and [gdpr.md](gdpr.md) §3 Portability |
-| 16 | AI insights & alerts service (Spark/Databricks) | `feature-ai-insights-service` | Not started | External batch-processing service (Apache Spark on Databricks) triggered by app events (e.g. price/margin change), reads app DB, returns margin alerts and real-time analytics data back to the app | See ADR-002 in [decisions.md](decisions.md) and [tech_stack.md](tech_stack.md) "AI insights / batch analytics service"; needs the API contract + data-scope decision (GDPR §7) resolved before implementation starts |
+| 16 | AI insights & alerts service | `feature-ai-insights-service` | Not started | Margin alerts (notify when a product's margin drops below expectation) and analytics, triggered by app events, returned to the app | **Could**, and **re-scope the engine before any spend** (ADR-024): a margin alert over ADR-018's dated prices is a scheduled query, which is now the null hypothesis Spark/Databricks has to beat (9.20). ADR-002 is still only `Proposed`. Also needs the API contract + data-scope decision (GDPR §7) before implementation |
+| 17 | Batch & lot traceability | `feature-traceability` | Not started | Goods receipts with supplier lot codes, production runs consuming specific lots, internal batch lot codes, outbound records, and a one-step-back/one-step-forward trace query. Append-only records | **A legal obligation on the user** (EU Reg. 178/2002 Art. 18, FSAI-enforced), not a nice-to-have — see ADR-017 in [decisions.md](decisions.md). Depends on Epic 3 (tenant scoping, numeric quantities, canonical units), 9.21 (entity shape), and 10.8 (regulator check). Adds an event/temporal layer to a schema that is currently pure current-state — review Epic 3's design against it before implementing 3.19/3.22 |
+| 18 | Allergen data | `feature-allergen-data` | Not started | Allergen attributes on raw materials, aggregated up through base recipes to products (EU FIC 1169/2011), with incomplete data marked as incomplete rather than shown as "none" | **Should** per ADR-024. Deliberately outside Epic 17 so the Art. 18 traceability core isn't delayed — but it reuses ADR-022's recipe recursion directly, so it is much cheaper built *after* Epic 17. Scope check is 10.12/18.1 |
 
 ## Suggested execution order
 
@@ -72,8 +74,23 @@ Sequencing only — the task-level detail is in [`PRODUCTION_UPDATE_PLAN.md`](..
 9. Epic 12 → Epic 7 — pick and provision the host, then observability and deployment hardening.
 10. Epic 8 — documentation and runbooks, once the things being documented are stable.
 
-Feature epics 13–16 slot in after their prerequisites (noted per epic), prioritized by the MoSCoW
-pass in [project_requirements.md](project_requirements.md).
+Feature epics 13–17 slot in after their prerequisites (noted per epic), ordered by the MoSCoW pass in
+[project_requirements.md](project_requirements.md) — logged as ADR-024:
+
+| Priority | Epics / features |
+|---|---|
+| **Must** | Multi-tenancy (Epic 3), batch/lot traceability (Epic 17), real search/filter (5.9), supplier price comparison (5.21 + 3.63), user & role management (merged into 5.19/2.8/3.58/9.22) |
+| **Should** | Tenant data export (Epic 14), GDPR personal-data export (Epic 15), allergen data (Epic 18), trend reporting |
+| **Could** | Product photos (Epic 13, narrowed), stock levels (not an epic — a 9.21 design constraint), AI insights (Epic 16, **re-scope the engine first** via 9.20) |
+| **Won't (this round)** | Profile pictures, self-service registration, billing/subscriptions |
+
+**Epic 17 is the exception to "prioritize later"** — traceability is a **Must** (ADR-017), and its
+data model must be settled (9.21) *before* Epic 3's schema work is implemented, or Epic 3 gets
+redesigned twice. Supplier price comparison is likewise a Must that **depends on Epic 17**, since
+goods receipts are the data it compares.
+
+**No date pressure.** The first user is a single friendly Irish pilot bakery with no committed launch
+date (ADR-016), so this order is driven by risk and dependencies, not by a deadline.
 
 ## Milestone: first production release scope
 

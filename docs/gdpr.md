@@ -45,6 +45,7 @@ person counts).
 | Failed login attempts | username + **plaintext password**, currently `print()`-ed to console/logs | `accounts/views.py: user_login` | Staff/employee | Yes — and currently a serious issue (secrets in logs) | n/a until fixed | n/a until fixed | **Needs remediation, not just documentation** |
 | CSV exports | full supplier/raw material/product/user tables | Generated on demand, not persisted | Mixed | Yes (contains the above) | Same as source data | n/a (not stored) | Open |
 | Session data | Django session cookie | `django_session` table | Staff/employee | Indirectly (session tied to a user) | Contract | Django default (session expiry) | Open |
+| Traceability records (new feature — not built yet) | goods receipts, production runs, outbound records; may name the supplier's contact person and the staff member who ran a production batch | Epic 17 models, tenant-scoped (see [ADR-017](decisions.md)) | Third-party (supplier contact) and staff/employee | Yes, incidentally — the batch data itself isn't personal, but the names attached to it are | **Legal obligation** (EU Reg. 178/2002 Art. 18) for the record; contract/legitimate interest for the staff attribution | **Set by food law, not by us** — a legal *minimum*, see §5 | Open — 10.9, 11.4 |
 
 Add rows as new personal data appears anywhere in the app (new features, new integrations).
 
@@ -62,8 +63,8 @@ Open.
 |---|---|---|---|
 | Access | A user/supplier contact can ask what data is held about them | CSV export exists but isn't scoped to "my data only" — it's an admin bulk export | Open |
 | Rectification | Correct inaccurate data | Yes, via existing CRUD/update views | Mostly covered |
-| Erasure ("right to be forgotten") | Delete personal data on request | Partial — delete views exist per model, but no cascading/anonymization strategy, and the user-delete view has a known bug (deletes the wrong model). Once profile pictures exist, deletion must also remove the stored object from R2 (or whichever bucket), not just the DB row referencing it | Open |
-| Restriction of processing | Mark data as "don't use, don't delete yet" | Not implemented | Open |
+| Erasure ("right to be forgotten") | Delete personal data on request | Partial — delete views exist per model, but no cascading/anonymization strategy, and the user-delete view has a known bug (deletes the wrong model). Once profile pictures exist, deletion must also remove the stored object from R2 (or whichever bucket), not just the DB row referencing it. **Traceability adds a hard limit:** records inside their food-law retention window cannot be deleted — the answer is anonymizing the personal fields, or a documented refusal-with-reason (see §5) | Open |
+| Restriction of processing | Mark data as "don't use, don't delete yet" | Not implemented — but the archive/soft-delete mechanism from [ADR-019](decisions.md) is the natural place to build it, rather than a second parallel flag | Open |
 | Portability | Provide data in a machine-readable format | CSV export exists but not self-service or subject-scoped. Fix decided, not yet built: keep the bulk CSV export as an admin feature, and add a dedicated subject-scoped GDPR personal-data export (ADR-009) — separate from the tenant-wide full data export (ADR-008), which is a broader "take all my bakery's data" feature, not itself the portability mechanism | Decided (direction) — implementation Open |
 | Objection | Opt out of a given processing purpose | Not implemented | Open |
 
@@ -83,6 +84,23 @@ For each data category in the inventory: how long is it kept, and what triggers 
 
 Open — currently no retention policy exists; data appears to be kept indefinitely.
 
+**One constraint is no longer ours to choose.** Batch/lot traceability is in scope
+([ADR-017](decisions.md)), and food law imposes a **minimum** retention on traceability records —
+commonly five years, shorter for short-shelf-life products. Where such a record names a supplier's
+contact person or the staff member who ran a batch, that floor and GDPR's storage-limitation principle
+have to be **reconciled**, not traded off: the legal obligation to retain wins over minimization for
+the fields the obligation actually covers, and the answer for the rest is to keep the record while
+minimizing the personal data inside it. Two consequences for this section:
+
+- The retention policy must be written **per field**, not per record, for traceability data — the lot
+  code and quantities are retained by law; the contact's name may not need to be.
+- An erasure request from a supplier contact **cannot** delete a traceability record within its
+  retention window. The response is anonymization of the personal fields where the trace stays intact,
+  and a documented refusal-with-reason where it doesn't. That has to be written into §3's erasure
+  strategy before Epic 17 ships, not discovered during a request.
+
+Tasks: 10.9 (establish the floor), 11.4 (write the policy), 17.9 (enforce it).
+
 ## 6. Security measures
 
 Cross-reference with [`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md) Epic 2 (secrets
@@ -93,7 +111,11 @@ here; just track GDPR-specific gaps:
 - [ ] Stop logging plaintext passwords on failed login (`accounts/views.py`) — highest priority.
 - [ ] Confirm encryption in transit (HTTPS enforced) once Epic 2 lands.
 - [ ] Confirm backups are encrypted at rest, if/when a backup strategy is defined.
-- [ ] Access logging for who viewed/exported personal data (audit trail).
+- [ ] Access logging for who viewed/exported personal data (audit trail). Two cases now need naming
+      explicitly: the **Read-only role can export** ([ADR-020](decisions.md)) — deliberate, and the
+      audit log is what makes it acceptable rather than the role restriction; and the **Django admin
+      is a deliberate cross-tenant surface** ([ADR-019](decisions.md)) whose access to personal data
+      must be logged like any other (2.15, 11.10).
 
 ## 7. Third-party processors
 
@@ -107,7 +129,7 @@ controller) — not just infrastructure vendors below.
 | **Railway** (chosen host — ADR-013; currently still self-hosted on the home server until Epic 12 executes) | Runs the app, stores the DB | Everything | **Required** — task 12.7 | Open — DPA not yet executed. US-incorporated: data stored in EU West (Amsterdam), but see §7.1 below on transfer safeguards |
 | Databricks (new — AI insights/batch analytics service, ADR-002) | Reads app data to compute margin alerts / analytics | Whatever the batch job queries — confirm it's limited to product/pricing/recipe data and excludes user accounts or supplier contact personal data unless proven necessary | Needed once a paid Databricks workspace is set up | Open |
 | Object storage for media (Cloudflare R2 — see `tech_stack.md` ADR-005) | Stores uploaded files, including profile pictures once that feature ships | Profile pictures (personal), product photos (not personal) | Needed before the profile-picture feature goes live | Open |
-| Any email provider (if added) | Notifications | User emails | Open | Open |
+| Email provider | Transactional mail — **user invitations** for the tenant self-administration area, plus any later notifications | Invitee email addresses and names | **Now required, not hypothetical** — [ADR-023](decisions.md)'s invite flow depends on it; provider choice is 9.22, DPA via 11.6 | Open |
 
 ### 7.1 Data residency and international transfers
 
@@ -169,4 +191,10 @@ exactly this change).
   SaaS confirmed, Bakery-the-product as processor / each bakery tenant as controller — see §0 above
   and [decisions.md](decisions.md) ADR-006. DPA terms and the exact controller/processor contract
   are still Open follow-up work.
-- Who is the practical point of contact for data subject requests once this is live?
+- Who is the practical point of contact for data subject requests once this is live? Narrowed by
+  [ADR-016](decisions.md): phase 1 has exactly **one tenant** (a friendly Irish pilot bakery), so the
+  controller-side contact is that bakery and the processor-side contact is the project owner. Still
+  needs naming for real — task 11.12.
+- Does a free pilot change any obligation? **No.** The pilot bakery is a data controller and
+  Bakery-the-product is its processor regardless of whether money changes hands, so the per-tenant DPA
+  (11.5) is required for the pilot too.

@@ -516,7 +516,527 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
   as a broken local environment rather than as a nasty discovery during a migration. The main ongoing
   cost is discipline: a future ADR that wants a host-specific feature must argue against this one.
 
-## ADR-016: <next decision goes here>
+## ADR-016: Phase 1 go-to-market — one pilot bakery, free, no deadline; flat per-bakery subscription as the eventual pricing shape
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** [project_requirements.md](project_requirements.md) carried five linked `Open` commercial
+  and context questions — who the first real users are, what timeline pressure exists, whether phase 1
+  is a paid beta or a free pilot, what the pricing/plan structure looks like, and how tenants are
+  onboarded. Together they determine whether billing work ever enters the backlog, what fields the
+  `Bakery` tenant model needs (3.1), and whether the permission layer has to gate features by plan.
+- **Decision:**
+  - **First user:** a single friendly Irish bakery, running a pilot. It is a real food business
+    operator with real data, not a test tenant.
+  - **Timeline:** no committed launch date. Epic sequencing is driven by readiness and risk, not by an
+    external deadline — the first-release milestone in [roadmap.md](roadmap.md) stays scoped by risk.
+  - **Commercial model for phase 1:** a **free pilot**. No payment provider, no subscription state, no
+    billing tables, no invoicing, no dunning. Billing is explicitly out of scope for this round.
+  - **Eventual pricing shape:** a **flat per-bakery monthly subscription** — all features, unlimited
+    users per tenant. Recorded now not because it is being built, but so nothing gets built that
+    contradicts it: no feature gating by plan, no per-seat counting.
+  - **Still Open:** tenant onboarding mechanics (10.10) and which EU countries follow Ireland (10.11).
+- **Alternatives considered:** **Paid beta or paid from day one** — rejected for phase 1; a single
+  pilot tenant does not justify a payment integration, and adding one now would put subscription state
+  into the schema before the schema redesign (Epic 3) has even happened. **Tiered (Free/Pro/Business)
+  pricing** — rejected as the target shape: tiering requires feature gating inside the permission
+  layer, permanently complicating Epics 2 and 4 for revenue that does not exist. **Per-user seat
+  pricing** — rejected; it makes seat counting a product concern and couples pricing to the role matrix
+  (10.1), which should be driven by what people need to do, not by what they cost.
+- **Consequences:**
+  - **No billing epic exists, and none should be added this round.** If billing is proposed, it needs
+    an ADR superseding this one.
+  - The `Bakery` tenant model (3.1) needs **no** plan/tier/subscription fields — identity, contact, and
+    an active flag are enough. Adding a plan field later is a small additive migration.
+  - Role and permission work (10.1, 2.8, 3.4) is constrained by capability only, never by plan.
+  - Multi-tenancy stays architecturally required ([ADR-006](decisions.md)) even with one tenant. Tenant
+    #2 is not imminent, which buys time — but it does **not** downgrade the cross-tenant isolation
+    tests (6.9), which must be in place *before* a second tenant exists, not after.
+  - A single, known, forgiving pilot user makes the local-only dev/test model ([ADR-014](decisions.md))
+    comfortable for longer than it otherwise would be. Revisit that ADR — and this one — before
+    onboarding a second tenant or charging anyone.
+  - The pilot bakery is a real data controller under [ADR-006](decisions.md), so the per-tenant DPA
+    (11.5) is needed for the pilot too — "it's only a pilot" is not a GDPR exemption.
+
+## ADR-017: Batch/lot food traceability is in scope, as its own epic
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** [project_requirements.md](project_requirements.md) asked whether any regulation beyond
+  GDPR applies. It does: a bakery is a food business operator, and EU Regulation 178/2002 Article 18
+  requires every food business operator to be able to identify **one step back** (which supplier
+  supplied which input) and **one step forward** (who a given output went to), with records produced to
+  the competent authority on demand — the FSAI in Ireland. Bakery today models suppliers, raw
+  materials, recipes, and products as a pure current-state catalogue: there is no notion of a delivery,
+  a batch, a lot code, or a production run, so it cannot support that record-keeping at all.
+- **Decision:** Batch/lot traceability is an **in-scope product capability**, built as its own epic
+  (Epic 17, `feature-traceability`) rather than folded into the Epic 3 schema redesign.
+  - **Model shape (direction, detail in 9.21):** goods-receipt lines record what actually arrived —
+    supplier lot code, receipt date, quantity, best-before — distinct from the `RawMaterial` catalogue
+    row. Production runs consume specific receipt lots and emit an output batch carrying its own
+    internal lot code. Outbound records capture where a finished batch went.
+  - **Regulatory floor:** one-step-back and one-step-forward. Full internal mass-balance (reconciling
+    every gram in against every gram out) is a **Should**, not a **Must**.
+  - **Sequencing:** depends on Epic 3 — tenant scoping, numeric quantities, and canonical units must
+    land first, because a traceability record without a trustworthy quantity is not worth writing.
+  - **Explicitly not in scope:** HACCP plans, temperature/cleaning logs, allergen labelling as such
+    (a separate question, still Open), and automated recall workflows.
+- **Alternatives considered:** **Treating traceability as the bakery's own paper problem and staying
+  GDPR-only** — rejected; the pilot user needs it and it is a legal obligation on them, not an optional
+  feature. **Bolting lot fields onto the existing models** (e.g. a `lot` `CharField` on `RawMaterial`)
+  — rejected: a lot is an *event over time*, not an attribute of a catalogue item. This app already
+  suffers from exactly that conflation (`RawMaterial.price` has no time dimension, which is why the
+  price-basis and price-history questions in 10.5 are hard), and repeating it would make the schema
+  actively wrong rather than merely incomplete. **Integrating a dedicated third-party traceability
+  system** — not evaluated; revisit only if Epic 17 proves substantially larger than scoped.
+- **Consequences:**
+  - **This is the largest single addition to the product scope so far.** It adds a temporal/event layer
+    to a schema that is currently pure current-state. Epic 3's schema work should be reviewed with
+    Epic 17 in mind so the redesign doesn't have to be redone.
+  - **It partly pre-answers 10.5's deletion-semantics question.** A `Supplier` or `RawMaterial`
+    referenced by a traceability record can never be hard-deleted, so soft delete/archive stops being
+    a judgment call for those entities (3.13, 3.22, 17.6).
+  - **It interacts with the price-basis and price-history questions (10.5).** A goods-receipt line
+    naturally carries the price actually paid on that date — which would answer product/input price
+    history as a side effect. Decide 10.5 with this in mind rather than independently.
+  - **Retention gains a legal floor that GDPR minimization cannot override.** Food law imposes a
+    *minimum* retention on traceability records (commonly five years, shorter for short-shelf-life
+    products); where such a record names a supplier's contact person, that floor and the GDPR
+    retention policy have to be reconciled rather than chosen freely — 10.9, feeding
+    [gdpr.md](gdpr.md) §5 and 11.4.
+  - **Traceability records must be append-only** — no hard delete, no silent retroactive edit. That is
+    a stronger integrity requirement than anything else in the schema (17.5) and pairs with the audit
+    logging in 2.9/11.10.
+  - **A partial implementation is worse than none if it looks complete.** The pilot bakery is a real
+    food business operator; whatever ships must not present itself as a compliance record until the
+    one-step-back/one-step-forward path is actually whole (17.7, 17.10).
+  - Adds structural data-model questions to [tech_stack.md](tech_stack.md) (batch/receipt entity shape,
+    lot code generation, whether stock levels come along for the ride) — 9.21.
+
+## ADR-018: Costing and money semantics — purchase-unit prices, kg/l/each canonical units, net-of-VAT storage with a dated rate table, and dual-source price history
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** Four of the seven business data-semantics questions in
+  [project_requirements.md](project_requirements.md) were blocking the Epic 3 schema redesign (tasks
+  3.10, 3.11, 3.15, 3.16, 3.34). They are recorded as one decision because they only make sense
+  together: what a price *means* determines what a unit must be, which determines where VAT can be
+  applied, which determines what a price *history* row has to contain. Deciding them separately is how
+  the current prototype ended up recomputing cost inline in `float()` in three different views.
+- **Decision:**
+  1. **Price basis — purchase unit + pack size, normalized at cost time.** `RawMaterial` stores what
+     the invoice says: a purchase price, a pack quantity, and a purchase unit (€12.50 / 25 / kg). The
+     service layer derives cost per canonical unit; nothing persists the derived figure (task 3.17
+     stands). This is also exactly what an [ADR-017](decisions.md) goods-receipt line records, so the
+     two features agree by construction rather than by convention.
+  2. **Canonical units — kilogram, litre, each**, one per dimension (mass, volume, count). Any purchase
+     unit converts to its canonical unit through a **conversion factor held in a reference table**, so
+     adding "sack" or "dozen" is data entry, not a code change and not a migration.
+  3. **VAT — all stored money is net (ex-VAT).** VAT is applied only at display/sale, never in stored
+     data. Rates live in a **dated VAT-rate reference table** (`code`, `percent`, `valid_from`,
+     `valid_to`) and a product references a rate code, not a number. This matches Irish reality, where
+     different bakery products genuinely attract different rates, and it survives a statutory rate
+     change without silently rewriting historical margins.
+  4. **Price history — versioned, from two different sources.** Input prices are historised by the
+     goods receipts that [ADR-017](decisions.md) already requires: each delivery dates the price
+     actually paid, so input price history is a by-product rather than new machinery. Sale prices get
+     their own dated rows (`ProductPrice`: product, net price, `valid_from`), with the current price
+     being the latest row whose `valid_from` has passed. Two mechanisms, because the two prices have
+     genuinely different origins — one is an observed fact, the other is a decision the bakery makes.
+- **Alternatives considered:**
+  - **Storing €/canonical-unit directly** — rejected; it discards the invoice figure and makes the user
+    do the arithmetic on every price change, which is a silent-error generator in exactly the numbers
+    this app exists to compute.
+  - **Persisting the derived unit price as a column** — rejected; it creates two fields that can
+    disagree and contradicts 3.17. Revisit only if profiling shows the derivation is actually a
+    bottleneck, and then as an explicit cache with an invalidation story.
+  - **Gram/millilitre canonical units** — considered and **not** chosen; see the precision consequence
+    below, which is the price of that choice.
+  - **A plain VAT-rate field on the product** — rejected; a statutory rate change would bulk-update
+    every product and recompute past margins at today's rate.
+  - **Gross (VAT-inclusive) storage** — rejected; every margin calculation would begin with a division,
+    and the resulting repeating decimals propagate into the cost/margin figures.
+  - **Current-price-only** — rejected; it makes "why did this product's margin drop in March?"
+    unanswerable, which is precisely the question Epic 16's margin alerts are supposed to answer.
+- **Consequences:**
+  - **Precision and rounding are now load-bearing, because the canonical units are large.** With
+    kilogram as the mass canonical, 7 g of yeast is `0.007` and a pinch of spice is `0.0005`.
+    Quantities need at least `Decimal(12,4)` — `Decimal(12,6)` is the safer default — and money needs
+    to be carried at more than two decimal places internally, rounding to 2 dp **only at
+    presentation**. The rounding rule itself (half-up, and at which boundary) must be written down and
+    tested rather than inherited from whatever Python does by default — new task 3.51, tested in 6.16.
+    This is the direct cost of kg/l over g/ml, and it is manageable, but only if it is explicit.
+  - **Units become a lookup table, not an enum.** This pre-answers half of 9.18: a conversion factor is
+    data a unit must carry, which an enum cannot hold. Categories remain an open enum-vs-lookup
+    question. Unblocks 3.26 for units only.
+  - **Two new reference tables and their seed data:** unit conversions and VAT rates (3.52, 3.53), which
+    feed the seed/reference-data strategy in 3.37 and the new-tenant onboarding question in 10.10.
+  - **Which VAT rate applies to which product is a tax question, not an engineering one.** Irish VAT
+    treatment of bakery goods is genuinely non-obvious (bread vs. flour confectionery), so the schema
+    must let a tenant set it per product and must not ship with guessed assignments — 10.13.
+  - **Existing data has no recorded basis.** Today's `RawMaterial.price` values mean whatever the person
+    typing them assumed. Backfilling into the new model is a human-judgment, per-row data-quality
+    exercise, not an automatic migration — 3.54, and it must happen before the old fields are dropped
+    (3.32).
+  - **Historical margin becomes reconstructible**, which turns the "historical cost/price snapshots &
+    trend reporting" backlog item from speculative into cheap, and gives Epic 16's margin alerts an
+    actual baseline to compare against.
+  - **The inline `float()` costing in `control/views.py` is now definitively wrong**, not merely
+    duplicated — it cannot express any of the four decisions above. It must be deleted in favour of the
+    service layer (4.1, 3.25), not patched.
+  - Closes four of the seven rows in the data-semantics table. Still open: which entities need soft
+    delete (partly forced by [ADR-017](decisions.md)), supplier-name uniqueness, and the Django-admin
+    vs. in-app-settings overlap.
+
+## ADR-019: Deletion semantics, supplier identity, and the two administration surfaces
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** The last three business data-semantics questions in
+  [project_requirements.md](project_requirements.md) — which entities survive "deletion", whether
+  supplier name stays unique once it is no longer the primary key, and whether the Django admin and
+  the in-app settings area should expose the same operations. All three block Epic 3 (3.6, 3.22) and
+  the second is only answerable now that multi-tenancy (ADR-006) and traceability (ADR-017) are
+  settled.
+- **Decision:**
+  1. **Soft delete for anything referenced by a record that outlives it.** `Supplier` and
+     `RawMaterial` (forced by traceability), plus `Product` — an outbound trace record and a dated
+     `ProductPrice` row both point at it — and `Base_recipes`, since a production run references the
+     recipe it followed. **Ingredient lines stay hard-deletable**: they are only meaningful inside
+     their parent and nothing outside references them.
+  2. **Supplier name is unique per tenant, not globally.** Two different bakeries may both buy from
+     "Odlums"; global uniqueness would be actively wrong in a multi-tenant product. Within one tenant,
+     a duplicate name is almost always a data-entry error worth blocking.
+  3. **Uniqueness applies among non-archived rows only.** This falls directly out of combining (1) and
+     (2): with a plain composite unique constraint, archiving "Odlums" would permanently block ever
+     creating a supplier by that name again. Enforced as a partial unique index over live rows.
+  4. **Two administration surfaces with two different audiences.** The in-app settings area is the
+     tenant's surface — tenant-scoped, role-checked, audited. The **Django admin is superuser-only
+     support tooling** for the project owner: data repair and diagnosis, never linked from the tenant
+     UI, never offered to a tenant user.
+- **Alternatives considered:**
+  - **Soft delete on every business table** — rejected; it puts an archived-row filter on every query
+    forever, and a missed filter resurrects deleted data. That is the same failure mode as a missed
+    tenant filter, and doubling the number of correctness-critical filters doubles the chance of it.
+  - **Soft delete only on the forced set** (`Supplier`, `RawMaterial`) — rejected; deleting a `Product`
+    would orphan its price history and any outbound trace record, so it would need a delete block
+    anyway, which is soft delete with worse ergonomics.
+  - **No supplier-name uniqueness, warn only** — rejected as the default; duplicates silently split a
+    supplier's cost history across two rows with no link between them. Genuine "two branches of the
+    same supplier" cases are served by distinct names, which is what a human would write anyway.
+  - **Case/whitespace-normalized uniqueness** — a better constraint, and deliberately **not** adopted
+    now: it needs a normalized column or a functional index, and the marginal duplicates it catches
+    ("odlums" vs "Odlums") do not yet justify that. Reconsider if real duplicates appear.
+  - **Disabling the Django admin in production** — rejected; it removes the fastest tool for repairing
+    a pilot tenant's data, leaving management commands or `psql` against production, which is a worse
+    risk than a superuser-gated admin.
+  - **Keeping both surfaces with identical operations** (today's shape) — rejected; every permission
+    rule would have to be enforced twice, and Django admin bypasses tenant-scoped managers by default.
+- **Consequences:**
+  - **Two orthogonal, correctness-critical query filters now exist:** tenant scope (ADR-008) and
+    archived state. They must be combined in **one** base manager rather than applied ad hoc per
+    query, and tested together — a query that filters tenant but not archived is a bug, and one that
+    filters archived but not tenant is a data leak (3.55, tested in 6.18).
+  - **"Delete" in the UI now means two different things** depending on the model, which users will
+    notice. The interface has to say *archive* where it archives, and archived rows need a way back
+    (3.56) — a soft delete with no un-delete path is just a confusing delete.
+  - The per-tenant unique constraint **depends on the tenant FK existing first** (3.2), so 3.6 is
+    sequenced after it, not alongside.
+  - **The Django admin is now a deliberate cross-tenant surface.** That is exactly what makes it useful
+    for support and exactly what makes it dangerous: it must be superuser-gated (2.15), excluded from
+    tenant-facing navigation, and its access to personal data logged like any other (11.10). Do **not**
+    rely on `ModelAdmin` to enforce tenant scoping — it does not, by default.
+  - Closes the data-semantics section of [project_requirements.md](project_requirements.md) entirely.
+    Together with [ADR-018](decisions.md), all seven questions are now answered and Epic 3's blocked
+    tasks are unblocked.
+
+## ADR-020: Three per-tenant roles — Owner, Staff, Read-only — held on a membership record
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** `PRODUCTION_UPDATE_PLAN.md` originally proposed four roles (admin/owner, manager,
+  staff/operator, read-only/auditor) and [project_requirements.md](project_requirements.md) carried
+  the capability matrix as `Open`. [ADR-006](decisions.md) scoped roles per tenant, and task 2.8
+  (real authorization in views) cannot be implemented until the roles actually exist. Today access
+  control is enforced inconsistently — partly in templates, partly not at all.
+- **Decision:**
+  - **Three roles per tenant:**
+    - **Owner** — full administration of their own bakery: users, settings, pricing, archiving,
+      exports, and all daily work.
+    - **Staff** — daily work: raw materials, recipes, products, goods receipts, production runs. No
+      user management, no tenant settings.
+    - **Read-only** — view and export, no writes at all. This is the accountant/auditor seat.
+  - **The role lives on a membership record** (user × bakery × role), not on the user. Django's global
+    `Group` model cannot express "Owner of bakery A" and the role must be per tenant per ADR-006. The
+    membership model also means a user *could* belong to more than one tenant without a schema change.
+  - **"Manager" is deliberately deferred**, not rejected. It is a real distinction in a larger bakery
+    (pricing and suppliers without user administration), but the pilot cannot yet articulate it, and a
+    role whose permissions are guessed is worse than one that does not exist.
+- **Alternatives considered:** **Four roles including Manager** — rejected for now on the above
+  grounds; adding it later is a new row in a role table, not a reshape, *provided* permissions are
+  checked by capability rather than by `if role == "owner"` scattered through views. **Two roles
+  (Admin/Staff)** — rejected; with no read-only tier an accountant either gets write access or a
+  shared login, and shared logins destroy the audit trail that Epics 11 and 17 depend on. **Django
+  groups plus granular per-tenant editable permissions** — rejected as premature: it makes "who can do
+  what" per-tenant configuration that can no longer be reasoned about or tested centrally, and the
+  test matrix becomes combinations rather than three roles.
+- **Consequences:**
+  - Unblocks 2.8 and 3.4, and gives 10.1's capability matrix its shape.
+  - **Permission checks must be capability-named, not role-named** — `can_manage_users`, not
+    `role == "owner"` — even though only three roles exist. This is what keeps Manager cheap to add
+    later, and it costs nothing now (2.16).
+  - **Read-only can export**, which is deliberate but means a read-only account can still extract data
+    in bulk. Every export is audit-logged (14.4, 15.4, 11.10); that logging is what makes this
+    acceptable rather than the role restriction.
+  - **Traceability writes are Staff-level**, since recording a goods receipt is daily work. But
+    traceability records are append-only ([ADR-017](decisions.md)), so a mistaken Staff entry is
+    corrected by a new record, never by editing — the role model and the integrity model have to be
+    implemented together (17.5).
+  - **Still open:** whether one person may hold memberships in several tenants in the product UI. The
+    membership model supports it; whether it is offered is a product question — 10.14.
+  - Every existing user in the current database has no role. Assigning one per user is a migration
+    with a human decision in it, not a default (3.57).
+
+## ADR-021: Non-functional targets — modest explicit performance budgets, WCAG 2.2 Level A, responsive/evergreen-browser support, and translation-ready English/euro
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** The non-functional requirements table in
+  [project_requirements.md](project_requirements.md) was entirely `Open`, blocking task 5.12 and
+  leaving Epic 5's frontend rewrite with no target to build against. These are cheapest to decide
+  *before* the templates are rewritten, since accessibility and localization are far more expensive
+  to retrofit than to build in.
+- **Decision:**
+  1. **Performance — modest but explicit.** p95 under ~500 ms for normal pages, under ~2 s for the
+     dashboard's costing aggregate, at roughly ten concurrent users per tenant, on a dataset of
+     thousands of rows rather than millions. Numbers the ~$6/mo Railway Hobby service can actually
+     hold ([ADR-013](decisions.md)), and specific enough that a regression is detectable.
+  2. **Accessibility — WCAG 2.2 Level A.** The minimum conformance level: alt text, real form labels,
+     no keyboard traps, no information conveyed by colour alone.
+  3. **Devices and browsers — one responsive UI**, phone through desktop, on the current and previous
+     major version of Chrome, Firefox, Safari and Edge. No IE11, no legacy Edge, no native mobile app.
+  4. **Localization — English and euro only, but translation-ready.** Ship `en-IE`/EUR, while routing
+     display text through Django's translation machinery and all money through a single formatter from
+     day one. No hardcoded `€` in templates.
+- **Alternatives considered:**
+  - **No numeric performance target** — rejected; it leaves nothing for review or CI to check against,
+    and "is this a regression?" becomes a judgment call every time. **Strict sub-200 ms budgets
+    enforced in CI** — rejected; Railway Hobby shares CPU, so the host itself makes that latency
+    partly unenforceable, and the machinery is disproportionate for one pilot tenant.
+  - **WCAG 2.2 Level AA** — the recommended option and **not** chosen; see the consequence below.
+  - **No accessibility target at all** — rejected; Level A is cheap during a template rewrite and
+    turns accessibility into a requirement rather than a future bug report.
+  - **Desktop-first with best-effort mobile** — rejected; goods receipts under
+    [ADR-017](decisions.md) get recorded at the delivery door, on a phone. **Mobile-first** — rejected
+    as the primary frame; costing and margin views are inherently wide tables.
+  - **Hardcoded English/€** (today's behaviour) — rejected; it makes the ADR-016 expansion trigger
+    expensive precisely when it fires. **Multi-language and multi-currency now** — rejected; the next
+    EU countries are undecided (10.11), and multi-currency touches every money column and the whole
+    costing service.
+- **Consequences:**
+  - **Level A is below what procurement typically asks for.** It deliberately excludes AA's contrast
+    ratios (4.5:1), visible focus indicators, consistent navigation, and error-suggestion
+    requirements. That is a fine call for a pilot with a handful of known users, and it is worth
+    naming what it means: the gap becomes real the first time a tenant has a staff member who needs
+    it, or a buyer asks for a conformance statement — which is likelier at EU expansion, where public
+    procurement and the European Accessibility Act point at AA. **Recorded as a revisit trigger
+    (10.15), tied to the same expansion point as 10.11 and 11.14.** Building semantic HTML and real
+    form labels for Level A during Epic 5 keeps most of the distance to AA small.
+  - **Performance targets need something to measure them.** They are unverifiable until Epic 7's
+    logging and slow-query monitoring exist (7.1, 3.43), so they are a documented budget now and an
+    observed one later — not a CI gate (5.14).
+  - **Translation-readiness is a discipline, not a feature.** `gettext` on display strings and one
+    currency formatter cost almost nothing during the Epic 5 rewrite and are painful to add
+    afterwards. This means Epic 5 must not introduce a single hardcoded `€` — including in the
+    existing templates it touches (5.15, 5.16).
+  - Wide costing/margin tables need a deliberate small-screen strategy — horizontal scroll containers
+    or card layouts — rather than being left to overflow (5.13, already scoped).
+  - Closes the entire non-functional section of [project_requirements.md](project_requirements.md) and
+    unblocks 5.12.
+
+## ADR-022: Goods receipts drive raw-material cost; ingredient lines accept a raw material **or** a base recipe
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** Two functional questions from
+  [project_requirements.md](project_requirements.md) "Functional requirements by area", both of which
+  turned out to be domain-model questions rather than UI ones. First: once
+  [ADR-017](decisions.md)'s goods receipts exist, the price actually paid for a material is recorded
+  in two places — the receipt and `RawMaterial` — so which one costing believes has to be settled.
+  Second: `Base_recipes` and `Product` are currently parallel and **disconnected** — a product's
+  ingredient lines can only reference raw materials, so a base recipe's cost can never reach a
+  product. Base recipes are therefore a standalone calculator that nothing consumes, which is half a
+  feature.
+- **Decision:**
+  1. **The latest goods receipt sets a raw material's current cost**, with a manual override retained
+     as a fallback. Cost becomes an observed fact rather than a number re-typed by hand. "Latest" means
+     the most recent receipt by **receipt date** (not entry date), ties broken by creation time, so
+     back-dating a late-entered delivery behaves correctly.
+  2. **A manually-entered price remains possible and is labelled an estimate.** A material that has
+     never been received — a new ingredient being costed for a product that doesn't exist yet — must
+     still be costable, otherwise recipe planning is impossible before the first purchase.
+  3. **Every cost figure carries its provenance.** The UI and any export must be able to say whether a
+     figure came from a real receipt or from an estimate. A margin computed from a guess and one
+     computed from an invoice are not the same claim.
+  4. **An ingredient line references either a raw material or a base recipe.** Costing recurses: a
+     product consuming "laminated dough" pulls that base recipe's cost per unit of its yield.
+- **Alternatives considered:**
+  - **Receipts as traceability records only, price maintained by hand** — rejected; the same figure
+    would be entered twice with nothing detecting divergence, which is the exact failure mode
+    [ADR-018](decisions.md) was written to remove.
+  - **Receipt price as the *only* price** — rejected; a material with no receipt could not be costed
+    at all, which blocks "what would this product cost?" planning entirely.
+  - **Keeping base recipes and products parallel and disconnected** (today's shape) — rejected; a
+    bakery making one dough used in six products would restate every dough ingredient six times, and a
+    flour price change would mean editing six products.
+  - **Merging both into one recipe model with a `is_sellable` flag** — genuinely cleaner and **not**
+    chosen: it is a larger migration and it collapses a distinction the bakery may think in. Note that
+    decision 4 makes the two ingredient-line models structurally identical, so this option gets
+    materially easier later if it's ever wanted.
+- **Consequences:**
+  - **Recursive costing introduces a cycle risk that must be prevented, not merely avoided.** A base
+    recipe that contains itself — directly, or transitively through two others — makes costing loop
+    forever. This needs a validation rule at save time plus a depth guard in the costing service
+    (3.59, 4.16), and a test that a cycle is rejected (6.20). This is the single most important
+    consequence here; nothing in the current schema prevents it.
+  - **`recipe_yeld` becomes load-bearing.** To use a base recipe as an ingredient, its cost must be
+    expressible per unit of yield, so the yield needs a real numeric value and a unit from the
+    [ADR-018](decisions.md) unit table — it can no longer be a loose field (3.60, extends 3.14).
+  - **This substantially answers 9.18's ingredient-line question.** Both line models now need a typed
+    *component* reference (raw material or base recipe) as well as a typed parent, which makes them
+    structurally identical. A single shared ingredient-line model is now strongly indicated; formally
+    it remains 9.18's call, but the alternative has lost most of its justification.
+  - **Cost provenance has to be modelled, not just displayed** — a flag or a derivation the service
+    layer returns alongside the figure (4.17). Retrofitting provenance into a bare `Decimal` later is
+    painful.
+  - **The receipt and the material now share one price shape** (`purchase_price` / `pack_quantity` /
+    `purchase_unit`), which is why 3.10 and 17.1 must be implemented against the same definition.
+  - **Point-in-time costing becomes possible but is not in scope.** With dated receipts and dated sale
+    prices, "what was this product's margin in March?" is answerable — deferred to the trend-reporting
+    feature rather than built into the costing service now.
+  - Epic 17's multi-level trace (17.7) and this recursion are the same traversal in opposite
+    directions; implementing one should inform the other.
+
+## ADR-023: Dashboard becomes an overview page; the settings area becomes tenant self-administration
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** The remaining two "Functional requirements by area" questions in
+  [project_requirements.md](project_requirements.md) — what the dashboard should be, and what the
+  settings/users/export area should contain now that tenants ([ADR-006](decisions.md)) and roles
+  ([ADR-020](decisions.md)) exist and the Django admin has been narrowed to superuser support tooling
+  ([ADR-019](decisions.md)).
+- **Decision:**
+  1. **The dashboard becomes a genuine overview**: a summary strip (product count, average margin,
+     materials with no or stale pricing), the worst-margin products, and recent input price movements.
+     The full product list moves to its own page rather than being the dashboard.
+  2. **The settings area becomes the tenant's self-administration surface**, owned by the Owner role:
+     invite and remove users and set their roles, edit bakery details, manage reference data, and run
+     exports. Read-only users can reach exports; nothing else in there is writable by them.
+  3. This is the surface the Django admin deliberately is **not** — it is tenant-scoped, role-checked,
+     and audited, per [ADR-019](decisions.md).
+- **Alternatives considered:** **Keeping the dashboard as the product cost/margin list** with better
+  sorting/filtering — the lower-risk option, rejected because the overview is where price history
+  (ADR-018) actually pays off. **Fixing only the underlying math with no UI change** — rejected as too
+  little given Epic 5 is rewriting the templates anyway. **Keeping reference data in the Django admin**
+  — rejected; every unit or VAT-rate change would become a support request. **Superuser-side user
+  management only** — rejected; it leaves the Owner role with almost nothing to administer and makes
+  onboarding tenant #2 a manual job.
+- **Consequences:**
+  - **The dashboard rework depends on Epic 3, not just Epic 5.** "Recent input price movements" and
+    "stale pricing" require [ADR-018](decisions.md)'s dated prices and [ADR-022](decisions.md)'s
+    receipts to exist. Built before that data lands, the overview has nothing to show — so it is
+    sequenced after Epic 3 even though it is a frontend deliverable (5.18).
+  - **"Stale" needs a definition.** How old a price must be before the dashboard flags it is a business
+    rule nobody has set — 10.16. Shipping a warning badge with an arbitrary threshold would train users
+    to ignore it.
+  - **Inviting users requires email, which the app does not currently send.** This turns the "any email
+    provider (if added)" row in [gdpr.md](gdpr.md) §7 from hypothetical into required: a provider must
+    be chosen (9.22), configured from environment variables, and covered by a DPA (11.6) before
+    invitations ship. It is a new external dependency created by this decision, not an incidental
+    detail.
+  - **Tenant-editable reference data is not uniformly safe.** VAT rates and categories are fine for a
+    tenant to manage. **Unit conversion factors are not** — a wrong factor silently corrupts every cost
+    figure that depends on it, with no error anywhere. The likely split is system-managed units with a
+    tenant-selectable subset, but that is a real decision, not an assumption — 10.17.
+  - **This replaces the broken user-delete view rather than patching it** (the one that deletes
+    `RawMaterial`). 6.7's regression test still applies, but the fix is the rebuilt surface.
+  - The overview's aggregates run against the p95 < 2 s dashboard budget from
+    [ADR-021](decisions.md) — which is also the view most likely to need the caching that 9.18 leaves
+    open.
+
+## ADR-024: Feature backlog prioritization (MoSCoW pass, task 10.3)
+
+- **Date:** 2026-08-06
+- **Status:** Accepted
+- **Context:** The feature backlog in [project_requirements.md](project_requirements.md) carried
+  candidates with no priority column filled in, which left epic sequencing (13–17) and several Epic 5
+  tasks without a basis for ordering. Task 10.3 is the MoSCoW pass.
+- **Decision:**
+
+  | Feature | Priority | Reasoning |
+  |---|---|---|
+  | Batch/lot traceability (Epic 17) | **Must** | A legal obligation on the user, decided in [ADR-017](decisions.md) |
+  | Multi-tenancy (Epic 3) | **Must** | Architectural foundation, [ADR-006](decisions.md)/[ADR-008](decisions.md) |
+  | Real search/filter across entities | **Must** | The current search inputs exist and do nothing, which is worse than absent. Epic 5 is rewriting these templates anyway |
+  | Supplier price comparison for the same raw material | **Must** | Core buying-decision value — see the schema consequence below |
+  | Tenant full data export (Epic 14) | **Should** | Product differentiator, [ADR-008](decisions.md); depends on Epic 3 |
+  | GDPR personal-data export (Epic 15) | **Should** | The Article 20 fix, [ADR-009](decisions.md) |
+  | Trend reporting / dashboards beyond the per-product view | **Should** | The data foundation is free from [ADR-018](decisions.md)/[ADR-022](decisions.md), and [ADR-023](decisions.md)'s overview delivers the first slice. Full trends need months of accumulated data that won't exist at launch |
+  | Product photo upload | **Could** | Cosmetic for a costing tool |
+  | User profile picture upload | **Won't (this round)** | Personal data with an undecided legal basis (11.3), an object-storage DPA, and erasure obligations — real compliance cost for no operational value at a one-tenant pilot |
+  | Billing / subscriptions | **Won't (this round)** | [ADR-016](decisions.md) |
+  | Better user & role management | **Must — merged, not a separate feature** | This *is* [ADR-023](decisions.md)'s settings area assigning [ADR-020](decisions.md)'s roles. Already scoped as 5.19, 2.8, 3.58, 9.22; the backlog row is folded in rather than tracked twice |
+  | Allergen data on raw materials, aggregated to products | **Should** | A legal obligation on a bakery selling to consumers (EU FIC 1169/2011), and it rides on the recursion [ADR-022](decisions.md) just built — aggregating allergens up a recipe tree is the same traversal as cost. New Epic 18 |
+  | Stock / quantity-on-hand | **Could** | Receipts and production runs *imply* it, but claiming stock figures are accurate is a materially bigger promise than claiming a cost is. Stays a 9.21 sub-question, not an epic |
+  | AI insights & alerts service (Epic 16) | **Could — and re-scope before spending** | Keep the goal, revisit the engine. Margin alerts over [ADR-018](decisions.md)'s price history are a scheduled query, not a Spark cluster |
+  | Self-service user registration | **Won't (this round)** | Open signup into a shared database with no billing gate produces spam tenants and abandoned accounts holding personal data you are then obliged to retain and delete |
+
+- **Alternatives considered:** **Search as Should** — rejected; leaving dead inputs in a freshly
+  rewritten UI is indefensible, and the fix is cheap while the templates are open. **Reporting as
+  Must** — rejected; charts over one week of data are not persuasive, and the overview page already
+  covers the immediate need. **Media as Should** — rejected; it would put the profile-picture legal
+  basis on the critical path rather than resolving it when the feature is actually wanted. **Supplier
+  comparison as Could** — rejected despite being the cautious call, since the user rates it core
+  buying-decision value.
+- **Consequences:**
+  - **Supplier price comparison as a Must forces a schema change beyond what Epic 3 already had.**
+    `RawMaterial` today has a **single** supplier FK, so a comparison view would have exactly one row
+    per material and show nothing. The fix follows naturally from [ADR-022](decisions.md): the real
+    supply relationship belongs on the **goods receipt** (this supplier, this material, this price,
+    this date), so `RawMaterial`'s FK becomes at most an optional *preferred supplier* rather than the
+    definition of who supplies it — 3.63, with the comparison view itself in 5.21.
+  - **This makes the comparison feature dependent on Epic 17**, not merely on Epic 3 — the receipts
+    are the data it compares. Until receipts accumulate across more than one supplier, the view will
+    be sparse; that is expected, not a defect.
+  - **Epic 13 narrows to product photos only.** Profile pictures leave this round, which takes 11.3
+    (their legal basis) off the critical path and removes the profile-picture driver from the R2 DPA —
+    though R2 is still needed for product photos if Epic 13 runs at all, and 11.6 still covers it.
+  - **Search moves into Epic 5 proper** rather than being deferred: 5.9's "build it or remove the dead
+    inputs" phrasing resolves to *build it*.
+  - Reporting stays a post-launch epic, which means the ADR-023 overview dashboard is the whole of the
+    reporting story for the first release — worth saying plainly so it isn't quietly expanded.
+  - **Allergen data becomes Epic 18** (`feature-allergen-data`), reversing the "still Open" position
+    [ADR-017](decisions.md) left it in. It is scoped as a *Should*, deliberately outside Epic 17 so
+    the Article 18 traceability core is not delayed by scope growing around it — but it reuses
+    [ADR-022](decisions.md)'s recipe recursion directly, so building it after Epic 17 costs far less
+    than building it before. **The same care applies as with traceability:** allergen information that
+    looks authoritative but is incomplete is worse than none, because a consumer-facing claim depends
+    on it (18.5).
+  - **Stock levels stay explicitly excluded from Epic 17's scope**, as a `Could`. This matters for
+    9.21: the traceability entities should be designed so quantity-on-hand *could* later be derived
+    from them, without the app claiming to track stock now.
+  - **Epic 16's engine question moves ahead of its build.** Rating it `Could` while
+    [ADR-002](decisions.md) is still only `Proposed` means 9.20 must resolve before any Databricks
+    spend, and 16.4's DPA is not needed until then. A margin alert over dated prices is a scheduled
+    job; that is now the null hypothesis Spark has to beat.
+  - **Tenant onboarding is answered in practice** (10.10): tenants are provisioned manually by the
+    project owner, and staff accounts come from Owner invitations ([ADR-023](decisions.md)). Public
+    signup is not built. Revisit when tenant #2 arrives or when billing exists to gate it.
+  - **"Better user & role management" leaves the feature backlog as a distinct item** — it is fully
+    covered by existing tasks, and keeping a duplicate row would let the two drift.
+
+## ADR-025: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed

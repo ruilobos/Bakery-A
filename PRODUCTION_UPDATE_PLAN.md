@@ -51,6 +51,8 @@ least one task below (see the [Decision → task coverage](#decision--task-cover
 | [14](#epic-14--tenant-full-data-export) | Tenant full data export | `feature-tenant-data-export` | Epic 3 |
 | [15](#epic-15--gdpr-personal-data-export) | GDPR personal-data export | `feature-gdpr-data-export` | Epic 11 |
 | [16](#epic-16--ai-insights--alerts-service) | AI insights & alerts service | `feature-ai-insights-service` | Epics 9, 11 |
+| [17](#epic-17--batch--lot-traceability) | Batch & lot traceability | `feature-traceability` | Epics 3, 9, 10 |
+| [18](#epic-18--allergen-data) | Allergen data | `feature-allergen-data` | Epics 3, 17 |
 
 Epic-level status lives in [docs/roadmap.md](docs/roadmap.md) — update it there when an epic moves.
 
@@ -112,7 +114,7 @@ ship safely through a PR.
 |---|---|---|---|
 | 2.6 | Protect all business views with `LoginRequiredMixin` | Not started | |
 | 2.7 | Protect admin-only operations with explicit permission classes/mixins; stop relying on template-only `is_staff` checks for security | Not started | |
-| 2.8 | Implement role-based permissions (admin/owner, manager, staff/operator, read-only/auditor), scoped **per tenant** rather than globally | Blocked | Role capabilities are `Open` in [project_requirements.md](docs/project_requirements.md) — resolve in 10.1. Per-tenant scoping per [ADR-006](docs/decisions.md) |
+| 2.8 | Implement role-based permissions for **Owner / Staff / Read-only**, scoped **per tenant** rather than globally | **Unblocked** | [ADR-020](docs/decisions.md) — three roles, not four; Manager deferred. Role lives on the membership record from 3.58. Capability matrix in [project_requirements.md](docs/project_requirements.md) |
 | 2.9 | Add audit logging for user management and destructive actions | Not started | Extended by 11.10 (logging who viewed/exported personal data) |
 
 ### Input and data protection
@@ -124,6 +126,8 @@ ship safely through a PR.
 | 2.12 | Add server-side authorization to every export endpoint | Not started | |
 | 2.13 | Remove the broken leftover `MEDIA_ROOT` path (`bluebiulding/media`) | Not started | Real media handling is Epic 13 |
 | 2.14 | Confirm encryption in transit (HTTPS enforced end-to-end) once the settings work lands | Not started | GDPR Art. 32 — [gdpr.md](docs/gdpr.md) §6 |
+| 2.15 | Restrict the Django admin to superusers, keep it out of all tenant-facing navigation, and log its access to personal data | Not started | [ADR-019](docs/decisions.md) — it is deliberately a **cross-tenant** support surface, which is what makes it useful and what makes it dangerous. `ModelAdmin` does **not** apply the tenant-scoped managers from 3.3/3.55. Feeds 11.10 |
+| 2.16 | Express every permission check as a named capability (`can_manage_users`, `can_edit_pricing`, `can_record_receipt`), never as `role == "owner"` | Not started | [ADR-020](docs/decisions.md). Costs nothing with three roles and is what keeps adding Manager a table row instead of a rewrite |
 
 ---
 
@@ -141,14 +145,14 @@ historical business data.
 | 3.1 | Add a `Bakery` model as the tenant root | Not started | [ADR-006](docs/decisions.md) |
 | 3.2 | Add a tenant FK to every business table: `Supplier`, `RawMaterial`, `Base_recipes`, `Bs_Ingredients`, `Product`, `Recipe_Ingredients`, and the future `Profile` | Not started | [ADR-008](docs/decisions.md) |
 | 3.3 | Enforce tenant scoping at the query layer (managers/service layer that always filter by the current tenant) | Not started | Correctness- and security-critical; a missed filter is a cross-tenant leak. Tested in 6.9 |
-| 3.4 | Scope user roles/permissions per tenant in the data model | Not started | Pairs with 2.8 |
+| 3.4 | Scope user roles/permissions per tenant in the data model | Not started | Pairs with 2.8. Concrete shape decided by [ADR-020](docs/decisions.md): a membership record (user × bakery × role) — built in 3.58 |
 
 ### Supplier
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
 | 3.5 | Replace supplier name as primary key with a generated numeric or UUID primary key | Not started | |
-| 3.6 | Keep supplier name unique if business rules require it | Blocked | Business rule `Open` — 10.5 |
+| 3.6 | Enforce supplier name unique **per tenant**, over non-archived rows only, via a partial unique index | **Unblocked** | [ADR-019](docs/decisions.md). Not globally unique — two bakeries may both buy from "Odlums". Partial index because a plain composite constraint would let an archived row block that name forever. **Sequenced after 3.2** (needs the tenant FK) |
 | 3.7 | Change phone number from `IntegerField` to a string field | Not started | |
 | 3.8 | Add optional address, tax/business identifier, active flag, and timestamps | Not started | |
 
@@ -157,18 +161,18 @@ historical business data.
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
 | 3.9 | Change `quantity` from `CharField` to `DecimalField` | Not started | |
-| 3.10 | Implement the agreed price semantics (per purchase unit vs. per normalized base unit) | Blocked | Semantics `Open` — 10.5 |
-| 3.11 | Add normalized unit handling for cost calculations | Blocked | Depends on 3.10 and canonical units (3.24) |
+| 3.10 | Implement the agreed price semantics: `purchase_price` + `pack_quantity` + `purchase_unit`, as the invoice states them — cost per canonical unit derived at cost time, never persisted | **Unblocked** | [ADR-018](docs/decisions.md). Derived-not-stored is 3.17. The same three fields are what an ADR-017 goods-receipt line records, so 17.1 and this task must agree |
+| 3.11 | Add normalized unit handling for cost calculations: convert any purchase unit to its canonical unit (kg / l / each) via the conversion factor in the unit reference table | **Unblocked** | [ADR-018](docs/decisions.md). Depends on 3.10 and the unit table in 3.52 |
 | 3.12 | Add SKU/code uniqueness rules where appropriate | Not started | |
-| 3.13 | Add active/inactive status instead of hard deletes where business history matters | Not started | |
+| 3.13 | Add active/inactive status instead of hard deletes where business history matters | Not started | No longer a judgment call for `RawMaterial`: anything referenced by a traceability record can never be hard-deleted ([ADR-017](docs/decisions.md)) — enforced in 17.6 |
 
 ### Base recipe and product
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
 | 3.14 | Standardize yield, unit, and cost fields across base recipes and products | Not started | |
-| 3.15 | Make VAT representation consistent and documented | Not started | |
-| 3.16 | Version product pricing history if required | Blocked | Requirement `Open` — 10.5 |
+| 3.15 | Make VAT representation consistent: all stored money is **net (ex-VAT)**; the product references a VAT rate **code**, not a percentage; VAT is applied only at display/sale | **Unblocked** | [ADR-018](docs/decisions.md). The rate table itself is 3.53; which rate a product gets is a tax question — 10.13 |
+| 3.16 | Version sale pricing history: dated `ProductPrice` rows (product, net price, `valid_from`), current price = latest row whose `valid_from` has passed | **Unblocked** | [ADR-018](docs/decisions.md). **Input** price history is *not* built here — it comes free from ADR-017 goods receipts (17.12) |
 | 3.17 | Store calculated values as derived data only, never as editable business data | Not started | Pairs with the service layer in 4.1 |
 | 3.18 | Add the `Product.photo` field | Not started | Owned by 13.4 — this row exists so the schema work is sequenced with it |
 
@@ -184,11 +188,11 @@ historical business data.
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
 | 3.21 | Add `created_at` and `updated_at` to all core business tables | Not started | |
-| 3.22 | Add soft delete / archive patterns for entities that must stay historically visible | Blocked | Which entities need history is `Open` — 10.5 |
+| 3.22 | Add soft delete / archive to `Supplier`, `RawMaterial`, `Product`, and `Base_recipes`; leave ingredient lines hard-deletable | **Unblocked** | [ADR-019](docs/decisions.md) — the rule is "anything referenced by a record that outlives it": traceability for the first two, outbound records + dated prices for `Product`, production runs for `Base_recipes`. Ingredient lines are meaningful only inside their parent |
 | 3.23 | Add `db_index=True` or explicit indexes on common filter/join paths | Not started | |
 | 3.24 | Add unique and check constraints wherever a business rule exists | Not started | |
 | 3.25 | Use `Decimal` consistently for money and quantities (schema and application code) | Not started | Removes the `float()` math currently in `control/views.py` — pairs with 4.1 |
-| 3.26 | Standardize units and categories via controlled enums or lookup/reference tables | Blocked | Enum-vs-lookup choice `Open` — 9.18 |
+| 3.26 | Standardize units and categories via controlled enums or lookup/reference tables | Partly unblocked | **Units: decided** — a lookup table, because a conversion factor is data an enum cannot carry ([ADR-018](docs/decisions.md)); built in 3.52. **Categories: still `Open`** — 9.18 |
 
 ### Migration strategy
 
@@ -206,7 +210,7 @@ historical business data.
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
-| 3.34 | Define the canonical units used for costing | Blocked | Business decision — 10.5 |
+| 3.34 | Define the canonical units used for costing | **Done (decided)** | 2026-08-06 — **kilogram / litre / each**, one per dimension ([ADR-018](docs/decisions.md)). Implementation is 3.11/3.52 |
 | 3.35 | Add data validation rules for prices, VAT, yields, and quantities | Not started | |
 | 3.36 | Define import/export contracts and field definitions | Not started | Feeds Epics 14 and 15 |
 | 3.37 | Define the seed/reference data strategy for categories and units | Blocked | Depends on 3.26 |
@@ -227,6 +231,35 @@ historical business data.
 | 3.47 | Define the post-restore verification: per-table row counts against source, constraint/FK validation, sequence positions, and a `REINDEX` pass | Not started | This is what "proven restore" in 3.44 actually means. `REINDEX` matters because text index ordering depends on the OS collation (glibc/ICU version) — a cross-host restore can leave indexes subtly wrong while everything *looks* fine |
 | 3.48 | Automate the restore drill on a schedule — restore the latest dump into a throwaway PostgreSQL and run 3.47's checks, reporting failures | Not started | **The key one.** App migration is low-risk because deploys rehearse it constantly; a database restore path that runs once a year is where the surprises live. A drill that runs weekly makes migration day routine rather than novel |
 | 3.49 | Verify that `migrate` from an empty database reproduces the production schema exactly, and forbid manual DDL outside Django migrations | Not started | If production has drifted from what the migrations produce, the schema is no longer reproducible anywhere — this quietly breaks both host migration and 12.10's PR-environment seeding |
+
+### Money, units, and price history (ADR-018)
+
+| ID | Task | Status | Notes / source |
+|---|---|---|---|
+| 3.50 | Set the decimal precision for quantities and money in the schema: quantities at least `Decimal(12,4)` (`12,6` safer), money carried beyond 2 dp internally | Not started | [ADR-018](docs/decisions.md). **This is the price of kg/l canonical units** — 7 g of yeast is `0.007 kg`, a pinch of spice `0.0005 kg`. Too little scale silently truncates small-ingredient cost to zero |
+| 3.51 | Define, document, and test the rounding rule: which direction, and at which boundary — rounding to 2 dp happens **only at presentation**, never in stored data or intermediate math | Not started | [ADR-018](docs/decisions.md). Must not be inherited from Python's default behaviour by accident. Tested in 6.16 |
+| 3.52 | Build the unit reference table: canonical unit per dimension plus a conversion factor per purchase unit, so adding "sack" or "dozen" is data entry rather than a migration | Not started | [ADR-018](docs/decisions.md). Resolves the units half of 3.26/9.18. Seed data feeds 3.37 and 10.10 |
+| 3.53 | Build the dated VAT-rate reference table (`code`, `percent`, `valid_from`, `valid_to`) and reference it by code from products | Not started | [ADR-018](docs/decisions.md). Dated so a statutory rate change doesn't retroactively rewrite historical margins |
+| 3.54 | Backfill existing `RawMaterial` prices into the purchase-price/pack-quantity/purchase-unit model — a per-row human-judgment exercise, **not** an automatic migration | Not started | [ADR-018](docs/decisions.md). Today's values mean whatever the person typing them assumed. Must complete before the legacy fields are dropped in 3.32 |
+
+### Deletion, identity, and roles in the schema (ADR-019, ADR-020)
+
+| ID | Task | Status | Notes / source |
+|---|---|---|---|
+| 3.55 | Combine tenant scoping and archived-state filtering into a **single** base manager, applied by default — not two filters applied ad hoc per query | Not started | [ADR-019](docs/decisions.md). Two orthogonal correctness-critical filters now exist: a query missing the archived filter resurrects deleted data, one missing the tenant filter leaks across tenants. Extends 3.3; tested in 6.18 |
+| 3.56 | Give archived records a way back: an un-archive path and a way to see archived rows | Not started | [ADR-019](docs/decisions.md). A soft delete with no un-delete is just a confusing delete. Pairs with 5.x — the UI must say *archive* where it archives |
+| 3.57 | Assign a role to every existing user as part of the membership migration — a human decision per user, not a default | Not started | [ADR-020](docs/decisions.md). Nobody in the current database has a role |
+| 3.58 | Add the tenant membership model (user × bakery × role) as the home of role assignment | Not started | [ADR-020](docs/decisions.md). Django's global `Group` cannot express "Owner of bakery A". Implements 3.4 |
+
+### Recipe composition and cost provenance (ADR-022)
+
+| ID | Task | Status | Notes / source |
+|---|---|---|---|
+| 3.59 | Let an ingredient line reference **either** a raw material or a base recipe, and reject cycles at save time — a base recipe must not contain itself directly or transitively | Not started | [ADR-022](docs/decisions.md). **Cycle prevention is the critical part**: nothing in the current schema stops it, and a cycle makes costing loop forever. Depth guard in the service layer is 4.16; the test is 6.20 |
+| 3.60 | Make `recipe_yeld` a real numeric quantity with a unit from the 3.52 unit table | Not started | [ADR-022](docs/decisions.md). Cost *per unit of yield* is what a parent recipe consumes, so a loose yield field can no longer work. Extends 3.14 |
+| 3.61 | Derive a raw material's current cost from its latest goods receipt — most recent by **receipt date**, ties broken by creation time — with a manual price retained as a labelled estimate | Not started | [ADR-022](docs/decisions.md). Receipt-date ordering (not entry date) is what makes a late-entered back-dated delivery behave correctly. Needs 17.1 |
+| 3.62 | Model cost **provenance** (receipt-derived vs. estimated) as data the service layer returns alongside the figure, not as a UI afterthought | Not started | [ADR-022](docs/decisions.md). Retrofitting provenance into a bare `Decimal` later is painful. Surfaced by 4.17 and in exports |
+| 3.63 | Stop treating `RawMaterial`'s supplier FK as the definition of who supplies a material: the real supply relationship lives on the goods receipt, so the FK becomes at most an optional *preferred supplier* | Not started | [ADR-024](docs/decisions.md) — required by supplier price comparison being a **Must**. With a single FK, a comparison view has exactly one row per material and shows nothing. Pairs with 17.1; view is 5.21 |
 
 ---
 
@@ -268,6 +301,9 @@ historical business data.
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
 | 4.15 | Build the agreed API surface (DRF or a small read-only reporting/export API), versioned from the first endpoint | Blocked | Whether an API is needed at all is `Open` — 9.11 |
+| 4.16 | Implement recursive costing through base-recipe ingredient lines, with an explicit depth guard | Not started | [ADR-022](docs/decisions.md). The schema-level cycle rejection is 3.59; the depth guard is defence in depth for data that predates it. Tested in 6.20 |
+| 4.17 | Return cost **provenance** with every costing result, so callers can distinguish a receipt-derived figure from an estimate | Not started | [ADR-022](docs/decisions.md), backed by 3.62. Consumed by the dashboard (5.18) and the exports |
+| 4.18 | Implement the "stale price" rule once its threshold is set, as a service-layer concern rather than a template condition | Blocked | Threshold `Open` — 10.16. [ADR-023](docs/decisions.md) |
 
 ---
 
@@ -285,11 +321,19 @@ historical business data.
 | 5.6 | Introduce the agreed asset pipeline (SCSS/CSS bundling, JS modules, cache-busted builds) | Blocked | Pipeline choice `Open` — 9.13 |
 | 5.7 | Add the agreed progressive-enhancement layer for dynamic interactions | Blocked | Vanilla JS vs. HTMX `Open` — 9.13 |
 | 5.8 | Add linting/formatting for templates, CSS, and JS | Blocked | Tooling `Open` — 9.17 |
-| 5.9 | Build real search/filter flows, or remove the non-functional search inputs | Blocked | Feature priority `Open` — 10.3 |
+| 5.9 | Build real search/filter flows across raw materials, suppliers and products | **Unblocked** | [ADR-024](docs/decisions.md) rates this a **Must**, so this resolves to *build it*, not *remove the inputs*. Dead inputs that look functional are worse than no inputs |
 | 5.10 | Improve forms, validation errors, empty states, and destructive-action confirmations | Not started | |
 | 5.11 | Add image upload/preview UI with a clear empty-state placeholder | Not started | Owned by 13.8 |
-| 5.12 | Improve accessibility: semantic HTML, form labels, focus states, keyboard navigation, colour contrast | Blocked | Target WCAG level `Open` — 10.4 |
-| 5.13 | Make data tables usable on mobile and tablet | Not started | |
+| 5.12 | Meet **WCAG 2.2 Level A**: alt text, real `<label>` on every input, no keyboard traps, nothing conveyed by colour alone | **Unblocked** | [ADR-021](docs/decisions.md). Level A is the agreed target; semantic HTML and real labels here keep the remaining distance to AA small if the 10.15 revisit trigger fires |
+| 5.13 | Make data tables usable on mobile and tablet — a deliberate strategy (horizontal scroll containers or card layouts), not overflow | Not started | [ADR-021](docs/decisions.md). Costing/margin tables are inherently wide; goods receipts (Epic 17) get recorded on a phone at the delivery door |
+| 5.14 | Record the agreed performance budget (p95 < 500 ms pages, < 2 s dashboard, ~10 concurrent users/tenant) as a documented target, and verify it once monitoring exists | Not started | [ADR-021](docs/decisions.md). Deliberately **not** a CI gate — Railway Hobby shares CPU. Verifiable via 7.1/3.43 |
+| 5.15 | Route all display text through Django's translation machinery (`gettext` / `{% translate %}`) during the rewrite | Not started | [ADR-021](docs/decisions.md). Ships English only, but makes the ADR-016 expansion trigger a locale file rather than a template audit |
+| 5.16 | Remove every hardcoded `€` and format all money through a single currency formatter | Not started | [ADR-021](docs/decisions.md). Pairs with the presentation-boundary rounding rule in 3.51 — both belong in the same formatter |
+| 5.17 | Verify against the agreed browser matrix: current and previous major version of Chrome, Firefox, Safari, Edge | Not started | [ADR-021](docs/decisions.md). No IE11, no legacy Edge |
+| 5.18 | Rebuild the dashboard as an overview page: summary strip (product count, average margin, materials with no/stale pricing), worst-margin products, recent input price movements — moving the full product list to its own page | Not started | [ADR-023](docs/decisions.md). **Depends on Epic 3, not just this epic** — price movements and staleness need ADR-018's dated prices and ADR-022's receipts to exist. Runs against the p95 < 2 s budget in [ADR-021](docs/decisions.md) |
+| 5.19 | Build the tenant self-administration settings area: user invite/remove and role assignment, bakery details, reference data, exports — Owner-writable, Read-only limited to exports | Not started | [ADR-023](docs/decisions.md). **Replaces** the broken user-delete view rather than patching it. Needs the roles from 2.8/3.58 and email from 9.22 |
+| 5.20 | Show cost provenance in the UI: mark estimated figures distinctly from receipt-derived ones | Not started | [ADR-022](docs/decisions.md), backed by 4.17. A margin from a guess and one from an invoice are not the same claim |
+| 5.21 | Build the supplier price comparison view for a given raw material — who supplied it, at what price per canonical unit, and when | Not started | [ADR-024](docs/decisions.md) rates it a **Must**. Reads goods-receipt data (Epic 17) and needs 3.63; sparse until receipts accumulate across more than one supplier, which is expected rather than a defect |
 
 ---
 
@@ -310,6 +354,12 @@ historical business data.
 | 6.7 | Regression tests for known-broken areas (e.g. the user-delete view that deletes `RawMaterial`) | Not started | |
 | 6.8 | Smoke tests for login, dashboard, raw materials, suppliers, recipes, products, and settings | Not started | |
 | 6.9 | Dedicated cross-tenant isolation tests — prove tenant A can never read or write tenant B's rows | Not started | [ADR-008](docs/decisions.md); covers 3.3 and 4.6 |
+| 6.16 | Test unit conversion, decimal precision, and the rounding rule end to end: a gram-scale ingredient must not cost zero, and a known basket must produce an exactly-specified cost and margin | Not started | [ADR-018](docs/decisions.md), covering 3.11, 3.50, 3.51. With kg/l canonical units, precision loss on small ingredients is the realistic failure mode — assert on exact `Decimal` values, never on floats |
+| 6.17 | Test that VAT is applied only at presentation, and that changing a VAT rate's `valid_from` does not alter historical figures | Not started | [ADR-018](docs/decisions.md), covering 3.15, 3.53 |
+| 6.18 | Test the tenant + archived filter pair together: an archived row never appears in normal queries, and no query returns another tenant's rows — including archived ones | Not started | [ADR-019](docs/decisions.md), covering 3.55. The two filters are independent failure modes; test both, and their combination |
+| 6.19 | Test the three-role capability matrix: Read-only cannot write anything, Staff cannot manage users or pricing, Owner cannot reach another tenant | Not started | [ADR-020](docs/decisions.md), covering 2.8, 2.16. Extends 6.4 |
+| 6.20 | Test recursive costing: a product costing through a base recipe returns the right figure, and a self-referencing or transitively cyclic recipe is **rejected** rather than looping | Not started | [ADR-022](docs/decisions.md), covering 3.59 and 4.16. The cycle case is the one that hangs a request if it's missed |
+| 6.21 | Test cost provenance: a receipt-derived figure and an estimated one are distinguishable, and recording a back-dated receipt updates the current cost correctly by receipt date | Not started | [ADR-022](docs/decisions.md), covering 3.61, 3.62, 4.17 |
 
 ### Tooling
 
@@ -407,9 +457,11 @@ in [decisions.md](docs/decisions.md)". No implementation happens in this epic.
 | 9.15 | Decide error tracking and uptime monitoring tooling | Not started | Unblocks 7.2, 7.5 |
 | 9.16 | Decide the backup/restore/PITR strategy — must cover **both** the host's native snapshots (fast rollback) and a portable logical dump (host replaceability) | Not started | Unblocks 3.38, 3.40, 3.44. [ADR-015](docs/decisions.md) rule 5. Note Railway offers no PITR — a PITR requirement needs tooling beyond the platform |
 | 9.17 | Decide formatting/linting and testing tooling (including template linting) | Not started | Unblocks 5.8, 6.10, 6.11 |
-| 9.18 | Decide the outstanding data-model questions: ingredient-line model shape, units/categories as enums vs. lookup tables, dashboard caching, connection pooling | Not started | Unblocks 3.19, 3.26, 3.42, 4.14 |
+| 9.18 | Decide the outstanding data-model questions: ingredient-line model shape, categories as enums vs. lookup tables, dashboard caching, connection pooling | Not started | Unblocks 3.19, 3.26, 3.42, 4.14. **Narrowed twice:** units are a lookup table ([ADR-018](docs/decisions.md)); and since [ADR-022](docs/decisions.md) gives both line models a typed *component* reference as well as a typed parent, they become structurally identical — a single shared ingredient-line model is now strongly indicated. Dashboard caching gained urgency from the [ADR-023](docs/decisions.md) overview page |
 | 9.19 | Decide the tenant export format and generation mechanism | Not started | Direction fixed by [ADR-008](docs/decisions.md); tool choice open. Unblocks 14.1 |
 | 9.20 | Re-confirm Spark/Databricks against a plain-Python batch alternative at this data scale, and confirm the workspace cost model | Not started | Open follow-up on [ADR-002](docs/decisions.md). Unblocks Epic 16 |
+| 9.21 | Decide the traceability data-model shape: goods-receipt/batch/production-run entities and their relationships, internal lot-code generation strategy, and whether stock/quantity-on-hand comes along as a derived by-product or is deliberately excluded | Not started | [ADR-017](docs/decisions.md) fixes the direction; the entity shape is open. **Unblocks 17.1–17.4.** Review against 9.18's ingredient-line decision — both touch the same tables. **Stock is settled as a `Could`** ([ADR-024](docs/decisions.md)): design the entities so quantity-on-hand *could* be derived later, without the app claiming to track stock now |
+| 9.22 | Choose an email provider and integration approach — required before user invitations can ship | Not started | Created by [ADR-023](docs/decisions.md): the app sends no email today, and the settings area's invite flow needs it. Credentials from environment variables (2.1); DPA via 11.6; turns the hypothetical email row in [gdpr.md](docs/gdpr.md) §7 into a real one |
 
 ---
 
@@ -422,13 +474,23 @@ real choice is made.
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
-| 10.1 | Define the four personas and a per-tenant role capability matrix (who can do what, who cannot) | Not started | Unblocks 2.8 |
-| 10.2 | Fill in keep/change/remove and new requirements per area: dashboard, raw materials, suppliers, base recipes, products, settings/users/export | Not started | |
-| 10.3 | Prioritize the feature backlog with MoSCoW | Not started | Unblocks 5.9 and feature epic sequencing |
-| 10.4 | Set non-functional targets: performance, accessibility (WCAG level), device support, browser support, localization/currency | Not started | Unblocks 5.12 |
-| 10.5 | Resolve the business data-semantics questions: raw-material price basis, canonical costing units, VAT representation, pricing-history versioning, which entities need soft delete/history, supplier-name uniqueness, and whether the Django admin and the in-app settings area should expose the same operations | Not started | Unblocks 3.6, 3.10, 3.16, 3.22, 3.34 |
-| 10.6 | Write the explicit out-of-scope list for this round | Not started | |
-| 10.7 | Identify the first real users, the deployment jurisdiction(s), any regulatory requirements beyond GDPR, and timeline pressure | Not started | Feeds 11.1 and 11.12 |
+| 10.1 | Define the personas and a per-tenant role capability matrix (who can do what, who cannot) | **Done** | 2026-08-06 — **three** roles, not four: Owner / Staff / Read-only, on a membership record ([ADR-020](docs/decisions.md)). Manager deferred. Matrix in [project_requirements.md](docs/project_requirements.md). Unblocked 2.8, 3.4 |
+| 10.2 | Fill in keep/change/remove and new requirements per area: dashboard, raw materials, suppliers, base recipes, products, settings/users/export | **Done** | 2026-08-06 — all six areas filled in via [ADR-022](docs/decisions.md) (receipts drive raw-material cost; ingredient lines accept base recipes) and [ADR-023](docs/decisions.md) (dashboard overview; tenant self-administration). Created 3.59–3.62, 4.16–4.18, 5.18–5.20, 6.20, 6.21, 9.22, 10.16, 10.17 |
+| 10.3 | Prioritize the feature backlog with MoSCoW | **Done** | 2026-08-06 — full pass logged as [ADR-024](docs/decisions.md). **Must:** multi-tenancy, traceability, search, supplier comparison, user/role management (merged into 5.19/2.8/3.58/9.22). **Should:** both exports, trend reporting, allergen data (**new Epic 18**). **Could:** product photos, stock levels, AI insights (re-scope first). **Won't this round:** profile pictures, self-service registration, billing. Unblocked 5.9; created 3.63, 5.21, Epic 18 |
+| 10.4 | Set non-functional targets: performance, accessibility (WCAG level), device support, browser support, localization/currency | **Done** | 2026-08-06 — [ADR-021](docs/decisions.md): p95 500 ms/2 s, **WCAG 2.2 Level A**, responsive + evergreen browsers, English/€ but translation-ready. Unblocked 5.12; created 5.14–5.17 and the 10.15 revisit trigger |
+| 10.5 | Resolve the business data-semantics questions: raw-material price basis, canonical costing units, VAT representation, pricing-history versioning, which entities need soft delete/history, supplier-name uniqueness, and whether the Django admin and the in-app settings area should expose the same operations | **Done** | 2026-08-06 — all seven closed: four by [ADR-018](docs/decisions.md) (price basis, canonical units, VAT, price history), three by [ADR-019](docs/decisions.md) (soft-delete scope, per-tenant supplier uniqueness, admin surface). Unblocked 3.6, 3.10, 3.11, 3.15, 3.16, 3.22, 3.34 |
+| 10.6 | Write the explicit out-of-scope list for this round | **Done** | 2026-08-06 — table in [project_requirements.md](docs/project_requirements.md) "Out of scope", completed once the MoSCoW pass (10.3) landed. Covers billing, plan gating, profile pictures, self-service registration, stock tracking, HACCP/temperature logs/recall workflows/mass-balance, and hosted staging |
+| 10.7 | Identify the first real users, the deployment jurisdiction(s), any regulatory requirements beyond GDPR, and timeline pressure | **Done** | 2026-08-06 — one Irish pilot bakery, free pilot, no deadline ([ADR-016](docs/decisions.md)); jurisdiction Ireland/EU (already settled by [ADR-013](docs/decisions.md)); regulatory: batch/lot traceability in scope ([ADR-017](docs/decisions.md)). Feeds 11.1, 11.12, and Epic 17 |
+| 10.8 | Confirm the traceability regulatory floor against FSAI guidance for a bakery: what one-step-back/one-step-forward actually requires in practice, and what granularity of outbound record is expected for direct-to-consumer sales | Not started | [ADR-017](docs/decisions.md). **Blocks Epic 17** — the scope is set in principle but not verified against the regulator's own guidance |
+| 10.9 | Decide the food-law retention floor for traceability records, and reconcile it with the GDPR retention policy where a record names a supplier contact | Not started | [ADR-017](docs/decisions.md). Pairs with 11.4; feeds [gdpr.md](docs/gdpr.md) §5 and 17.9 |
+| 10.10 | Decide tenant onboarding mechanics: self-service signup vs. manual provisioning, who creates the first admin user, what seed/reference data a new tenant starts with | Mostly resolved | [ADR-024](docs/decisions.md): **manual provisioning by the project owner**, first Owner created with the tenant, staff via Owner invitations ([ADR-023](docs/decisions.md)); public signup is `Won't (this round)`. What's left is the **seed/reference data** a new tenant starts with — pairs with 3.37, 3.52, 3.53, 10.17 and 12.10 |
+| 10.11 | Decide which EU countries follow Ireland and on what trigger, then re-run the localization, currency, and hosting-residency questions | Not started | Left `Open` by [ADR-016](docs/decisions.md). Pairs with 10.4 (localization) and 11.14 (residency) |
+| 10.12 | Confirm the allergen scope against FSAI/FIC guidance — the 14 declarable allergens, and what a costing tool records vs. what belongs on a label | **In scope, priority set** | [ADR-024](docs/decisions.md) rates allergen data a **Should** — now **Epic 18**. What remains here is the regulatory scope check that unblocks 18.1/18.2/18.4 |
+| 10.13 | Determine which Irish VAT rate applies to which product category (bread vs. flour confectionery vs. other), and seed the rate table accordingly | Not started | A **tax** question, not an engineering one — [ADR-018](docs/decisions.md). The schema must let a tenant set it per product; do **not** ship guessed assignments. Feeds 3.53 |
+| 10.14 | Decide whether one person may hold memberships in several tenants in the product UI (e.g. an accountant serving three bakeries) | Not started | Left `Open` by [ADR-020](docs/decisions.md) — the membership model already supports it; whether it is *offered* is a product choice, and it changes login/tenant-switching UX |
+| 10.15 | Re-evaluate the accessibility target (Level A → AA) before EU expansion, or on the first tenant/buyer who needs it | Not started | [ADR-021](docs/decisions.md) — Level A excludes AA's contrast ratios, focus visibility, consistent navigation and error suggestions, which is what procurement and the European Accessibility Act point at. Same trigger point as 10.11 and 11.14 |
+| 10.16 | Define what makes a price "stale" — how old a raw-material price must be before the dashboard flags it | Not started | [ADR-023](docs/decisions.md). Shipping a warning badge on an arbitrary threshold trains users to ignore it. Unblocks 4.18 |
+| 10.17 | Decide which reference data a tenant may edit: VAT rates and categories are safe, **unit conversion factors are not** — a wrong factor silently corrupts every dependent cost figure with no error surfaced | Not started | [ADR-023](docs/decisions.md). Likely system-managed units with a tenant-selectable subset, but that is a decision, not an assumption. Feeds 3.52 and 5.19 |
 
 ---
 
@@ -443,16 +505,16 @@ This work is not legal advice — a real legal/DPO review is a prerequisite to r
 |---|---|---|---|
 | 11.1 | Complete the personal-data inventory: every category, storage location, data subject, and status | Not started | [gdpr.md](docs/gdpr.md) §1 |
 | 11.2 | Document the legal basis for each inventory row, with the reasoning | Not started | §2 |
-| 11.3 | Decide and document the legal basis for profile pictures | Not started | §1 — **must be resolved before Epic 13 is implemented** |
-| 11.4 | Define the retention and deletion policy per data category, with deletion triggers | Not started | §5. Unblocks 3.38 |
+| 11.3 | Decide and document the legal basis for profile pictures | Not started | §1 — **no longer on the critical path**: [ADR-024](docs/decisions.md) defers profile pictures out of this round. Still required before that feature ever ships |
+| 11.4 | Define the retention and deletion policy per data category, with deletion triggers | Not started | §5. Unblocks 3.38. **Must be written per *field* for traceability data** — the food-law floor from 10.9 is not ours to choose, so the lot code and quantities are retained by law while the supplier contact's name may not need to be ([ADR-017](docs/decisions.md)) |
 | 11.5 | Produce a DPA template usable per tenant, with Bakery-the-product as processor and each bakery as controller | Not started | §0/§7 — [ADR-006](docs/decisions.md) |
-| 11.6 | Put DPAs in place with each third-party processor: hosting provider, Databricks, object storage, email provider | Blocked | Hosting provider unknown until 12.1; Databricks until 9.20 |
-| 11.7 | Scope and carry out the DPIA now that multi-tenant SaaS is confirmed | Not started | §9 — reassessment was explicitly triggered by [ADR-006](docs/decisions.md) |
+| 11.6 | Put DPAs in place with each third-party processor: hosting provider, Databricks, object storage, email provider | Blocked | Hosting provider resolved (12.1 ✅ Railway — execute via 12.7); Databricks blocked on 9.20; **email provider now a real processor, not hypothetical** — [ADR-023](docs/decisions.md), choice in 9.22 |
+| 11.7 | Scope and carry out the DPIA now that multi-tenant SaaS is confirmed | Not started | §9 — reassessment was explicitly triggered by [ADR-006](docs/decisions.md). Include [ADR-017](docs/decisions.md)'s new angle: production runs record *which staff member* ran which batch, retained for years by legal obligation — that is employee activity data, and should be assessed deliberately rather than waved through as "just traceability" |
 | 11.8 | Define the breach notification process (who, how fast, how — 72-hour supervisory authority deadline) | Not started | §8. Feeds 8.7 |
-| 11.9 | Close the data-subject-rights gaps: restriction of processing, objection, and a real erasure/anonymization strategy — including deleting the stored object from object storage, not just the DB row | Not started | §3. Access/portability is Epic 15 |
+| 11.9 | Close the data-subject-rights gaps: restriction of processing, objection, and a real erasure/anonymization strategy — including deleting the stored object from object storage, not just the DB row | Not started | §3. Access/portability is Epic 15. **Erasure now has a hard limit:** a traceability record inside its retention window cannot be deleted — the strategy must cover anonymizing personal fields while keeping the trace intact, plus a documented refusal-with-reason path. Settle this **before** Epic 17 ships, not during a request |
 | 11.10 | Add access logging for who viewed or exported personal data | Not started | §6. Extends 2.9 |
 | 11.11 | Confirm no tracking/analytics cookies exist; define the consent path if that changes | Not started | §4 |
-| 11.12 | Name the point of contact for data subject requests | Not started | Depends on 10.7 |
+| 11.12 | Name the point of contact for data subject requests | Not started | 10.7 ✅ narrowed it: phase 1 has one tenant, so the controller-side contact is the pilot bakery and the processor-side contact is the project owner ([ADR-016](docs/decisions.md)). Still needs naming for real |
 | 11.13 | Confirm backups are encrypted at rest once a backup strategy exists | Not started | §6. Depends on 9.16 |
 | 11.14 | Re-evaluate hosting residency and vendor ownership **before onboarding any tenant outside Ireland** | Not started | [ADR-013](docs/decisions.md) §7.1. The accepted US-parent transfer risk was weighed against an Irish-only market; continental EU buyers weigh EU ownership differently. EU-owned alternatives priced ~2.5–3× at decision time (Clever Cloud, Scaleway). Migration stays cheap only while ADR-004/ADR-007 hold |
 | 11.15 | Confirm Railway's transfer-safeguard position (DPF certification and/or SCCs) and record it in [gdpr.md](docs/gdpr.md) §7.1 | Not started | Part of the DPA work in 12.7. §7.1 is `Open` until this lands |
@@ -501,7 +563,7 @@ Product photos and user profile pictures, stored in S3-compatible object storage
 | 13.7 | Validate uploaded file type and size in a real ModelForm | Not started | Pairs with 4.9 |
 | 13.8 | Build the upload/preview UI with an empty-state placeholder | Not started | Pairs with 5.11 |
 | 13.9 | Delete the stored object from the bucket on account deletion or an erasure request | Not started | [gdpr.md](docs/gdpr.md) §3 — a DB-row delete alone is not compliance |
-| 13.10 | Do not ship profile pictures until their legal basis is decided | Blocked | 11.3 must land first; R2 processor entry via 11.6 |
+| 13.10 | Do not ship profile pictures until their legal basis is decided | **Deferred out of this round** | [ADR-024](docs/decisions.md) rates profile pictures **Won't (this round)** — deferred, not rejected. This takes 11.3 off the critical path. 13.5 and 13.9's profile-picture half go with it; Epic 13 narrows to **product photos only** |
 
 ---
 
@@ -551,13 +613,64 @@ alerts and analytics ([ADR-002](docs/decisions.md) — direction proposed, cost/
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
-| 16.1 | Confirm the processing engine and workspace cost model before any spend | Blocked | 9.20 — Community Edition does not support API-triggered jobs |
+| 16.1 | Confirm the processing engine and workspace cost model before any spend | Blocked | 9.20 — Community Edition does not support API-triggered jobs. **The bar has moved:** [ADR-024](docs/decisions.md) makes a scheduled query over [ADR-018](docs/decisions.md)'s dated prices the null hypothesis Spark has to beat, not the fallback |
 | 16.2 | Define the API contract: which app events trigger the service, what it reads, what it returns | Not started | [tech_stack.md](docs/tech_stack.md) marks the exact contract `Open` |
 | 16.3 | Define and enforce the data scope shared with the service — limited to product/pricing/recipe data, excluding user accounts and supplier contact personal data unless proven necessary | Not started | [gdpr.md](docs/gdpr.md) §7 |
 | 16.4 | Put a DPA in place with the analytics provider before any real data flows | Blocked | Feeds 11.6 |
 | 16.5 | Define the margin-alert rules and how alerts reach users | Not started | Needs 10.3 prioritization |
 | 16.6 | Surface the analytics dashboard in the app | Not started | |
 | 16.7 | Ensure everything the service reads or writes is tenant-scoped | Not started | [ADR-008](docs/decisions.md) |
+
+---
+
+## Epic 17 — Batch & lot traceability
+
+**Branch:** `feature-traceability` · **Depends on:** Epics 3, 9 (9.21), 10 (10.8, 10.9)
+
+Give the bakery the record-keeping EU Reg. 178/2002 Art. 18 requires of it: **one step back** (which
+supplier lot went into what) and **one step forward** (where a finished batch went), per
+[ADR-017](docs/decisions.md). This adds a temporal/event layer to a schema that is otherwise a pure
+current-state catalogue — which is why it is its own epic rather than part of Epic 3.
+
+**A partial implementation is worse than none if it looks complete.** The pilot bakery is a real food
+business operator; nothing here should present itself as a compliance record until 17.7 and 17.10 make
+the trace path whole.
+
+| ID | Task | Status | Notes / source |
+|---|---|---|---|
+| 17.1 | Model goods receipts: what actually arrived — supplier lot code, receipt date, quantity, best-before, price paid — as lines distinct from the `RawMaterial` catalogue row | Blocked | Entity shape `Open` — 9.21. **A lot is an event, not an attribute** ([ADR-017](docs/decisions.md)); do not add a `lot` field to `RawMaterial` |
+| 17.2 | Model production runs: which receipt lots were consumed, in what quantity, when, and by whom, producing an output batch | Blocked | 9.21 |
+| 17.3 | Assign an internal lot code to each produced batch, with the code format decided rather than improvised | Blocked | 9.21 |
+| 17.4 | Model outbound records at the granularity the regulator actually expects — sufficient for one-step-forward | Blocked | Granularity `Open` — 10.8. Direct-to-consumer sales are treated differently from wholesale |
+| 17.5 | Make traceability records append-only: no hard delete, no silent retroactive edit — corrections are new records with an audit trail | Not started | The strongest integrity requirement in the schema. Pairs with 2.9 and 11.10 |
+| 17.6 | Prevent hard-deletion of any `Supplier` or `RawMaterial` referenced by a traceability record | Not started | This is what turns 3.13/3.22's soft delete from a judgment call into a requirement |
+| 17.7 | Build the trace query: given any lot, return one step back and one step forward, through multi-level recipes (base recipe → product) | Not started | The actual deliverable — everything above is scaffolding for it |
+| 17.8 | Tenant-scope every traceability model with a `Bakery` FK, like every other business table | Not started | [ADR-008](docs/decisions.md). Needs 3.1/3.2 |
+| 17.9 | Enforce the food-law retention floor on traceability records, overriding ordinary retention where the two conflict | Blocked | Floor undecided — 10.9. Pairs with 11.4 |
+| 17.10 | Produce an authority-ready trace report/export for a given lot, usable in an FSAI request | Not started | Distinct from the tenant export (Epic 14) and the GDPR export (Epic 15) |
+| 17.11 | Test the trace end to end: across a multi-level recipe, and proving no record from another tenant is ever reachable | Not started | Pairs with 6.9 |
+| 17.12 | Record the price paid per goods receipt, and confirm whether it becomes the source of truth for input price history | Not started | [ADR-017](docs/decisions.md) — a receipt line naturally dates its own price, which may answer 10.5's price-history question outright. Decide together, not separately |
+
+---
+
+## Epic 18 — Allergen data
+
+**Branch:** `feature-allergen-data` · **Depends on:** Epics 3, 17 (for the recursion and the receipt
+data) · **Priority:** Should ([ADR-024](docs/decisions.md))
+
+Allergen information on raw materials, aggregated up through base recipes to finished products under
+EU FIC 1169/2011. Deliberately **outside** Epic 17 so the Article 18 traceability core isn't delayed
+by scope growing around it — but it reuses [ADR-022](docs/decisions.md)'s recipe recursion directly:
+aggregating allergens up the tree is the same traversal as aggregating cost.
+
+| ID | Task | Status | Notes / source |
+|---|---|---|---|
+| 18.1 | Confirm the allergen scope against FSAI/FIC guidance: the 14 declarable allergens, and what a costing tool is expected to record vs. what belongs on a label | Blocked | 10.12 — scope confirmation. Same shape as 10.8 did for traceability |
+| 18.2 | Add allergen attributes to `RawMaterial`, sourced from the supplier's specification rather than guessed | Blocked | 18.1 |
+| 18.3 | Aggregate allergens up the recipe tree (raw material → base recipe → product), reusing the 4.16 recursion | Not started | [ADR-022](docs/decisions.md)/[ADR-024](docs/decisions.md). Same traversal as costing — build once, use twice |
+| 18.4 | Model "may contain" / cross-contamination separately from "contains" — they are different claims | Blocked | 18.1 |
+| 18.5 | Mark any product whose allergen data is **incomplete** as incomplete, rather than showing an empty allergen list as if it meant "none" | Not started | **The safety-critical one.** An unknown presented as an absence is how an allergen system hurts someone. Mirrors 17.7/17.10's "partial is worse than none" |
+| 18.6 | Tenant-scope allergen data and cover it in the isolation tests | Not started | [ADR-008](docs/decisions.md); pairs with 6.9 |
 
 ---
 
@@ -584,6 +697,15 @@ a new ADR lands, along with the tasks it creates.
 | [ADR-014](docs/decisions.md) — Local Docker dev/test env, no hosted staging, release-PR preview | 1.12, 6.15, 12.4, 12.5, 12.10 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise (no change) | 7.16 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
+| [ADR-016](docs/decisions.md) — one free pilot bakery, no deadline, flat per-bakery pricing later | 10.7 ✅, 10.6, 10.10, 10.11, plus a **negative** constraint on 3.1 (no plan/tier fields) and 2.8/3.4 (no plan-based gating) |
+| [ADR-017](docs/decisions.md) — batch/lot traceability in scope, as its own epic | 9.21, 10.8, 10.9, 10.12, 17.1–17.12, and the forced soft-delete in 3.13/3.22 |
+| [ADR-018](docs/decisions.md) — costing & money semantics (purchase-unit prices, kg/l/each, net-of-VAT with a dated rate table, dual-source price history) | 3.10, 3.11, 3.15, 3.16, 3.34 ✅, 3.50–3.54, 3.26 (units half), 6.16, 6.17, 10.13, 17.12, plus the deletion of inline `float()` costing in 4.1 |
+| [ADR-019](docs/decisions.md) — soft-delete scope, per-tenant supplier uniqueness, Django admin as superuser-only support tooling | 3.6, 3.22, 3.55, 3.56, 2.15, 6.18 |
+| [ADR-020](docs/decisions.md) — three per-tenant roles (Owner/Staff/Read-only) on a membership record | 2.8, 2.16, 3.4, 3.57, 3.58, 6.19, 10.14 |
+| [ADR-021](docs/decisions.md) — non-functional targets (perf budget, WCAG 2.2 Level A, responsive/evergreen, English-€ but translation-ready) | 5.12, 5.13, 5.14–5.17, 10.15 |
+| [ADR-022](docs/decisions.md) — receipts drive raw-material cost; ingredient lines accept a raw material or a base recipe | 3.59–3.62, 4.16, 4.17, 5.20, 6.20, 6.21, 17.1, and the narrowing of 9.18 |
+| [ADR-023](docs/decisions.md) — dashboard overview page; settings as tenant self-administration | 5.18, 5.19, 4.18, 9.22, 10.16, 10.17, and the replacement of the broken user-delete view (6.7) |
+| [ADR-024](docs/decisions.md) — MoSCoW pass on the feature backlog (10.3) | 5.9 (Must → build), 5.21 + 3.63 (supplier comparison as Must), **Epic 18** (allergen data as Should), Epic 13 narrowed to product photos, 16.1 re-scoped, 10.10 mostly resolved, 11.3 off the critical path |
 
 ## Highest-risk items
 
@@ -600,6 +722,10 @@ so the risk isn't lost among the ~140 tasks above.
 | Known functional defects (e.g. user delete removes the wrong model) | 6.7, plus the Epic 4 view rework |
 | No automated quality gate before merge or deploy | 1.11, 6.12, 6.13 |
 | Inconsistent runtime configuration across Docker, Heroku, and local | 1.5, 7.7, 7.8, 7.9 |
+| A half-built traceability feature that *looks* like a compliance record to a real food business operator | 17.7, 17.10, plus the 10.8 regulator check before Epic 17 starts |
+| Schema redesigned in Epic 3 without accounting for Epic 17's event layer, forcing a second redesign | 9.21 decided before 3.19/3.22 are implemented |
+| A cyclic base recipe hanging every costing request once recipes can nest | 3.59 (reject at save), 4.16 (depth guard), 6.20 (test) |
+| Cost figures presented with equal confidence whether they came from an invoice or a guess | 3.62, 4.17, 5.20 |
 
 ## Definition of "production ready"
 

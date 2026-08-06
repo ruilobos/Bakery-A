@@ -46,10 +46,11 @@ the driver choice interacts with the chosen host's build environment.
 | Topic | Current | Candidate | Decision | Status |
 |---|---|---|---|---|
 | Settings layout | `bakery/settings/base.py` (dev defaults) + `heroku.py` (prod overrides) | `settings/base.py` + `local.py` + `test.py` + `production.py` | — | Open |
-| Business logic location | inline in `control/views.py`, duplicated across views and model `@property` methods | dedicated services/domain module | — | Open |
+| Business logic location | inline in `control/views.py`, duplicated across views and model `@property` methods | dedicated services/domain module | — | Open — 9.10. Note the inline `float()` costing is now **definitively wrong**, not merely duplicated: it cannot express unit conversion, net-of-VAT storage, or dated prices ([ADR-018](decisions.md)). It gets deleted, not patched |
 | API layer | none | Django REST Framework, only if an external integration/API consumer is actually needed | — | Open |
-| Auth/permissions | mix of no auth, `staff_member_required`, ad hoc template checks | consistent `LoginRequiredMixin` + real role-based permissions | — | Open |
-| Caching | none | cache expensive dashboard/costing aggregates — only if measurements show it's needed | — | Open |
+| Auth/permissions | mix of no auth, `staff_member_required`, ad hoc template checks | consistent `LoginRequiredMixin` + real role-based permissions | Role **model** decided ([ADR-020](decisions.md) — see the data-model section below); the auth *framework* approach (Django auth views as standard, permission-class shape) is still Open — 9.12 | Partly decided |
+| Caching | none | cache expensive dashboard/costing aggregates — only if measurements show it's needed | — | Open — 9.18. **More likely to be needed now:** [ADR-023](decisions.md)'s overview dashboard aggregates across products against [ADR-021](decisions.md)'s p95 < 2 s budget, and [ADR-022](decisions.md)'s recursive costing makes each product's figure more expensive |
+| Email | none — the app sends no mail | a transactional email provider, configured from environment variables | — | Open — 9.22. **Now required, not hypothetical:** [ADR-023](decisions.md)'s user-invitation flow depends on it. Needs a DPA (11.6) and a [gdpr.md](gdpr.md) §7 processor row |
 | Connection pooling | none | `CONN_MAX_AGE` tuning or a pooler (e.g. PgBouncer) — only if traffic/deployment topology requires it | — | Open |
 
 ### Data model — structural open questions (feed Phase 3 / Epic 3)
@@ -60,11 +61,27 @@ must be answered before the Phase 3 migrations are written.
 
 | Topic | Current | Candidate | Decision | Status |
 |---|---|---|---|---|
-| Ingredient line model | two parallel through-style models (`Bs_Ingredients` for base recipes, `Recipe_Ingredients` for products) | keep them separate if the business workflows genuinely differ; otherwise a single shared ingredient-line model with a typed parent reference | — | Open |
-| Units & categories | free-text `CharField`s (`unit`, `categorie`) | controlled enums if the value set is stable, or lookup/reference tables if the values are business-managed | — | Open |
-| Calculated values | recomputed inline per request, in `float()` | store as derived/read-only data only, never as editable business fields | — | Open |
-| Deletion semantics | hard deletes everywhere | soft delete / archive for entities whose history must stay visible — which entities is a business call (see `project_requirements.md`) | — | Open |
-| Money & quantity types | mixed (`CharField` quantity, `float()` math in views) | `Decimal` end-to-end, in the schema and the service layer | — | Open |
+| Ingredient line model | two parallel through-style models (`Bs_Ingredients` for base recipes, `Recipe_Ingredients` for products) | keep them separate if the business workflows genuinely differ; otherwise a single shared ingredient-line model with a typed parent reference | Still 9.18's call, but **strongly narrowed**: [ADR-022](decisions.md) gives both models a typed *component* reference (raw material **or** base recipe) alongside the typed parent, making them structurally identical | Open — 9.18, narrowed |
+| Recipe nesting & cycles | products reference raw materials only; base recipes reach nothing | a product's line may reference a base recipe, with costing recursing into it | Nesting **decided** ([ADR-022](decisions.md)). Cycles must be **rejected at save time** plus depth-guarded in the service layer — nothing in the current schema prevents a recipe containing itself | Decided (3.59, 4.16) |
+| Cost provenance | none — a cost is a bare number | distinguish receipt-derived cost from a manual estimate, in the data not just the UI | **Decided** — the latest goods receipt by *receipt date* sets current cost; a manual price survives as a labelled estimate; the service layer returns provenance with the figure | Decided ([ADR-022](decisions.md)) |
+| Units & categories | free-text `CharField`s (`unit`, `categorie`) | controlled enums if the value set is stable, or lookup/reference tables if the values are business-managed | **Units: lookup table** — a conversion factor is data an enum cannot carry ([ADR-018](decisions.md)). **Categories: still open** | Partly decided |
+| Calculated values | recomputed inline per request, in `float()` | store as derived/read-only data only, never as editable business fields | Derived, never persisted — reinforced by [ADR-018](decisions.md) | Decided |
+| Deletion semantics | hard deletes everywhere | soft delete / archive for entities whose history must stay visible | **Soft delete:** `Supplier`, `RawMaterial`, `Product`, `Base_recipes` — the rule is "anything referenced by a record that outlives it". **Hard delete:** ingredient lines. Tenant scope and archived state must be combined in **one** base manager, not applied ad hoc (3.55) | Decided ([ADR-019](decisions.md)) |
+| Auth/permissions model | mix of no auth, `staff_member_required`, ad hoc template checks | consistent `LoginRequiredMixin` + real role-based permissions | **Three per-tenant roles** — Owner / Staff / Read-only — held on a **membership record** (user × bakery × role), since Django's global `Group` cannot express "Owner of bakery A". Checks are capability-named, never `role == "owner"` | Decided ([ADR-020](decisions.md)) |
+| Administration surfaces | Django admin and the in-app settings area overlap | narrow one of them | **Two audiences, not the same operations.** In-app settings = tenant surface (tenant-scoped, role-checked, audited). Django admin = **superuser-only** support tooling, deliberately cross-tenant, never linked from the tenant UI. `ModelAdmin` does not apply tenant-scoped managers — do not rely on it to | Decided ([ADR-019](decisions.md)) |
+| Money & quantity types | mixed (`CharField` quantity, `float()` math in views) | `Decimal` end-to-end, in the schema and the service layer | **`Decimal` end-to-end.** Quantities ≥ `Decimal(12,4)` (`12,6` safer), money carried beyond 2 dp internally, rounded to 2 dp **only at presentation** with an explicit, tested rounding rule | Decided ([ADR-018](decisions.md)) |
+| Price basis | `RawMaterial.price` with implicit meaning | store the invoice as written; derive per-canonical-unit cost at cost time | `purchase_price` + `pack_quantity` + `purchase_unit`; derived cost never persisted | Decided ([ADR-018](decisions.md)) |
+| Canonical costing units | none | one canonical unit per dimension, with a conversion factor per purchase unit | **kilogram / litre / each**. Trade-off accepted: larger canonical units mean gram-scale ingredients are small fractions, so decimal scale is load-bearing (3.50, 3.51, 6.16) | Decided ([ADR-018](decisions.md)) |
+| VAT | inconsistent between products and dashboard math | net storage, VAT applied at the presentation boundary | All stored money **net (ex-VAT)**; dated VAT-rate reference table (`code`, `percent`, `valid_from`, `valid_to`); product references a rate **code** | Decided ([ADR-018](decisions.md)) |
+| Price history | none — prices overwritten in place | version both input and sale prices | **Two sources:** input prices from ADR-017 goods receipts (free by-product); sale prices as dated `ProductPrice` rows | Decided ([ADR-018](decisions.md)) |
+| Traceability entities (new — ADR-017) | none; the schema is a pure current-state catalogue with no delivery, batch, or production-run concept | Goods-receipt lines (supplier lot, date, quantity, best-before, price paid) distinct from the `RawMaterial` row; production runs consuming specific receipt lots and emitting an output batch; outbound records. **A lot is an event, not an attribute** — do not add a `lot` field to `RawMaterial` | Direction fixed by [ADR-017](decisions.md); entity shape Open | Open — 9.21 |
+| Internal lot code generation | n/a | Decided format (sequence? date-prefixed? per-tenant?) rather than improvised per install | — | Open — 9.21 |
+| Stock / quantity-on-hand | none | Nearly free once receipts and production runs exist, but a different product promise with different accuracy expectations — include deliberately or exclude deliberately | — | Open — 9.21 |
+
+**Note on sequencing:** the three rows above must be answered **before** Epic 3's schema work is
+implemented, not after. Traceability adds a temporal/event layer to tables that Epic 3 is about to
+restructure (`RawMaterial`, the ingredient lines, deletion semantics) — deciding them separately means
+redesigning the same tables twice. See [roadmap.md](roadmap.md), Epic 17.
 
 ## Frontend
 
@@ -76,6 +93,10 @@ must be answered before the Phase 3 migrations are written.
 | Interactivity | plain JS per page, several empty JS files | vanilla JS modules, optionally HTMX for server-driven interactivity | — | Open |
 | Is a full SPA needed? | n/a | leaning no — server-rendered is enough per current scope | — | Open |
 | Template/CSS/JS linting | none | add where practical, alongside the Python tooling below | — | Open |
+| Accessibility target | none stated | a named WCAG conformance level to build against | **WCAG 2.2 Level A** — with a revisit trigger to AA before EU expansion (10.15) | Decided ([ADR-021](decisions.md)) |
+| Device / browser matrix | responsive, matrix unstated | one responsive UI across a named browser set | Phone→desktop; current **and previous** major Chrome/Firefox/Safari/Edge. No IE11, no native app | Decided ([ADR-021](decisions.md)) |
+| Localization | English only, `€` hardcoded in templates | translation-ready even while shipping one locale | Ship `en-IE`/EUR; **`gettext` on display text and one currency formatter from day one** — no hardcoded `€` (5.15, 5.16) | Decided ([ADR-021](decisions.md)) |
+| Performance budget | none | a target specific enough to detect a regression | p95 < 500 ms pages, < 2 s dashboard aggregate, ~10 concurrent users/tenant. Documented budget, **not** a CI gate — Railway Hobby shares CPU | Decided ([ADR-021](decisions.md)) |
 
 **Frontend direction (rationale, not yet decided):** the project does not need a full SPA to become
 production-ready — a modern server-rendered Django frontend is enough. The candidate shape is: keep
@@ -282,7 +303,7 @@ Per the new "AI-driven insights" feature (margin alerts, real-time dashboard ana
 | Processing engine | n/a (new service) | Apache Spark, run on Databricks | Decided (see ADR-002) |
 | Trigger mechanism | n/a | App events call the service via API; service reads app DB, returns computed insights | Decided (direction), Open (exact contract) |
 | Where does it run relative to the app? | n/a | Databricks is a managed service — it runs on AWS/Azure/GCP infrastructure regardless of where the Django app/Postgres are hosted. "Same hosting" as the app isn't realistic; "API-connected, compatible" is the practical version of that goal. | Open |
-| Cost model | n/a | Databricks Community Edition is free but doesn't support external API-triggered jobs (notebook-only, no job-scheduling API) — a real triggered-batch-job workflow needs a paid workspace, billed on top of the underlying cloud compute. Worth re-confirming Spark/Databricks is still the right call at this data scale (a single bakery's dataset) vs. a much cheaper plain-Python batch job, before committing spend. | Open |
+| Cost model | n/a | Databricks Community Edition is free but doesn't support external API-triggered jobs (notebook-only, no job-scheduling API) — a real triggered-batch-job workflow needs a paid workspace, billed on top of the underlying cloud compute. **[ADR-024](decisions.md) moved the bar:** a margin alert over [ADR-018](decisions.md)'s dated price history is a scheduled query, and that is now the **null hypothesis Spark has to beat**, not the fallback. Settle in 9.20 before any spend. | Open — 9.20 |
 
 ### Tenant data export tooling (new)
 
@@ -305,7 +326,14 @@ built, beyond the existing bulk admin CSV export.
 
 ## Open questions
 
-- Is Heroku actually still the deployment target, or has that changed?
-- Any hosting/budget constraints that rule out a candidate (e.g. managed Postgres cost)?
+- ~~Is Heroku actually still the deployment target, or has that changed?~~ Resolved: no — currently
+  self-hosted, moving to Railway (EU West) per [ADR-013](decisions.md). `settings/heroku.py` is a
+  leftover to be removed (1.5, 7.9).
+- ~~Any hosting/budget constraints that rule out a candidate?~~ Resolved in practice: phase 1 is a
+  **free pilot with one tenant** ([ADR-016](decisions.md)), so there is no revenue to fund
+  infrastructure — ~$6/mo is the working budget, which is what ADR-013 and ADR-014 were sized against.
 - Any org/team constraints (existing infra, required cloud provider, compliance requirements)
-  that should narrow these choices before Phase 3+ of `PRODUCTION_UPDATE_PLAN.md` starts?
+  that should narrow these choices before Phase 3+ of `PRODUCTION_UPDATE_PLAN.md` starts? Partly
+  answered: the compliance constraint is now explicit — EU data residency (ADR-013) plus food-law
+  traceability records with a legal retention floor ([ADR-017](decisions.md), 10.9), which raises the
+  cost of losing the database and so raises the bar on 9.16's backup strategy.
