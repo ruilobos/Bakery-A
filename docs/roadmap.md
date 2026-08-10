@@ -24,7 +24,7 @@ epic-level status; the backlog owns task-level status.
 - When a phase finishes, note the merge commit/tag and any follow-up it created.
 - Adding a new phase/feature here means adding the matching epic to the backlog in the same session.
 
-## Engineering hardening (Epics 1–8)
+## Engineering hardening (Epics 1–8, 19)
 
 | # | Phase | Branch | Status | Scope summary | Notes / links |
 |---|---|---|---|---|---|
@@ -36,12 +36,13 @@ epic-level status; the backlog owns task-level status.
 | 6 | Testing & quality gates | `phase-6-testing-ci` | Not started | Unit/integration tests, ruff/black, **extending** the Phase 1 minimal CI into the full pipeline (tests + security checks + deploy gating) | Builds on [decisions.md](decisions.md) ADR-011's Phase 1 foundation |
 | 7 | Observability & operations | `phase-7-observability` | Not started | Structured logging, error tracking, health checks, deployment hardening | |
 | 8 | Documentation & team readiness | `phase-8-docs` | Not started | README rewrite, architecture docs, runbooks | |
+| 19 | Runtime & dependency upgrade | `stack-runtime-upgrade` | Not started | Python 3.8/3.9 → **3.13**, Django 3.2 → **5.2 LTS** in one direct hop, `psycopg2-binary` → **`psycopg` 3**, PostgreSQL pinned to **17**, dependency set rebuilt (`pytz`/`environ`/`dj-database-url`/`django-mathfilters` removed), local compose gets a real Postgres service | Decided in [decisions.md](decisions.md) **ADR-025/ADR-026**. Numbered 19 because task IDs are never renumbered — it sits at **step 4** in the execution order, between Epic 2 and Epic 3. Everything currently running is end-of-life, and there are no tests yet, so 19.1's deprecation sweep and 19.8's recorded manual pass are the whole safety net |
 
 ## Discovery work (Epics 9–11 — must land before dependent phases start)
 
 | # | Phase | Branch | Status | Scope summary | Notes / links |
 |---|---|---|---|---|---|
-| 9 | Tech stack decisions | `stack-decisions` | Not started | Resolve every `Open` row in [tech_stack.md](tech_stack.md); log each as an ADR | Blocks Phases 3–5 above and the hosting migration below |
+| 9 | Tech stack decisions | `stack-decisions` | In progress | Resolve every `Open` row in [tech_stack.md](tech_stack.md); log each as an ADR | Blocks Phases 3–5 above and the hosting migration below. **The runtime block is done** (2026-08-10): 9.1, 9.2, 9.3, 9.5, 9.6, 9.7 closed by ADR-025/ADR-026 — Django 5.2 LTS on Python 3.13, PostgreSQL 17, `psycopg` 3 — creating **Epic 19** for the upgrade itself. **9.4 (WSGI/ASGI) is deliberately held** for 9.20. Everything else is still open |
 | 10 | Requirements discovery | `requirements-discovery` | In progress | Resolve personas, functional/non-functional requirements, business data semantics, and feature backlog priority in [project_requirements.md](project_requirements.md) | **10.1–10.7 all done** (2026-08-06) via ADR-016 → ADR-024. **No longer blocks Epic 2, Epic 3's schema semantics, or Epic 5.** Remaining are follow-ups this pass created: 10.8/10.9 (traceability regulator check + retention floor), 10.10 (tenant seed data), 10.11 (next EU countries), 10.12 (allergen scope → Epic 18), 10.13 (VAT rate assignment), 10.14 (multi-tenant users), 10.15 (WCAG revisit), 10.16 (stale-price threshold), 10.17 (tenant-editable reference data) |
 | 11 | GDPR data inventory & policy | `gdpr-data-inventory` | Not started | Complete the data inventory and policy sections in [gdpr.md](gdpr.md) | Blocks any consent/erasure/audit-log implementation, and the profile-picture feature |
 
@@ -66,7 +67,9 @@ Sequencing only — the task-level detail is in [`PRODUCTION_UPDATE_PLAN.md`](..
 2. Epic 1 — repository cleanup, branch/release setup, minimal CI.
 3. Epic 2 — security fixes and permissions hardening (the plaintext-password logging fix should not
    wait for the rest of the epic).
-4. Epic 9's dependency/runtime decisions, then the upgrade itself.
+4. **Epic 19 — the runtime upgrade itself** (Django 5.2 LTS on Python 3.13, PostgreSQL 17). Its
+   decisions are made (ADR-025/ADR-026); this is now execution, and it must land **before** Epic 3 so
+   Epic 3's migrations are written once, against the target version.
 5. Epic 3 — database redesign, multi-tenancy, and safe migrations.
 6. Epic 4 — backend refactor: services layer, real forms.
 7. Epic 5 — frontend template consolidation and asset modernization.
@@ -105,7 +108,10 @@ considered shippable when these are done (task IDs from the backlog):
 - Repository artifacts cleaned up (1.1, 1.2)
 - Basic automated tests for core flows (6.8)
 - Deployment configuration normalized (7.7, 7.8, 7.9)
-- Dependency upgrade path prepared with lock files (9.8)
+- **Supported runtime: Django 5.2 LTS on Python 3.13, PostgreSQL 17 (Epic 19)** — shipping a real
+  pilot bakery onto a framework that stopped receiving security patches in April 2024 is not a
+  defensible first release, so this is scope, not a follow-up
+- Dependency upgrade path prepared with lock files (9.8 → 19.12)
 
 ## Completed
 

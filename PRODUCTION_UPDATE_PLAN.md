@@ -53,6 +53,7 @@ least one task below (see the [Decision → task coverage](#decision--task-cover
 | [16](#epic-16--ai-insights--alerts-service) | AI insights & alerts service | `feature-ai-insights-service` | Epics 9, 11 |
 | [17](#epic-17--batch--lot-traceability) | Batch & lot traceability | `feature-traceability` | Epics 3, 9, 10 |
 | [18](#epic-18--allergen-data) | Allergen data | `feature-allergen-data` | Epics 3, 17 |
+| [19](#epic-19--runtime--dependency-upgrade) | Runtime & dependency upgrade | `stack-runtime-upgrade` | Epic 2 |
 
 Epic-level status lives in [docs/roadmap.md](docs/roadmap.md) — update it there when an epic moves.
 
@@ -440,13 +441,13 @@ in [decisions.md](docs/decisions.md)". No implementation happens in this epic.
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
-| 9.1 | Decide the target Python version, and whether a follow-up validation pass on the next minor release is in scope | Not started | Currently 3.8 in `runtime.txt`, 3.9-slim in the Dockerfile |
-| 9.2 | Decide the target Django version and the upgrade route (direct to current LTS vs. staged) | Not started | Currently 3.2 |
-| 9.3 | Decide the pinned PostgreSQL version | Not started | [ADR-015](docs/decisions.md) rule 6 — pick a version every candidate host actually offers, so a logical dump restores cleanly elsewhere. Feeds 3.45 |
-| 9.4 | Decide the WSGI/ASGI server and version | Not started | Unblocks 7.14 |
-| 9.5 | Decide the PostgreSQL driver strategy (`psycopg2-binary` vs. `psycopg[binary]` v3) | Not started | |
-| 9.6 | Decide target versions for `whitenoise`, `django-environ`, `Pillow`, and the `asgiref`/`sqlparse`/`tzdata` set | Not started | Must align with 9.2 |
-| 9.7 | Decide whether `django-mathfilters` stays or goes | Not started | Goes if costing moves to the service layer (4.1) |
+| 9.1 | Decide the target Python version, and whether a follow-up validation pass on the next minor release is in scope | **Done** (2026-08-10) | **Python 3.13** — [ADR-025](docs/decisions.md). Spans both Django 5.2 and 6.2, so the next LTS hop needs no Python change; the 3.14 evaluation folds into that hop rather than being a separate pass. `Dockerfile` base image is the single source; `runtime.txt` is deleted (1.5, 7.9) |
+| 9.2 | Decide the target Django version and the upgrade route (direct to current LTS vs. staged) | **Done** (2026-08-10) | **Django 5.2 LTS, direct from 3.2** — [ADR-025](docs/decisions.md). No 4.2 stop: staging buys little without tests, and most of what would break is already scheduled for deletion. Implemented in **Epic 19** |
+| 9.3 | Decide the pinned PostgreSQL version | **Done** (2026-08-10) | **PostgreSQL 17** — [ADR-026](docs/decisions.md). Offered directly by Railway; local and production majors must match. Feeds 3.45; implemented in 19.10 |
+| 9.4 | Decide the WSGI/ASGI server and version | Not started | Unblocks 7.14. **Deliberately left open by [ADR-025](docs/decisions.md)**: nothing in the decided scope needs async, so the answer is very likely "current gunicorn, WSGI" — but the revisit trigger should be written against Epic 16's real shape, which **9.20** settles. Decide it with 9.20, not before |
+| 9.5 | Decide the PostgreSQL driver strategy (`psycopg2-binary` vs. `psycopg[binary]` v3) | **Done** (2026-08-10) | **`psycopg[binary]` 3** — [ADR-025](docs/decisions.md). Natively supported by Django since 4.2; switched as part of Epic 19 (19.7) |
+| 9.6 | Decide target versions for `whitenoise`, `django-environ`, `Pillow`, and the `asgiref`/`sqlparse`/`tzdata` set | **Done** (2026-08-10) | **Rule, not pins** — latest compatible with Django 5.2/Python 3.13 at lock time ([ADR-025](docs/decisions.md)). `asgiref`/`sqlparse` move to the lock file; `pytz`, `environ==1.0` (wrong package, module collision) and `dj-database-url` (unused, duplicates `env.db()`) are removed. Exact pins come from 9.8 |
+| 9.7 | Decide whether `django-mathfilters` stays or goes | **Done** (2026-08-10) | **Goes** — [ADR-025](docs/decisions.md). Last released Feb 2020, classifiers stop at Django 3.x, so it blocks the upgrade outright. Its two templates do cost math that [ADR-018](docs/decisions.md) already ruled wrong (19.6) |
 | 9.8 | Decide the dependency management approach (requirements split + lock workflow), and confirm every remaining dependency has an owner and purpose | Not started | Unblocks reproducible builds |
 | 9.9 | Decide the settings module layout | Not started | Unblocks 1.5 |
 | 9.10 | Decide where business logic lives (services/domain module shape) | Not started | Unblocks 4.1 |
@@ -674,6 +675,41 @@ aggregating allergens up the tree is the same traversal as aggregating cost.
 
 ---
 
+## Epic 19 — Runtime & dependency upgrade
+
+**Branch:** `stack-runtime-upgrade` · **Depends on:** Epic 2 (and 9.1/9.2/9.3/9.5/9.6/9.7, all done)
+· **Blocks:** Epic 3
+
+Move the app from Python 3.8/3.9 + Django 3.2 (all end-of-life) to **Python 3.13 + Django 5.2 LTS**,
+in one direct hop, and rebuild the dependency set around it — per [ADR-025](docs/decisions.md) and
+[ADR-026](docs/decisions.md). The roadmap's execution order always had this step ("then the upgrade
+itself"); it had no epic until now.
+
+**Runs before Epic 3, not after.** Epic 3 writes a large migration set — written against 3.2 and
+upgraded afterwards, every migration needs re-verifying on 5.2.
+
+**The standing risk:** there are no tests until Epic 6, so verification here is a deprecation sweep
+plus a manual pass over every screen. That is accepted deliberately (see the ADR's alternatives), and
+19.1 is what makes it defensible rather than reckless.
+
+| ID | Task | Status | Notes / source |
+|---|---|---|---|
+| 19.1 | **Before upgrading anything**, run the app's checks under `-Wall` on Django 3.2 and clear every `RemovedInDjango*Warning` | Not started | [ADR-025](docs/decisions.md). This is the safeguard standing in for a staged upgrade — Django announces what later releases remove, and this is the only pre-flight signal available without tests. Do not skip it because the jump "worked" |
+| 19.2 | Rewrite `requirements.txt`: Django 5.2 LTS, `psycopg[binary]` 3, current `whitenoise`/`django-environ`/`Pillow`; remove `asgiref`, `sqlparse`, `pytz`, `environ`, `dj-database-url`, `django-mathfilters` | Not started | [ADR-025](docs/decisions.md). Re-save as UTF-8 in the same pass — closes 1.4, since the file is being rewritten anyway |
+| 19.3 | Change the `Dockerfile` base image to `python:3.13-slim`; delete `runtime.txt` rather than updating it | Not started | [ADR-025](docs/decisions.md), [ADR-015](docs/decisions.md) rule 1 — the Dockerfile becomes the single source of the Python version. Overlaps 7.9's Heroku-leftover removal |
+| 19.4 | Upgrade Django 3.2 → 5.2 and get `manage.py check` and `makemigrations --check --dry-run` clean | Not started | The core of the epic. Expect the fallout in `control/views.py`, `bakery/urls.py`, and settings |
+| 19.5 | Remove `mathfilters` from `INSTALLED_APPS` and the two templates that load it, moving their arithmetic into the view | Not started | [ADR-025](docs/decisions.md) closes 9.7. `control/templates/base_recipe.html`, `products.html`. A small down payment on 4.1/5.x, not new scope — the values move again when the service layer lands |
+| 19.6 | Switch the database driver to `psycopg` 3 and confirm the connection, migrations, and `DATABASE_URL` parsing all still work | Not started | 9.5. `django-environ`'s `env.db()` must still produce a working config ([ADR-015](docs/decisions.md) rule 2) |
+| 19.7 | Confirm `zoneinfo` handling after the `pytz` removal; `USE_TZ`/`TIME_ZONE` are already explicit, so verify rather than change | Not started | [ADR-025](docs/decisions.md) — `USE_TZ = True` and `TIME_ZONE = 'UTC'` are already set in `settings/base.py`, so Django 5.0's default flip is a non-event. Verify, record, move on |
+| 19.8 | Manual verification pass over every screen — dashboard, raw materials, suppliers, base recipes, products, settings/export, login | Not started | **The only functional check that exists** until Epic 6. Write down what was exercised, so 6.8's first tests can start from that list rather than from nothing |
+| 19.9 | Update the Epic 1 CI workflow to run on Python 3.13 | Not started | 1.11, [ADR-011](docs/decisions.md). If Epic 1 lands first this is an edit; if not, 1.11 is simply written against 3.13 |
+| 19.10 | Add an explicit `postgres:17` service to `docker-compose.yaml` and fix the network mismatch (`web` joins `my_network`; the file defines `bakery_simple`) | Not started | [ADR-026](docs/decisions.md). The compose file cannot run as written, and [ADR-014](docs/decisions.md) makes it the **only** integration-test environment — so this is load-bearing, not tidying. Pairs with 1.12 |
+| 19.11 | Confirm the Railway Postgres service is pinned to 17 when it is provisioned | Not started | [ADR-026](docs/decisions.md); executed inside Epic 12 (12.2) — listed here so the pin isn't lost between the two epics |
+| 19.12 | Split requirements by environment and generate pinned versions from a lock workflow | Blocked | 9.8 is still `Open` in [tech_stack.md](docs/tech_stack.md). 19.2 rewrites the single file; this converts it to `base`/`dev`/`prod` + a lock once 9.8 decides the tool. First-release milestone item |
+| 19.13 | Diary the Django 6.2 LTS upgrade for H2 2027 | Not started | [ADR-025](docs/decisions.md). 5.2's extended support ends **April 2028** — the hop is scheduled work, not optional. Python 3.13 already spans it, so it is a Django-only move; evaluate Python 3.14 then |
+
+---
+
 ## Decision → task coverage
 
 Every `Accepted`/`Decided` entry in `docs/` must map to at least one task above. Add a row here when
@@ -706,6 +742,8 @@ a new ADR lands, along with the tasks it creates.
 | [ADR-022](docs/decisions.md) — receipts drive raw-material cost; ingredient lines accept a raw material or a base recipe | 3.59–3.62, 4.16, 4.17, 5.20, 6.20, 6.21, 17.1, and the narrowing of 9.18 |
 | [ADR-023](docs/decisions.md) — dashboard overview page; settings as tenant self-administration | 5.18, 5.19, 4.18, 9.22, 10.16, 10.17, and the replacement of the broken user-delete view (6.7) |
 | [ADR-024](docs/decisions.md) — MoSCoW pass on the feature backlog (10.3) | 5.9 (Must → build), 5.21 + 3.63 (supplier comparison as Must), **Epic 18** (allergen data as Should), Epic 13 narrowed to product photos, 16.1 re-scoped, 10.10 mostly resolved, 11.3 off the critical path |
+| [ADR-025](docs/decisions.md) — Django 5.2 LTS on Python 3.13, direct upgrade, dependency set rebuilt | 9.1 ✅, 9.2 ✅, 9.5 ✅, 9.6 ✅, 9.7 ✅, **Epic 19** (19.1–19.9, 19.12, 19.13), plus 1.4 absorbed into 19.2 and `runtime.txt` removal shared with 7.9 |
+| [ADR-026](docs/decisions.md) — PostgreSQL 17 pinned across every environment | 9.3 ✅, 19.10, 19.11, and the version constraint on 3.44–3.48 |
 
 ## Highest-risk items
 
@@ -715,6 +753,8 @@ so the risk isn't lost among the ~140 tasks above.
 | Risk | Fixed by |
 |---|---|
 | Plaintext passwords printed to logs on failed login | 2.10 |
+| Running an end-of-life runtime **and** framework — Django 3.2 (EOL April 2024) on Python 3.8/3.9 (EOL Oct 2024/Oct 2025), so no security patches reach any layer | Epic 19 ([ADR-025](docs/decisions.md)) |
+| A framework upgrade verified only by hand, because no test suite exists yet | 19.1 (deprecation sweep first), 19.8 (recorded manual pass), then Epic 6 |
 | Hardcoded `SECRET_KEY`, DB credentials, and `DEBUG = True` | 2.1, 2.2 |
 | Access control enforced in templates instead of views | 2.6, 2.7, 2.8 |
 | No tenant isolation in a confirmed multi-tenant product | 3.3, 4.6, 6.9 |
@@ -732,7 +772,7 @@ so the risk isn't lost among the ~140 tasks above.
 The exit criteria for this backlog. Bakery is production-ready only when all of these hold:
 
 - [ ] No secrets in source control; all configuration comes from the environment
-- [ ] Supported Python and Django versions, with pinned, reproducible dependencies
+- [ ] Supported Python and Django versions, with pinned, reproducible dependencies (Epic 19; lock workflow in 19.12, pending 9.8)
 - [ ] Full environment separation (local / test / staging / production)
 - [ ] Every business action protected by real authentication and per-tenant authorization
 - [ ] Tenant isolation enforced at the query layer and proven by tests

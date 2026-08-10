@@ -14,32 +14,40 @@ file: one task per `Open` row below.
 
 | Layer | Current | Candidate | Decision | Status |
 |---|---|---|---|---|
-| Python | 3.8 (`runtime.txt`), Dockerfile uses 3.9-slim | 3.12 as the primary target, with a follow-up validation pass on 3.13 once all dependencies and the chosen host confirm support | — | Open |
-| Django | 3.2 | Current supported LTS — 5.2 LTS directly if hosting and package support allow, otherwise staged 3.2 → 4.2 LTS → current LTS | — | Open |
-| Database | PostgreSQL (version unpinned) | PostgreSQL, pin a version | — | Open |
+| Python | 3.8 (`runtime.txt`), Dockerfile uses 3.9-slim — **both EOL** (Oct 2024 / Oct 2025) | 3.12 as the primary target, with a follow-up validation pass on 3.13 once all dependencies and the chosen host confirm support | **Python 3.13** — supported by both Django 5.2 (3.10–3.14) and 6.2 (3.12–3.14), so the whole planned path needs no Python change. `python:3.13-slim` in the `Dockerfile` is the single source of the version; `runtime.txt` is deleted, not updated. The old 3.12 candidate aged out — 3.12 has been security-only since Oct 2025 | Decided ([ADR-025](decisions.md)) |
+| Django | 3.2 — **EOL since April 2024** | Current supported LTS — 5.2 LTS directly if hosting and package support allow, otherwise staged 3.2 → 4.2 LTS → current LTS | **Django 5.2 LTS, upgraded directly from 3.2** (no 4.2 stop). The LTS has the *longer* runway than current stable: 5.2 → April 2028 vs. 6.1 → Dec 2027, and 6.0 left mainstream support 2026-08-04. Next hop **6.2 LTS**, H2 2027 | Decided ([ADR-025](decisions.md)) |
+| Database | PostgreSQL (version unpinned; `docker-compose.yaml` has no Postgres service at all) | PostgreSQL, pin a version | **PostgreSQL 17**, pinned identically local and production. Major versions must match across environments; a bump is deliberate and restore-tested (3.47), never drift | Decided ([ADR-026](decisions.md)) |
 | DB topology (app vs. DB process) | Self-hosted: separate Postgres container from the app | Always separate services (app and DB never bundled in one image), on every hosting candidate | Separate always | Decided (see ADR-007) |
 | Multi-tenancy model | None — single-bakery schema | Single shared database, row-level tenant isolation via a `Bakery` FK on every business table (not database-per-tenant) | Shared DB, tenant-scoped rows | Decided (see ADR-006/ADR-008) |
-| WSGI/ASGI server | gunicorn 20.1.0 (WSGI) | current gunicorn; ASGI only if a real need shows up | — | Open |
+| WSGI/ASGI server | gunicorn 20.1.0 (WSGI) | current gunicorn; ASGI only if a real need shows up | — | Open — 9.4. **Deliberately left open** while [ADR-025](decisions.md) closed the rest of the runtime: nothing in the decided scope needs async ([ADR-023](decisions.md)'s dashboard is server-rendered aggregates, and [ADR-024](decisions.md) reduced Epic 16's "real-time analytics" to a scheduled query), so the answer is very likely "current gunicorn, WSGI" — but the revisit trigger should be written against Epic 16's actual shape, which 9.20 settles |
 
 ## Dependencies
 
 | Package | Current | Candidate | Decision | Status |
 |---|---|---|---|---|
-| `psycopg2-binary` | 2.9.6 | `psycopg[binary]` (v3) | — | Open |
-| `whitenoise` | 5.2.0 | latest compatible with chosen Django | — | Open |
-| `django-environ` | 0.4.5 | latest | — | Open |
-| `Pillow` | 10.4.0 | latest | — | Open |
-| `django-mathfilters` | 1.0.0 | keep only if template math stays; drop if costing moves to a service layer | — | Open |
-| `asgiref` / `sqlparse` / `tzdata`/`pytz` | pinned to Django 3.2's requirements | align with whatever Django release is chosen above | — | Open |
+| `psycopg2-binary` | 2.9.6 | `psycopg[binary]` (v3) | **`psycopg[binary]` 3** — natively supported by Django since 4.2; psycopg2 is maintenance-only upstream | Decided ([ADR-025](decisions.md)) |
+| `whitenoise` | 5.2.0 | latest compatible with chosen Django | **Latest compatible with Django 5.2 / Python 3.13** at lock time. 6.12.0 confirmed compatible 2026-08-10 | Decided ([ADR-025](decisions.md)) |
+| `django-environ` | 0.4.5 | latest | **Latest compatible** at lock time; 0.14.0 confirmed 2026-08-10. Stays — it owns `env.db()`, the `DATABASE_URL` contract in [ADR-015](decisions.md) rule 2 | Decided ([ADR-025](decisions.md)) |
+| `Pillow` | 10.4.0 | latest | **Latest compatible** at lock time; 12.3.0 confirmed 2026-08-10 | Decided ([ADR-025](decisions.md)) |
+| `django-mathfilters` | 1.0.0 | keep only if template math stays; drop if costing moves to a service layer | **Dropped.** Latest release is 1.0.0 (Feb 2020), classifiers stop at Django 3.x — a hard blocker for the upgrade, not a preference. Loaded in `base_recipe.html` and `products.html`, both doing template-side cost math that [ADR-018](decisions.md) already ruled wrong (19.6) | Decided ([ADR-025](decisions.md)) |
+| `asgiref` / `sqlparse` / `tzdata`/`pytz` | pinned to Django 3.2's requirements | align with whatever Django release is chosen above | **Removed from the hand-written file.** `asgiref`/`sqlparse` are Django's own transitive deps and belong in the lock file; `pytz` goes entirely (Django dropped pytz support in 5.0, stdlib `zoneinfo` replaces it, no app code imports it) | Decided ([ADR-025](decisions.md)) |
+| `environ` 1.0 / `dj-database-url` 0.5.0 (not previously listed) | both present in `requirements.txt` | — | **Both removed.** `environ` is an unrelated PyPI package whose top-level `environ` module collides with `django-environ`'s — an install slip and a live hazard. `dj-database-url` is imported nowhere in app code and duplicates `env.db()` | Decided ([ADR-025](decisions.md)) |
 | Dependency management | single UTF-16LE `requirements.txt` | split `requirements/base.txt` + `dev.txt` + `prod.txt`, pinned via `pip-tools` or an equivalent lock workflow for deterministic builds | — | Open |
 | Dependency hygiene | unreviewed — some packages may be unused | every dependency has a named owner and a stated purpose; anything else is removed | — | Open |
 | Media storage | none | `django-storages[s3]` + `boto3`, for S3-compatible object storage (see ADR-005) | Cloudflare R2 | Decided |
 
-**Dependency strategy (direction, pending the rows above):** replace the current ad hoc dependency
-state with pinned, reviewed, production-safe dependencies; normalize the file encoding to UTF-8;
-split by environment; generate pinned requirements from a lock workflow rather than hand-editing.
-The `psycopg2-binary` → `psycopg[binary]` swap should be settled after the deployment review, since
-the driver choice interacts with the chosen host's build environment.
+**Dependency strategy:** replace the current ad hoc dependency state with pinned, reviewed,
+production-safe dependencies; normalize the file encoding to UTF-8; split by environment; generate
+pinned requirements from a lock workflow rather than hand-editing. Per [ADR-025](decisions.md), this
+table fixes the **constraint** — latest release compatible with Django 5.2 on Python 3.13 — and the
+lock workflow (9.8, still `Open`) fixes the exact versions. Exact patch pins are deliberately not
+recorded here or in the ADR log, since both are append-only and the pins are not.
+
+The rewritten `requirements.txt` drops from twelve entries to roughly six. Version facts above were
+verified 2026-08-10 against the [Django release page](https://www.djangoproject.com/download/), the
+[Django install FAQ](https://docs.djangoproject.com/en/dev/faq/install/), the
+[Python version status page](https://devguide.python.org/versions/), and each package's PyPI
+metadata.
 
 ## Backend architecture
 

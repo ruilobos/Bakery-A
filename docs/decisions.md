@@ -1036,7 +1036,132 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
   - **"Better user & role management" leaves the feature backlog as a distinct item** — it is fully
     covered by existing tasks, and keeping a duplicate row would let the two drift.
 
-## ADR-025: <next decision goes here>
+## ADR-025: Runtime baseline — Django 5.2 LTS on Python 3.13, upgraded directly from 3.2, with the dependency set rebuilt around it
+
+- **Date:** 2026-08-10
+- **Status:** Accepted
+- **Context:** Tasks 9.1, 9.2, 9.5, 9.6 and 9.7 — the runtime and dependency rows that
+  [tech_stack.md](tech_stack.md) still carried as `Open`, and the last thing standing between Epic 2
+  and Epic 3. Everything the app runs on is past end of life: Python 3.8 (`runtime.txt`) since
+  October 2024, the Dockerfile's 3.9-slim since October 2025, and Django 3.2 since April 2024. The
+  candidate text in `tech_stack.md` — "3.12 as the primary target, validate 3.13 later" — was written
+  when 3.12 was the current release; 3.12 went security-fixes-only in October 2025, so the candidate
+  had quietly aged into a recommendation to start a new build on an unsupported runtime. Release
+  windows and every package's declared support were re-verified 2026-08-10 (sources in
+  [tech_stack.md](tech_stack.md)). These are recorded as **one** decision because the Django version
+  determines the Python range, which determines the database driver and the rest of the pin set —
+  deciding them separately is how a mutually incompatible pin set gets assembled one line at a time.
+- **Decision:**
+  1. **Django 5.2 LTS — not the current stable.** Verified 2026-08-10: 5.2 LTS is supported to
+     **April 2028**; the current stable 6.1 only to December 2027; and 6.0 left mainstream support on
+     **4 August 2026**, six days before this decision. The older LTS has the longer runway. The next
+     hop is **6.2 LTS** (releases April 2027, supported to April 2030), planned for H2 2027.
+  2. **Python 3.13.** It is supported by *both* ends of the planned path — Django 5.2 takes 3.10–3.14,
+     Django 6.2 takes 3.12–3.14 — so the 6.2 upgrade requires no Python change at all. The
+     `python:3.13-slim` base image in the `Dockerfile` is the **single** place the version lives;
+     `runtime.txt` is deleted rather than updated (1.5, 7.9), per [ADR-015](decisions.md) rule 1.
+  3. **Upgrade directly, 3.2 → 5.2.** No staged stop at 4.2 LTS.
+  4. **Sequenced after Epic 2 and before Epic 3**, as its own epic (Epic 19).
+  5. **`psycopg[binary]` 3** replaces `psycopg2-binary` (closes 9.5) — natively supported by Django
+     since 4.2, and a new build is the cheapest moment to switch drivers.
+  6. **The dependency set is defined by a rule, not by pins in this ADR** (9.6): each package targets
+     the latest release compatible with Django 5.2 and Python 3.13 *at the time the lock file is
+     generated* (9.8). Confirmed available and compatible on 2026-08-10 — `whitenoise` 6.12.0,
+     `django-environ` 0.14.0, `Pillow` 12.3.0. Four entries are **removed outright**:
+     - `asgiref`, `sqlparse` — Django's own transitive dependencies; they belong in the lock file, not
+       in a hand-maintained list where they can contradict Django's requirements.
+     - `pytz` — Django removed pytz support in 5.0; the stdlib `zoneinfo` replaces it, and no app code
+       imports it.
+     - `environ==1.0` — an unrelated PyPI package whose top-level `environ` module collides with the
+       one `django-environ` provides. Almost certainly an install slip, and a live hazard.
+     - `dj-database-url` — imported nowhere in app code, and `django-environ`'s `env.db()` already
+       parses `DATABASE_URL`, which [ADR-015](decisions.md) rule 2 names as the database contract.
+  7. **`django-mathfilters` is dropped** (closes 9.7). Its latest release is 1.0.0 from February 2020
+     and its classifiers stop at Django 3.x — it is a hard blocker for this upgrade, not a preference.
+     It is loaded in `control/templates/base_recipe.html` and `products.html`, both of which do
+     cost/margin arithmetic **in the template** — exactly what [ADR-018](decisions.md) ruled wrong. The
+     values come from the view (and later the service layer) instead.
+- **Alternatives considered:**
+  - **Django 6.1, the current stable** — rejected. It has a *shorter* support window than the older
+     LTS (December 2027 vs. April 2028) and puts a solo developer on the 8-month feature-release
+     treadmill. Django 6.0 dropping out of mainstream support the week this was decided is the
+     demonstration, not a hypothetical.
+  - **Staged 3.2 → 4.2 LTS → 5.2** — the conventional advice, and rejected on two project-specific
+    grounds. First, staging exists so a test suite can catch each release's removals, and every
+    `tests.py` in this repo is an empty stub — staging without tests means running the app manually
+    three times instead of once, and getting three chances to be wrong. Second, and more decisive:
+    **most of the code that would break is code already scheduled for deletion** — the inline
+    `float()` costing ([ADR-018](decisions.md)), the models Epic 3 restructures for tenancy, the
+    templates Epic 5 rewrites. Migrating it carefully through 4.2 preserves a corpse.
+  - **Python 3.12** (the previous candidate) — rejected; security-fixes-only since October 2025.
+  - **Python 3.14** (the newest) — rejected as the target, not on stability but on span: it needs
+    Django 5.2.8+, and 3.13 already covers the entire path through 6.2 with mature wheels everywhere.
+    Re-evaluate it at the 6.2 LTS hop, as one upgrade event rather than two.
+  - **Keeping `psycopg2-binary`** — rejected; psycopg2 is in maintenance-only upstream, and deferring
+    the swap means doing it later against a schema that by then has real tenant data in it.
+  - **Pinning exact patch versions in this ADR** — rejected; they would be stale within weeks and this
+    log is append-only. The ADR fixes the *constraint*; the lock file (9.8) fixes the versions.
+- **Consequences:**
+  - **This creates a new epic — Epic 19, `stack-runtime-upgrade`.** The suggested execution order in
+    [roadmap.md](roadmap.md) already said "then the upgrade itself" at step 4, but no epic held that
+    work; Epic 9 is decisions-only and Epic 1 is repository hygiene. It is added rather than smuggled
+    into Epic 1, so the upgrade has a branch and a PR of its own.
+  - **It must run before Epic 3.** Epic 3 writes a large migration set; written against 3.2 and
+    upgraded afterwards, every one of them needs re-verifying on 5.2.
+  - **The `USE_TZ` default flip in Django 5.0 is a non-event here** — `bakery/settings/base.py`
+    already sets `USE_TZ = True` and `TIME_ZONE = 'UTC'` explicitly. Verified and recorded so it is
+    not re-investigated when the dated-price and receipt-date tables from
+    [ADR-018](decisions.md)/[ADR-017](decisions.md) are built.
+  - **The safeguard that replaces the staged upgrade is a deprecation sweep on 3.2 first** — run the
+    app's checks under `-Wall` and clear every `RemovedInDjango*Warning` *before* jumping (19.1).
+    That is what a staged upgrade would have surfaced; it is not equivalent to having tests, and
+    saying so plainly is part of accepting this route.
+  - **Verification is a manual pass over every screen**, because there are no tests until Epic 6.
+    This is the largest accepted risk in the epic and the reason it is sequenced as its own step
+    rather than folded into another epic's PR.
+  - Epic 1's minimal CI (1.11) must run on Python 3.13 — if Epic 1 lands first, its workflow is
+    updated by 19.9 rather than written twice.
+  - `requirements.txt` drops from twelve entries to roughly six, and the UTF-8 re-encoding (1.4)
+    happens in the same pass since the file is being rewritten anyway.
+  - **April 2028 is now a real deadline.** 5.2's extended support ends then, so the 6.2 LTS hop is
+    scheduled work, not an option — diary it for H2 2027. Django 6.x also drops Python 3.10/3.11,
+    which is irrelevant at 3.13 but noted so that any future "pin Python back for package X" is
+    recognised as closing the door on 6.2.
+  - Closes five `Open` rows in [tech_stack.md](tech_stack.md) and leaves the WSGI/ASGI row (9.4)
+    deliberately open — see the note on that row; it waits on 9.20's re-scope of Epic 16.
+
+## ADR-026: Pin PostgreSQL 17 across every environment
+
+- **Date:** 2026-08-10
+- **Status:** Accepted
+- **Context:** Task 9.3. [ADR-015](decisions.md) rule 6 requires core PostgreSQL at a version every
+  candidate host actually offers, so a logical dump restores cleanly elsewhere. Today the version is
+  pinned nowhere: `docker-compose.yaml` has **no Postgres service at all** (Postgres runs as a
+  separate hand-managed container on the home server), so nothing in the repository records which
+  major version the app is developed or deployed against.
+- **Decision:** **PostgreSQL 17**, pinned identically in every environment — an explicit `postgres:17`
+  service in the local `docker-compose.yaml`, and Postgres 17 on Railway, which offers it directly
+  (and a version-selectable template if a specific major is ever needed). The local and production
+  **major versions must match**; a major bump is a deliberate change accompanied by a restore test
+  (3.47), never drift.
+- **Alternatives considered:** **Tracking `postgres:latest`** — rejected; it turns a major version
+  bump into something that happens on a `docker pull`, against a production database that cannot
+  follow. **Staying on 15 or 16 for conservatism** — rejected; no feature need argues for it and it
+  shortens the runway for no benefit (17 is supported into late 2029). **Leaving it unpinned, as
+  today** — rejected; it is the state [ADR-015](decisions.md) rule 6 exists to prevent, and it makes
+  the dump/restore drill (3.48) untrustworthy since `pg_dump`'s version has to match the server's.
+- **Consequences:**
+  - The local `docker-compose.yaml` needs a Postgres service it does not currently have (19.10).
+    It is broken as written anyway — the `web` service joins a network named `my_network` while the
+    file defines `bakery_simple` — so this is a fix, not new scope. [ADR-014](decisions.md) makes that
+    file the only integration-test environment, so it has to actually run.
+  - Feeds 3.45 (core-PostgreSQL-only constraint) and the portability work in 3.44 and 3.46–3.48:
+    `pg_dump`/`pg_restore` must match the server major, which is only checkable once a major is named.
+  - The pilot's existing data has to be dumped from whatever version the home server currently runs
+    and restored into 17 during Epic 12 — a cross-major restore, which is precisely the case
+    [ADR-015](decisions.md) rule 5 and the 3.46/3.47 traps are about.
+
+## ADR-027: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed
