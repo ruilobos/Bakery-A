@@ -72,7 +72,7 @@ ship safely through a PR.
 |---|---|---|---|
 | 1.1 | Remove generated and local-only artifacts from version control (`__pycache__/`, `bakery/staticfiles/`, `.idea/`, `.venv/`, OS/editor temp files) | Not started | |
 | 1.2 | Expand `.gitignore` to cover Python, Django, environment, build, and IDE artifacts | Not started | |
-| 1.3 | Keep only source assets in `bakery/static/`; confirm nothing depends on the committed `staticfiles/` output | Not started | `collectstatic` must regenerate it |
+| 1.3 | Keep only source assets in `bakery/static/`; confirm nothing depends on the committed `staticfiles/` output | Not started | `collectstatic` must regenerate it. **Prerequisite for 5.3** — a committed, stale manifest is the classic cause of "worked locally, 500 in production" once templates start resolving through `{% static %}`. See [ADR-027](docs/decisions.md) |
 | 1.4 | Re-save `requirements.txt` as UTF-8 (currently UTF-16LE) | Not started | Blocks any tooling that reads it |
 
 ### Project structure cleanup
@@ -92,6 +92,7 @@ ship safely through a PR.
 | 1.10 | Define the release step: every merge to `production` is tagged with a semantic version and published as a GitHub Release with auto-generated notes | Not started | [ADR-010](docs/decisions.md) |
 | 1.11 | Add a minimal GitHub Actions workflow on every PR against `main`/`production`: `python manage.py check`, `python manage.py makemigrations --check --dry-run`, `docker build` validation, basic lint pass | Not started | [ADR-011](docs/decisions.md). No test run (none exist yet) and no deploy step (no host yet) — verification only; extended in 6.12 |
 | 1.12 | Add a script that refreshes and launches the local dev environment in one command — pull `main`, rebuild the containers, run migrations — so the post-merge integration check is a single step | Not started | [ADR-014](docs/decisions.md). Run **manually** by the developer; GitHub cannot trigger a local machine. Missing the migration step is the most common cause of a confusing local failure |
+| 1.13 | Add `python manage.py collectstatic --noinput` to the CI workflow, so a static asset referenced but missing fails the PR instead of the deploy | Not started | Extends 1.11. Cheap now, and it becomes load-bearing at 5.3: once templates resolve through `{% static %}`, `ManifestStaticFilesStorage` turns a missing file into a render-time `ValueError`. [ADR-027](docs/decisions.md) |
 
 ---
 
@@ -113,7 +114,7 @@ ship safely through a PR.
 
 | ID | Task | Status | Notes / source |
 |---|---|---|---|
-| 2.6 | Protect all business views with `LoginRequiredMixin` | Not started | |
+| 2.6 | Protect all business views with `LoginRequiredMixin` | Not started | **Reshaped by 2.17** — the middleware becomes the mechanism and this becomes the belt-and-braces pass over business views. Do 2.17 first |
 | 2.7 | Protect admin-only operations with explicit permission classes/mixins; stop relying on template-only `is_staff` checks for security | Not started | |
 | 2.8 | Implement role-based permissions for **Owner / Staff / Read-only**, scoped **per tenant** rather than globally | **Unblocked** | [ADR-020](docs/decisions.md) — three roles, not four; Manager deferred. Role lives on the membership record from 3.58. Capability matrix in [project_requirements.md](docs/project_requirements.md) |
 | 2.9 | Add audit logging for user management and destructive actions | Not started | Extended by 11.10 (logging who viewed/exported personal data) |
@@ -129,6 +130,8 @@ ship safely through a PR.
 | 2.14 | Confirm encryption in transit (HTTPS enforced end-to-end) once the settings work lands | Not started | GDPR Art. 32 — [gdpr.md](docs/gdpr.md) §6 |
 | 2.15 | Restrict the Django admin to superusers, keep it out of all tenant-facing navigation, and log its access to personal data | Not started | [ADR-019](docs/decisions.md) — it is deliberately a **cross-tenant** support surface, which is what makes it useful and what makes it dangerous. `ModelAdmin` does **not** apply the tenant-scoped managers from 3.3/3.55. Feeds 11.10 |
 | 2.16 | Express every permission check as a named capability (`can_manage_users`, `can_edit_pricing`, `can_record_receipt`), never as `role == "owner"` | Not started | [ADR-020](docs/decisions.md). Costs nothing with three roles and is what keeps adding Manager a table row instead of a rewrite |
+| 2.17 | Enable `LoginRequiredMiddleware` so every view requires authentication by default, and mark the deliberate exceptions with `@login_not_required` (the `core` cover page, the login view) | Not started | [ADR-027](docs/decisions.md), Django 5.1 — **needs Epic 19**. Inverts the default so a forgotten view fails closed instead of being a silent hole. This is the real fix for "access control enforced in templates"; 2.6/2.7 become a verification pass on top of it |
+| 2.18 | Configure `SECRET_KEY_FALLBACKS` so the signing key can be rotated without invalidating every active session | Not started | [ADR-027](docs/decisions.md), Django 4.1 — **needs Epic 19**. Pairs with 2.1 (key moves to an env var) and makes 8.6's rotation runbook a procedure someone would actually run rather than one that logs out every user |
 
 ---
 
@@ -262,6 +265,21 @@ historical business data.
 | 3.62 | Model cost **provenance** (receipt-derived vs. estimated) as data the service layer returns alongside the figure, not as a UI afterthought | Not started | [ADR-022](docs/decisions.md). Retrofitting provenance into a bare `Decimal` later is painful. Surfaced by 4.17 and in exports |
 | 3.63 | Stop treating `RawMaterial`'s supplier FK as the definition of who supplies a material: the real supply relationship lives on the goods receipt, so the FK becomes at most an optional *preferred supplier* | Not started | [ADR-024](docs/decisions.md) — required by supplier price comparison being a **Must**. With a single FK, a comparison view has exactly one row per material and shows nothing. Pairs with 17.1; view is 5.21 |
 
+### Platform capabilities unlocked by the upgrade (ADR-027)
+
+All of these need Epic 19 to have landed. Each replaces something this epic would otherwise
+hand-build — or, in 3.64's case, something [ADR-019](docs/decisions.md) gave up on for cost reasons
+that no longer apply.
+
+| ID | Task | Status | Notes / source |
+|---|---|---|---|
+| 3.64 | Make supplier-name uniqueness **case-insensitive**: `UniqueConstraint(Lower("name"), "bakery", condition=<not archived>)` | Not started | [ADR-027](docs/decisions.md) amending [ADR-019](docs/decisions.md), via Django 4.0 functional unique constraints. **Extends 3.6, doesn't replace it** — same constraint, with `Lower()` added. ADR-019 declined this only because it needed a normalized column or hand-written index; it now needs neither. "Odlums"/"odlums" silently splitting one supplier's price history is the failure it prevents |
+| 3.65 | Validate `Meta.constraints` in the model/form layer via `full_clean()` / `validate_constraints()`, with `violation_error_message` on each constraint | Not started | [ADR-027](docs/decisions.md), Django 4.1. Without it, every rule this epic adds — 3.6/3.64 uniqueness, 3.59's cycle rejection — reaches the user as an `IntegrityError` 500 instead of a field error. Makes those rules cheaply testable from form tests in 6.x |
+| 3.66 | Document the schema in the database: `db_comment` on columns whose meaning isn't visible from the name, `db_table_comment` on tables | Not started | [ADR-027](docs/decisions.md), Django 4.2. Aimed at the genuinely non-obvious ones — money stored **net of VAT** ([ADR-018](docs/decisions.md)), quantities in canonical kg/l/each, `purchase_price` vs. derived cost, `archived_at` semantics. Visible from `psql` and the superuser admin surface; cannot drift from the table it describes |
+| 3.67 | Use `db_default` for the non-null columns this epic adds to already-populated tables | Not started | [ADR-027](docs/decisions.md), Django 5.0. Removes a separate data-migration step per column on the tenant FK, `archived_at`, and timestamp additions |
+| 3.68 | Load the 3.54 price backfill with `COPY ... ON_ERROR ignore` + `LOG_VERBOSITY` so a bad row is reported instead of aborting the import | Not started | [ADR-027](docs/decisions.md), PostgreSQL 17. 3.54 is explicitly a per-row human-judgment exercise ([ADR-018](docs/decisions.md)) — an all-or-nothing import is the wrong tool for it |
+| 3.69 | Use `pg_restore --transaction-size` and parallel large-object restore in the restore drill | Not started | [ADR-027](docs/decisions.md), PostgreSQL 17. 3.48's weekly drill only has value if it stays fast enough to keep running |
+
 ---
 
 ## Epic 4 — Backend modernization
@@ -316,7 +334,7 @@ historical business data.
 |---|---|---|---|
 | 5.1 | Introduce a shared `base.html` layout | Not started | |
 | 5.2 | Replace duplicated navbar/footer/page scaffolding with reusable template blocks and partials | Not started | |
-| 5.3 | Replace hardcoded static paths with `{% load static %}` / `{% static %}` | Not started | |
+| 5.3 | Replace hardcoded static paths with `{% load static %}` / `{% static %}` | Not started | **Bigger than it looks, and it must be sequenced with 1.3.** Every template in the repo hardcodes `/static/...` — there is no `{% static %}` in any project template — which means whitenoise's manifest hashing has never done anything here. Switching to `{% static %}` activates it, and `ManifestStaticFilesStorage` **raises `ValueError` at render time** for any referenced file missing from the manifest: a missing asset stops being a silent 404 and becomes a 500. Do it **after 1.3** removes the committed `bakery/staticfiles/` output, so a stale manifest can't be the cause, and lean on 1.13's CI `collectstatic`. Related: 19.14, [ADR-027](docs/decisions.md) |
 | 5.4 | Update Bootstrap to the agreed version | Blocked | CSS framework/version `Open` — 9.13 |
 | 5.5 | Remove unused empty JavaScript files or replace them with purposeful modules | Not started | |
 | 5.6 | Introduce the agreed asset pipeline (SCSS/CSS bundling, JS modules, cache-busted builds) | Blocked | Pipeline choice `Open` — 9.13 |
@@ -335,6 +353,8 @@ historical business data.
 | 5.19 | Build the tenant self-administration settings area: user invite/remove and role assignment, bakery details, reference data, exports — Owner-writable, Read-only limited to exports | Not started | [ADR-023](docs/decisions.md). **Replaces** the broken user-delete view rather than patching it. Needs the roles from 2.8/3.58 and email from 9.22 |
 | 5.20 | Show cost provenance in the UI: mark estimated figures distinctly from receipt-derived ones | Not started | [ADR-022](docs/decisions.md), backed by 4.17. A margin from a guess and one from an invoice are not the same claim |
 | 5.21 | Build the supplier price comparison view for a given raw material — who supplied it, at what price per canonical unit, and when | Not started | [ADR-024](docs/decisions.md) rates it a **Must**. Reads goods-receipt data (Epic 17) and needs 3.63; sparse until receipts accumulate across more than one supplier, which is expected rather than a defect |
+| 5.22 | Render forms through Django's accessible templates — `as_field_group()` over the div-based renderer — as the default path in the rewrite, rather than hand-writing label/error/help markup | Not started | [ADR-027](docs/decisions.md), Django 5.0/4.1 — **needs Epic 19**. Supplies real label association, `aria-describedby`, `aria-invalid` and `<fieldset>`/`<legend>` grouping, which is a material share of 5.12's WCAG 2.2 Level A from the framework. **Reduces** 5.10 and 5.12 rather than adding to them |
+| 5.23 | Use `{% querystring %}` for pagination and filter links so the current search/filter survives paging | Not started | [ADR-027](docs/decisions.md), Django 5.1 — **needs Epic 19**. The fiddly half of 5.9, which [ADR-024](docs/decisions.md) rates a **Must**. Replaces the usual `request.GET` copy-and-mutate boilerplate |
 
 ---
 
@@ -411,6 +431,8 @@ historical business data.
 | 7.16 | Keep serving static assets via whitenoise; confirm it still fits once a CDN/object storage is in play | Not started | Decided "no change" in [tech_stack.md](docs/tech_stack.md) — this is a verification task |
 | 7.17 | Bind Gunicorn to `$PORT` with a local fallback (`--bind 0.0.0.0:${PORT:-8000}`) instead of the hardcoded `:8000` in the `Dockerfile` `CMD` | Not started | [ADR-015](docs/decisions.md) rule 3. Railway, Render, Fly, DigitalOcean, Clever Cloud and Heroku all inject the port they expect the container to listen on; a hardcoded port needs per-host workarounds |
 | 7.18 | Confirm no persistent state is written to the app container's local disk — only PostgreSQL and object storage | Not started | [ADR-015](docs/decisions.md) rule 7. Pairs with 2.13 (the broken `MEDIA_ROOT`) and Epic 13 |
+| 7.19 | Enable Django's native psycopg connection pool (`DATABASES["OPTIONS"]["pool"]`) and `CONN_HEALTH_CHECKS`, then tune `min_size`/`max_size` against Railway's connection limit | Not started | [ADR-027](docs/decisions.md), Django 5.1 — **needs Epic 19**. Closes the pooling half of 9.18: in-process, so no PgBouncer service to run, monitor or patch. Health checks matter on a platform that recycles connections |
+| 7.20 | Enable and use `pg_stat_statements` for slow-query visibility, and check the [ADR-021](docs/decisions.md) budgets against it (p95 < 500 ms pages, < 2 s dashboard) | Not started | [ADR-027](docs/decisions.md), PostgreSQL 17 — split shared/local block I/O timing plus `stats_since`. Nothing currently measures those budgets. Feeds 3.43 and 5.14, and is the evidence that decides 9.18's still-open caching question |
 
 ---
 
@@ -425,7 +447,7 @@ historical business data.
 | 8.3 | Write the deploy runbook | Not started | |
 | 8.4 | Write the rollback runbook | Not started | Follows 7.12 |
 | 8.5 | Write the backup/restore runbook | Not started | Follows 3.38 |
-| 8.6 | Write the secret-rotation runbook | Not started | |
+| 8.6 | Write the secret-rotation runbook | Not started | Build it around `SECRET_KEY_FALLBACKS` (2.18) — without that, rotating the key logs out every active session, which is why rotation runbooks go unused |
 | 8.7 | Write the incident-response runbook | Not started | Must align with the GDPR breach process (11.8) |
 | 8.8 | Document the branch/promotion/release process for contributors | Not started | [ADR-010](docs/decisions.md) |
 | 8.9 | Write the host-migration runbook: provision elsewhere, restore the logical dump, move env vars, verify (3.47), cut DNS over, decommission | Not started | [ADR-015](docs/decisions.md). Derive it from the actual Railway setup while it's fresh; it's the executable form of 11.14's revisit option. Must cover: a maintenance window timed against Irish bakery business hours (tenants share one timezone in phase 1), lowering DNS TTL beforehand, keeping the old database **read-only but alive** until verification passes (12.6), and the rollback trigger. Object storage does **not** move — R2 is independent of the app host per [ADR-005](docs/decisions.md) |
@@ -458,7 +480,7 @@ in [decisions.md](docs/decisions.md)". No implementation happens in this epic.
 | 9.15 | Decide error tracking and uptime monitoring tooling | Not started | Unblocks 7.2, 7.5 |
 | 9.16 | Decide the backup/restore/PITR strategy — must cover **both** the host's native snapshots (fast rollback) and a portable logical dump (host replaceability) | Not started | Unblocks 3.38, 3.40, 3.44. [ADR-015](docs/decisions.md) rule 5. Note Railway offers no PITR — a PITR requirement needs tooling beyond the platform |
 | 9.17 | Decide formatting/linting and testing tooling (including template linting) | Not started | Unblocks 5.8, 6.10, 6.11 |
-| 9.18 | Decide the outstanding data-model questions: ingredient-line model shape, categories as enums vs. lookup tables, dashboard caching, connection pooling | Not started | Unblocks 3.19, 3.26, 3.42, 4.14. **Narrowed twice:** units are a lookup table ([ADR-018](docs/decisions.md)); and since [ADR-022](docs/decisions.md) gives both line models a typed *component* reference as well as a typed parent, they become structurally identical — a single shared ingredient-line model is now strongly indicated. Dashboard caching gained urgency from the [ADR-023](docs/decisions.md) overview page |
+| 9.18 | Decide the outstanding data-model questions: ingredient-line model shape, categories as enums vs. lookup tables, dashboard caching, ~~connection pooling~~ | Not started — **pooling closed** | Unblocks 3.19, 3.26, 3.42, 4.14. **Narrowed twice:** units are a lookup table ([ADR-018](docs/decisions.md)); and since [ADR-022](docs/decisions.md) gives both line models a typed *component* reference as well as a typed parent, they become structurally identical — a single shared ingredient-line model is now strongly indicated. Dashboard caching gained urgency from the [ADR-023](docs/decisions.md) overview page. **Narrowed a third time:** connection pooling is **closed** by [ADR-027](docs/decisions.md) — Django 5.1's native psycopg pool, no separate pooler (7.19). Caching stays open **on purpose**: decide it from 7.20's measurements, not in advance |
 | 9.19 | Decide the tenant export format and generation mechanism | Not started | Direction fixed by [ADR-008](docs/decisions.md); tool choice open. Unblocks 14.1 |
 | 9.20 | Re-confirm Spark/Databricks against a plain-Python batch alternative at this data scale, and confirm the workspace cost model | Not started | Open follow-up on [ADR-002](docs/decisions.md). Unblocks Epic 16 |
 | 9.21 | Decide the traceability data-model shape: goods-receipt/batch/production-run entities and their relationships, internal lot-code generation strategy, and whether stock/quantity-on-hand comes along as a derived by-product or is deliberately excluded | Not started | [ADR-017](docs/decisions.md) fixes the direction; the entity shape is open. **Unblocks 17.1–17.4.** Review against 9.18's ingredient-line decision — both touch the same tables. **Stock is settled as a `Could`** ([ADR-024](docs/decisions.md)): design the entities so quantity-on-hand *could* be derived later, without the app claiming to track stock now |
@@ -565,6 +587,7 @@ Product photos and user profile pictures, stored in S3-compatible object storage
 | 13.8 | Build the upload/preview UI with an empty-state placeholder | Not started | Pairs with 5.11 |
 | 13.9 | Delete the stored object from the bucket on account deletion or an erasure request | Not started | [gdpr.md](docs/gdpr.md) §3 — a DB-row delete alone is not compliance |
 | 13.10 | Do not ship profile pictures until their legal basis is decided | **Deferred out of this round** | [ADR-024](docs/decisions.md) rates profile pictures **Won't (this round)** — deferred, not rejected. This takes 11.3 off the critical path. 13.5 and 13.9's profile-picture half go with it; Epic 13 narrows to **product photos only** |
+| 13.11 | Configure R2 under the `STORAGES` dict's `"default"` key, leaving whitenoise on `"staticfiles"` | Not started | [ADR-027](docs/decisions.md), Django 4.2 — **needs Epic 19** and builds on 19.14, which introduces the dict. The two keys are exactly [ADR-005](docs/decisions.md)'s media/static split. `DEFAULT_FILE_STORAGE` no longer exists on the target version, so any older `django-storages` recipe found online will be wrong |
 
 ---
 
@@ -707,6 +730,8 @@ plus a manual pass over every screen. That is accepted deliberately (see the ADR
 | 19.11 | Confirm the Railway Postgres service is pinned to 17 when it is provisioned | Not started | [ADR-026](docs/decisions.md); executed inside Epic 12 (12.2) — listed here so the pin isn't lost between the two epics |
 | 19.12 | Split requirements by environment and generate pinned versions from a lock workflow | Blocked | 9.8 is still `Open` in [tech_stack.md](docs/tech_stack.md). 19.2 rewrites the single file; this converts it to `base`/`dev`/`prod` + a lock once 9.8 decides the tool. First-release milestone item |
 | 19.13 | Diary the Django 6.2 LTS upgrade for H2 2027 | Not started | [ADR-025](docs/decisions.md). 5.2's extended support ends **April 2028** — the hop is scheduled work, not optional. Python 3.13 already spans it, so it is a Django-only move; evaluate Python 3.14 then |
+| 19.14 | Replace `STATICFILES_STORAGE` in `settings/base.py` with a `STORAGES` dict defining **both** the `"default"` and `"staticfiles"` keys, keeping whitenoise's `CompressedManifestStaticFilesStorage` on the latter | Not started | **Required, low-risk** — do it in the same commit as 19.4, since `STORAGES` doesn't exist before Django 4.2 and `STATICFILES_STORAGE` is what 3.2 reads. Removed in Django 5.1, so on the target version it is **silently ignored** rather than an error: the site keeps its CSS, but compression and cache-busting quietly stop — the whole reason whitenoise is configured this way. Define `"default"` too even though only `"staticfiles"` changes: it is where 13.11 plugs R2 in and where 2.13's broken `bluebiulding/media` path gets cleaned up. **Verify:** `collectstatic` emits `staticfiles.json` plus hashed/compressed variants, then load a page with `DEBUG=False` and confirm assets return 200 |
+| 19.15 | Confirm the [ADR-027](docs/decisions.md) capabilities are actually available and working on the upgraded stack, so the downstream epics can rely on them | Not started | A short verification, not an implementation: middleware, functional constraints, constraint validation, `as_field_group`, `{% querystring %}`, connection pool, `pg_stat_statements`. Cheap here, expensive to discover missing halfway through Epic 3 or 5 |
 
 ---
 
@@ -744,6 +769,7 @@ a new ADR lands, along with the tasks it creates.
 | [ADR-024](docs/decisions.md) — MoSCoW pass on the feature backlog (10.3) | 5.9 (Must → build), 5.21 + 3.63 (supplier comparison as Must), **Epic 18** (allergen data as Should), Epic 13 narrowed to product photos, 16.1 re-scoped, 10.10 mostly resolved, 11.3 off the critical path |
 | [ADR-025](docs/decisions.md) — Django 5.2 LTS on Python 3.13, direct upgrade, dependency set rebuilt | 9.1 ✅, 9.2 ✅, 9.5 ✅, 9.6 ✅, 9.7 ✅, **Epic 19** (19.1–19.9, 19.12, 19.13), plus 1.4 absorbed into 19.2 and `runtime.txt` removal shared with 7.9 |
 | [ADR-026](docs/decisions.md) — PostgreSQL 17 pinned across every environment | 9.3 ✅, 19.10, 19.11, and the version constraint on 3.44–3.48 |
+| [ADR-027](docs/decisions.md) — adopt the capabilities the upgrade unlocks (amends ADR-019 on supplier-name uniqueness) | 2.17, 2.18, 3.64–3.69, 5.22, 5.23, 7.19, 7.20, 13.11, 19.14, 19.15, closing the pooling half of 9.18; plus the **reshaping** of 2.6/2.7 and the **reduction** of 5.10/5.12 |
 
 ## Highest-risk items
 
@@ -755,6 +781,7 @@ so the risk isn't lost among the ~140 tasks above.
 | Plaintext passwords printed to logs on failed login | 2.10 |
 | Running an end-of-life runtime **and** framework — Django 3.2 (EOL April 2024) on Python 3.8/3.9 (EOL Oct 2024/Oct 2025), so no security patches reach any layer | Epic 19 ([ADR-025](docs/decisions.md)) |
 | A framework upgrade verified only by hand, because no test suite exists yet | 19.1 (deprecation sweep first), 19.8 (recorded manual pass), then Epic 6 |
+| Switching templates to `{% static %}` activates manifest storage for the first time, turning any missing asset into a render-time 500 | 1.3 before 5.3, plus 1.13's CI `collectstatic` |
 | Hardcoded `SECRET_KEY`, DB credentials, and `DEBUG = True` | 2.1, 2.2 |
 | Access control enforced in templates instead of views | 2.6, 2.7, 2.8 |
 | No tenant isolation in a confirmed multi-tenant product | 3.3, 4.6, 6.9 |

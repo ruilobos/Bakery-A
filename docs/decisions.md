@@ -691,7 +691,10 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
 ## ADR-019: Deletion semantics, supplier identity, and the two administration surfaces
 
 - **Date:** 2026-08-06
-- **Status:** Accepted
+- **Status:** Accepted — the supplier-name uniqueness clause is **amended by
+  [ADR-027](decisions.md)**: normalized (case-insensitive) uniqueness, declined below purely because
+  it "needs a normalized column or a functional index", is adopted after all, since Django 4.0's
+  functional unique constraints remove that cost. Every other clause stands unchanged
 - **Context:** The last three business data-semantics questions in
   [project_requirements.md](project_requirements.md) — which entities survive "deletion", whether
   supplier name stays unique once it is no longer the primary key, and whether the Django admin and
@@ -1161,7 +1164,131 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
     and restored into 17 during Epic 12 — a cross-major restore, which is precisely the case
     [ADR-015](decisions.md) rule 5 and the 3.46/3.47 traps are about.
 
-## ADR-027: <next decision goes here>
+## ADR-027: Adopt the platform capabilities the Django 5.2 / Python 3.13 / PostgreSQL 17 upgrade unlocks (amends ADR-019)
+
+- **Date:** 2026-08-11
+- **Status:** Accepted — amends [ADR-019](decisions.md)'s supplier-name uniqueness clause
+- **Context:** [ADR-025](decisions.md) and [ADR-026](decisions.md) settled *which* versions to move to.
+  This entry answers the follow-up: the app jumps across four Django feature releases at once, and
+  several of them provide, as framework or database features, things this project had planned to
+  hand-build — or had **deferred specifically because hand-building them was too expensive**. Decided
+  now rather than during implementation, because three of these change how Epics 2, 3 and 5 are built
+  rather than being optimisations applied afterwards. Release notes were verified 2026-08-11 against
+  the Django 4.0/4.1/4.2/5.0/5.1 release notes and the PostgreSQL 17 release notes.
+- **Decision:** Adopt the following. Each has a task in the backlog; nothing here is aspirational.
+
+  **Access control**
+  1. **`LoginRequiredMiddleware` (Django 5.1) becomes the default posture**, with `@login_not_required`
+     on the deliberate exceptions (the `core` cover page, the login view). Authentication stops being
+     something each view opts into and becomes something a view must explicitly opt out of. This
+     changes the shape of 2.6/2.7 — the mixin remains correct but is no longer the mechanism.
+  2. **`SECRET_KEY_FALLBACKS` (Django 4.1)** makes secret-key rotation possible without invalidating
+     every active session, which is what turns 8.6's runbook into a procedure someone would actually
+     run.
+
+  **Data correctness**
+  3. **Supplier-name uniqueness becomes case-insensitive** — `UniqueConstraint(Lower("name"),
+     "bakery", condition=<not archived>)`. This **amends [ADR-019](decisions.md)**, which declined
+     normalized uniqueness with a single stated reason: that it "needs a normalized column or a
+     functional index". Functional unique constraints (Django 4.0) make it one declaration with no
+     extra column and no hand-written SQL, so the only argument against it no longer exists. The
+     consequence ADR-019 was protecting against — a duplicate silently splitting one supplier's price
+     history across two rows — is unchanged and is the reason to take this now.
+  4. **Database constraints are validated in the model/form layer** via `Model.full_clean()` /
+     `validate_constraints()` (Django 4.1), with `violation_error_message` supplying human wording.
+     Without this, every rule Epic 3 adds — per-tenant supplier uniqueness, [ADR-022](decisions.md)'s
+     cycle rejection — reaches the user as an `IntegrityError` 500 instead of a field error.
+  5. **`db_comment` / `db_table_comment` (Django 4.2) document the schema in the database itself.**
+     The redesigned schema carries meaning that is not visible from a column name — money stored net
+     of VAT, quantities in canonical kg/l/each, `purchase_price` versus derived cost. Held in the
+     database, that explanation is visible from `psql` and from the [ADR-019](decisions.md) admin
+     support surface, and cannot drift away from the table it describes.
+  6. **`db_default` (Django 5.0)** for the non-null columns Epic 3 adds to populated tables, removing
+     a separate data-migration step per column.
+
+  **Interface**
+  7. **Django's own accessible form rendering** — `as_field_group()` (5.0) over the div-based
+     templates (4.1) — is the default rendering path in the Epic 5 rewrite. It emits real label
+     association, `aria-describedby`, `aria-invalid`, and `<fieldset>`/`<legend>` grouping, which is a
+     material share of [ADR-021](decisions.md)'s WCAG 2.2 Level A target arriving from the framework
+     instead of from hand-written markup.
+  8. **`{% querystring %}` (Django 5.1)** for filter-preserving pagination in 5.9's search/filter work.
+
+  **Operations**
+  9. **Native psycopg connection pooling (Django 5.1)**, configured in `DATABASES["OPTIONS"]["pool"]`,
+     together with `CONN_HEALTH_CHECKS` (4.1). This **closes the connection-pooling half of 9.18**: the
+     question was "`CONN_MAX_AGE` tuning or a separate pooler such as PgBouncer", and the answer is now
+     neither — it is in-process, needs no additional service, and no additional service means one less
+     thing to run, monitor and keep patched.
+  10. **PostgreSQL 17's `pg_stat_statements` improvements** (split shared/local block I/O timing,
+      `stats_since`) are the measurement basis for [ADR-021](decisions.md)'s p95 budgets, which nothing
+      currently measures (3.43, 7.1).
+  11. **`COPY ... ON_ERROR ignore` (PostgreSQL 17)** for 3.54's price backfill — a per-row human
+      judgement exercise, where one bad row aborting the whole import is a genuine obstacle.
+  12. **`pg_restore --transaction-size` and parallel large-object restore (PostgreSQL 17)** in the
+      3.48 restore drill, whose value depends entirely on it being fast enough to keep running weekly.
+
+  **Also required, not optional:** `STATICFILES_STORAGE` and `DEFAULT_FILE_STORAGE` were deprecated in
+  4.2 and **removed in 5.1**. `settings/base.py` currently sets `STATICFILES_STORAGE` for whitenoise,
+  so the `STORAGES` dict is a **prerequisite of the upgrade itself** (19.14), not an Epic 13 nicety.
+  Its two keys — `"default"` and `"staticfiles"` — happen to be exactly [ADR-005](decisions.md)'s split
+  of R2 for media and whitenoise for static (13.11).
+
+- **Alternatives considered:**
+  - **Adopt nothing and keep the planned hand-built equivalents** — rejected. For items 1, 3, 4 and 7
+    the hand-built version is strictly worse code that must then be maintained, and item 3 was
+    *already* judged worth having and rejected only on cost.
+  - **Adopt everything the four releases offer** — rejected; the list below was declined on merit.
+  - **`GeneratedField` (Django 5.0) for cost and margin** — the most attractive-looking option here and
+    **rejected on a technical constraint, not on preference.** It promises database-computed values
+    that cannot drift from their inputs, which reads as a direct answer to
+    [ADR-018](decisions.md)'s "derived, never persisted". It cannot work: PostgreSQL supports only
+    `STORED` generated columns through version 17, and a generated expression must be immutable and
+    reference **only columns of the same row** — no joins, no subqueries. Every derivation in this
+    schema crosses rows: cost per canonical unit needs the unit-conversion table, gross price needs the
+    dated VAT table, product cost recurses through ingredient lines ([ADR-022](decisions.md)). Recorded
+    explicitly so it is not re-proposed by the next person who reads the 5.0 release notes.
+  - **PostgreSQL 17 incremental backup (`pg_basebackup --incremental`)** — rejected as unusable here;
+    it needs filesystem access to the data directory and `summarize_wal` on the server, which a managed
+    Railway database does not offer. It does **not** close [ADR-013](decisions.md)'s PITR gap, and 9.16
+    is unaffected. The portable logical dump ([ADR-015](decisions.md) rule 5) remains the mechanism.
+  - **Redis cache backend (Django 4.0)** — **not decided either way.** The caching row stays `Open` in
+    9.18. It is deliberately recorded as undecided rather than rejected: the correct trigger is
+    [ADR-023](decisions.md)'s overview dashboard being measured against the p95 < 2 s budget, and if it
+    misses, Redis is a reasonable answer whose hosting cost is minor next to a dashboard nobody waits
+    for. Decide it on 7.1's measurements, not in advance.
+  - **Async views / async ORM (Django 4.1)** — rejected; nothing in the decided scope needs them, which
+    also reinforces leaving 9.4 (WSGI/ASGI) pointed at gunicorn.
+  - **`CompositePrimaryKey` (Django 5.2) for the membership record** — rejected despite being the
+    theoretically correct shape for user × bakery: it cannot be the target of a ForeignKey and has
+    limited admin support. A surrogate key plus `UniqueConstraint(user, bakery)` costs nothing and
+    stays boring (3.58).
+- **Consequences:**
+  - **Three of these change how downstream epics are built, not what happens after them** — item 1
+    reshapes 2.6/2.7, item 3 adds a constraint to Epic 3's schema work, item 7 sets Epic 5's default
+    rendering path. They are only available to those epics **if Epic 19 lands first**, which is an
+    independent argument for the sequencing [ADR-025](decisions.md) already chose.
+  - **Amends [ADR-019](decisions.md)** on supplier-name uniqueness only. Everything else in ADR-019 —
+    the soft-delete scope, per-tenant (not global) uniqueness, live-rows-only enforcement, the two
+    administration surfaces — stands unchanged.
+  - **Closes the connection-pooling sub-question of 9.18.** The ingredient-line, categories, and
+    caching sub-questions remain open.
+  - **`STORAGES` is required by the upgrade** (19.14), though the failure is quiet rather than loud:
+    a removed setting is ignored, not rejected, so the site keeps working while whitenoise's
+    compression and cache-busting silently stop. **The louder consequence lands in Epic 5.** Every
+    template in this repo hardcodes `/static/...` — there is no `{% static %}` anywhere in the
+    project's own templates — so manifest hashing has never actually done anything here. When 5.3
+    switches to `{% static %}`, `ManifestStaticFilesStorage` starts raising `ValueError` at render
+    time for any referenced file missing from the manifest, turning a missing asset from a silent 404
+    into a 500. Mitigated by sequencing 5.3 with 1.3 (the committed `staticfiles/` output is removed,
+    so a stale manifest can't be the source) and by 1.13 running `collectstatic` in CI.
+  - Adds 13 tasks across Epics 2, 3, 5, 7, 13 and 19. None is large; several *reduce* the work already
+    scoped, since the framework now supplies what those tasks were going to build by hand.
+  - **Item 4 has a testing consequence:** validating constraints in `full_clean()` means the error
+    paths are now reachable from form tests rather than only from database-level integration tests —
+    worth using when 6.x writes the first tests, since they are cheap tests of expensive rules.
+
+## ADR-028: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed
