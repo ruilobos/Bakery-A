@@ -1288,7 +1288,142 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
     paths are now reachable from form tests rather than only from database-level integration tests —
     worth using when 6.x writes the first tests, since they are cheap tests of expensive rules.
 
-## ADR-028: <next decision goes here>
+## ADR-028: Backend architecture — settings layout, a batch-first service layer, no API, permissions on Django's own rails, no cache, and Brevo over SMTP
+
+- **Date:** 2026-08-13
+- **Status:** Accepted — completes [ADR-020](decisions.md)/[ADR-027](decisions.md) on auth, closes the
+  caching half of 9.18
+- **Context:** The `Backend architecture` table in [tech_stack.md](tech_stack.md) was the last block of
+  `Open` rows standing between the discovery epics and Epic 4's implementation, and five of the six
+  rows blocked at least one task apiece (1.5, 4.1, 4.5, 4.15, 5.19). They are decided together because
+  they are not independent: the service layer is where caching would attach, the permission mechanism
+  determines whether the service layer takes a user or a membership, and adopting Django's built-in
+  auth views is what makes email a first-release requirement rather than a feature-epic one. Provider
+  facts were verified 2026-08-13; Django-version-specific claims rest on the 5.2 baseline fixed by
+  [ADR-025](decisions.md).
+- **Decision:**
+
+  **1. Settings layout (9.9) — `base.py` + `local.py` + `test.py`, no `production.py`.**
+  `base.py` *is* the production configuration rather than a shared parent that nothing runs: all
+  config from the environment ([ADR-015](decisions.md) rule 2), production-safe defaults, and **no
+  default at all** for `SECRET_KEY`, `ALLOWED_HOSTS` and `DEBUG` — a missing variable raises
+  `ImproperlyConfigured` at boot. `local.py` and `test.py` are the only overlays and each opts *into*
+  the unsafe or convenient behaviour. The property being bought is that **the accident lands on the
+  safe side**: `manage.py` and the `Dockerfile` both default to `base`, so a forgotten
+  `DJANGO_SETTINGS_MODULE` yields production settings. Today it yields the opposite — `base.py` ships
+  a hardcoded `SECRET_KEY`, `DEBUG = True`, live database credentials, and `heroku.py:11` defaults
+  `DEBUG` to `True` in the *production* module.
+
+  **2. Business logic location (9.10) — `control/services/`, plain functions, batch-first.**
+  Module-level functions grouped by concern (`costing`, `pricing`, `receipts`) taking explicit
+  arguments and returning frozen dataclasses that carry amount, canonical unit, provenance and
+  as-of date together. **The batch entrypoint is the primary API**; single-object costing is a thin
+  wrapper over it. Models keep fields, constraints and managers (including
+  [ADR-019](decisions.md)'s combined tenant + archived base manager) and lose costing entirely — the
+  `@property` methods are deleted, not left as delegators.
+
+  **3. API layer (9.11) — none, and no framework pre-selected.** Machine-readable endpoints (the
+  health check, any future insights callback) are plain Django views returning `JsonResponse`.
+  Revisit trigger, any one of: a second non-first-party consumer appears; a native app or SPA client
+  is committed to (which would reverse [ADR-021](decisions.md)'s device matrix); or machine endpoints
+  exceed roughly six.
+
+  **4. Auth/permissions (9.12) — Django's auth views, capabilities on Django's permission API.**
+  `accounts/views.py` and `accounts/urls.py` are deleted outright. Capabilities are Django permission
+  codenames; middleware resolves the active bakery and membership onto the request, and a **custom
+  authentication backend** implements `has_perm()` by mapping the membership role to a static
+  capability set. Everything downstream stays stock Django — `PermissionRequiredMixin`,
+  `@permission_required`, `{% if perms.control.edit_recipes %}`.
+
+  **5. Caching (9.18, caching half) — none in the first release.** Query design is the performance
+  lever: the batch costing service, `select_related`/`prefetch_related`, and
+  [ADR-027](decisions.md)'s connection pool. Escalation ladder, in order, only once 7.20 measures the
+  dashboard over ADR-021's p95 < 2 s on realistic pilot data: (a) fix the queries, (b) per-view cache
+  with a short TTL keyed by a per-tenant version stamp, (c) a Redis backend **only** if step (b)
+  needs cross-worker coherence. The batch API takes the version stamp in its signature from day one.
+
+  **6. Email (9.22) — Brevo, over SMTP.** Django's built-in `smtp.EmailBackend` with host, port, user
+  and password from environment variables; console backend in `local.py`, locmem in `test.py`. No
+  dependency, and the provider stays swappable by configuration alone.
+
+- **Alternatives considered:**
+  - **Four settings modules including `production.py`** (the standing candidate) — rejected. It makes
+    `base.py` a module that is never loaded and therefore never tested, and requires
+    `DJANGO_SETTINGS_MODULE` to be right in three places, where being wrong silently loads that
+    untested module. **A single env-var-driven `settings.py`** was also rejected: debug-toolbar apps
+    and test-only settings become `if` branches inside settings, which is logic in the one file that
+    is hardest to test.
+  - **Fat models, corrected in place** — the conventional Django answer, and rejected on a structural
+    point rather than taste. [ADR-023](decisions.md)'s dashboard costs every product in one request;
+    a per-instance `@property` that recurses through [ADR-022](decisions.md)'s nested base recipes
+    issues queries per node and cannot memoise across the walk, so meeting
+    [ADR-021](decisions.md)'s budget would mean growing a second, parallel batch path — which is the
+    service layer, arrived at by accident. Separately, [ADR-018](decisions.md)'s provenance means the
+    answer is a value object, which a property returning a `Decimal` cannot express.
+  - **A standalone ORM-decoupled `domain/` package with repositories** — rejected as overhead that
+    buys database/framework portability nobody asked for. [ADR-015](decisions.md) requires *host*
+    portability, which Docker plus `DATABASE_URL` already delivers.
+  - **Adopt DRF now, read-only** — rejected. It would add a second authentication and permission
+    surface to keep synchronised with [ADR-020](decisions.md)'s memberships and a second
+    tenant-scoping path to test for cross-tenant leaks ([ADR-008](decisions.md)), for a consumer that
+    does not exist. **Pre-selecting a framework for later** (django-ninja was the candidate) was also
+    rejected: [ADR-025](decisions.md) had just demonstrated the failure mode when the Python 3.12
+    candidate aged out before implementation. Name the trigger, not the tool.
+  - **`django-rules` for permissions** — a genuinely good fit, rejected on proportion: it plugs into
+    the same `has_perm` integration points the custom backend does, so it buys predicate composition
+    and object-level ergonomics against a role matrix that is three static roles. One more dependency
+    to carry across the 5.2 → 6.2 hop for that is not worth it. Reconsider if per-object rules
+    ("can edit *this* recipe") multiply.
+  - **A hand-rolled capability module with its own mixin** — rejected. Templates would lose
+    `{% if perms %}` and need a custom tag, Django admin keeps its own permission system regardless,
+    and the result is two vocabularies for "is this allowed" — which is precisely how the ad hoc
+    template checks in the current code came about.
+  - **Keeping a thin `LoginView` subclass** — rejected for now. The one real motivation is choosing a
+    landing tenant for a user holding several memberships, which does not exist while
+    [ADR-016](decisions.md) has one pilot bakery. Re-add the subclass when the second membership does.
+  - **Provision Redis now** — rejected. The stated cost is ~$2–3/mo, which is not the real cost; the
+    real cost is that the full invalidation matrix must be correct on day one across goods receipts,
+    recipe edits, base-recipe edits cascading to every product containing them, VAT-rate rows and
+    `ProductPrice` rows. **`LocMemCache` now** was rejected separately: it is per-gunicorn-worker, so
+    two users can be served figures cached at different moments and a recipe edit is visible to
+    neither — acceptable for a blog, not for the number a product is priced against.
+  - **Resend for email** — the best developer experience of the four evaluated, and **rejected on a
+    verified fact**: EU data residency is gated to Pro at $20–35/mo, with account data and logs
+    remaining in the US on the free tier. That is over three times the entire ~$6/mo infrastructure
+    budget, spent to meet a constraint Brevo, Mailjet and Scaleway TEM all meet for free.
+    **Mailjet** (EU DCs, ISO 27701, 6,000/mo free) and **Scaleway TEM** (French, EU-only, €0.25/1,000)
+    were both viable; Brevo won on EU ownership *and* EU hosting aligning, a DPA included by default,
+    and the largest free headroom. **`django-anymail`** was rejected for now — bounce webhooks and
+    delivery analytics are worth having at volume, not at under 100 emails a month; it is the
+    escalation path if deliverability becomes a question.
+- **Consequences:**
+  - **Unblocks five tasks and cancels one.** 1.5 is unblocked but **rescoped** — three modules, not
+    four. 4.1, 4.5 and 5.19 are unblocked. **4.15 is cancelled**, not deferred.
+  - **4.5 is smaller and safer than recorded.** `bakery/urls.py` includes `django.contrib.auth.urls`
+    but **never includes `accounts.urls`**, so `accounts.views.user_login` is unreachable — it even
+    renders `'login.html'`, a path that does not exist (the real template is
+    `accounts/templates/registration/login.html`, already serving Django's `LoginView`). The
+    password-logging `print()` at `accounts/views.py:20-21` is therefore **dead code, not a live
+    leak**, which lowers the severity recorded on 2.10 and removes 4.5's stated dependency on it.
+    4.5 becomes a pure deletion with no behaviour to port.
+  - **Email is now a first-release blocker, for a reason ADR-023 did not have.** Adopting Django's
+    built-in auth views adopts its password-reset flow, which is email-only — so email gates the
+    recovery path for every user, not just the invitation flow.
+  - **Two endpoints are carved out of [ADR-021](decisions.md)'s p95 < 500 ms page budget**: the
+    invitation POST and the password-reset POST send SMTP inline. There is no task queue, and
+    decision 5 above declined Redis, so introducing Celery for a few dozen emails a month would drag
+    it straight back in. The carve-out is deliberate and documented (10.18) rather than engineered
+    around.
+  - **A permission-cache watch item.** Django caches permissions on the user object, so the cache
+    must be invalidated whenever the active tenant changes, or a user holding two memberships carries
+    bakery A's capabilities into bakery B (2.21). This is a cross-tenant leak of exactly the kind
+    [ADR-008](decisions.md) requires dedicated tests for.
+  - **Two gaps surfaced that no epic covered**: brute-force protection on login (2.22) and
+    GDPR-safe failed-login auditing that records the attempt without the credentials (2.23).
+  - Adds 11 tasks across Epics 2, 4, 5, 7, 10 and 11, and leaves the ingredient-line and categories
+    halves of 9.18 open, along with 9.21's traceability entities.
+
+## ADR-029: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed
