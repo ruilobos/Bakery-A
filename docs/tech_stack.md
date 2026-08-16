@@ -28,22 +28,25 @@ file: one task per `Open` row below.
 | `psycopg2-binary` | 2.9.6 | `psycopg[binary]` (v3) | **`psycopg[binary]` 3** — natively supported by Django since 4.2; psycopg2 is maintenance-only upstream | Decided ([ADR-025](decisions.md)) |
 | `whitenoise` | 5.2.0 | latest compatible with chosen Django | **Latest compatible with Django 5.2 / Python 3.13** at lock time. 6.12.0 confirmed compatible 2026-08-10 | Decided ([ADR-025](decisions.md)) |
 | `django-environ` | 0.4.5 | latest | **Latest compatible** at lock time; 0.14.0 confirmed 2026-08-10. Stays — it owns `env.db()`, the `DATABASE_URL` contract in [ADR-015](decisions.md) rule 2 | Decided ([ADR-025](decisions.md)) |
-| `Pillow` | 10.4.0 | latest | **Latest compatible** at lock time; 12.3.0 confirmed 2026-08-10 | Decided ([ADR-025](decisions.md)) |
+| `Pillow` | 10.4.0 | latest | **Removed until Epic 13**, then **latest compatible** at lock time (12.3.0 confirmed 2026-08-10). It has no consumer today — no `ImageField`, no `Pillow` import (verified 2026-08-16) — and its owner is 13.4/13.5, so it re-enters via 13.1 | Decided ([ADR-025](decisions.md), amended by [ADR-029](decisions.md)) |
 | `django-mathfilters` | 1.0.0 | keep only if template math stays; drop if costing moves to a service layer | **Dropped.** Latest release is 1.0.0 (Feb 2020), classifiers stop at Django 3.x — a hard blocker for the upgrade, not a preference. Loaded in `base_recipe.html` and `products.html`, both doing template-side cost math that [ADR-018](decisions.md) already ruled wrong (19.6) | Decided ([ADR-025](decisions.md)) |
 | `asgiref` / `sqlparse` / `tzdata`/`pytz` | pinned to Django 3.2's requirements | align with whatever Django release is chosen above | **Removed from the hand-written file.** `asgiref`/`sqlparse` are Django's own transitive deps and belong in the lock file; `pytz` goes entirely (Django dropped pytz support in 5.0, stdlib `zoneinfo` replaces it, no app code imports it) | Decided ([ADR-025](decisions.md)) |
 | `environ` 1.0 / `dj-database-url` 0.5.0 (not previously listed) | both present in `requirements.txt` | — | **Both removed.** `environ` is an unrelated PyPI package whose top-level `environ` module collides with `django-environ`'s — an install slip and a live hazard. `dj-database-url` is imported nowhere in app code and duplicates `env.db()` | Decided ([ADR-025](decisions.md)) |
-| Dependency management | single UTF-16LE `requirements.txt` | split `requirements/base.txt` + `dev.txt` + `prod.txt`, pinned via `pip-tools` or an equivalent lock workflow for deterministic builds | — | Open |
-| Dependency hygiene | unreviewed — some packages may be unused | every dependency has a named owner and a stated purpose; anything else is removed | — | Open |
+| Dependency management | single UTF-16LE `requirements.txt` | split `requirements/base.txt` + `dev.txt` + `prod.txt`, pinned via `pip-tools` or an equivalent lock workflow for deterministic builds | **`uv pip compile` over `requirements/{base,dev,prod}.in` → pinned, hashed `.txt`.** Requirements-file mode, **not** `pyproject.toml`/`uv sync` — the format the `Dockerfile`, Railway and every fallback host already consume, so determinism costs no change to the install path. `--generate-hashes` + `--require-hashes` at install, `--python-version 3.13` so resolution matches the image, and `dev`/`prod` compiled against `-c base.txt` so a shared package cannot resolve twice. `uv` itself is pinned build-time tooling, never an app dependency (19.12, 19.16) | Decided ([ADR-029](decisions.md)) |
+| Dependency hygiene | **reviewed** 2026-08-10 by [ADR-025](decisions.md) — six of twelve entries removed with a named reason each | every dependency has a named owner and a stated purpose; anything else is removed | **The `.in` file is the register:** every line carries a trailing comment naming its purpose and the owning epic/task, and a line without one is removed at the next recompile rather than researched later. Transitive deps live only in the generated `.txt`, which is never hand-edited. First application of the rule: **`Pillow` is removed** — no `ImageField` and no `Pillow` import exists anywhere (verified 2026-08-16); it returns in 13.1 with the rest of the media stack, amending [ADR-025](decisions.md) | Decided ([ADR-029](decisions.md)) |
 | Media storage | none | `django-storages[s3]` + `boto3`, for S3-compatible object storage (see ADR-005) | Cloudflare R2 | Decided |
 
 **Dependency strategy:** replace the current ad hoc dependency state with pinned, reviewed,
 production-safe dependencies; normalize the file encoding to UTF-8; split by environment; generate
 pinned requirements from a lock workflow rather than hand-editing. Per [ADR-025](decisions.md), this
 table fixes the **constraint** — latest release compatible with Django 5.2 on Python 3.13 — and the
-lock workflow (9.8, still `Open`) fixes the exact versions. Exact patch pins are deliberately not
-recorded here or in the ADR log, since both are append-only and the pins are not.
+lock workflow ([ADR-029](decisions.md), 9.8 ✅) fixes the exact versions. Exact patch pins are
+deliberately not recorded here or in the ADR log, since both are append-only and the pins are not.
+The constraint is re-evaluated at **every** recompile, not frozen at the first one.
 
-The rewritten `requirements.txt` drops from twelve entries to roughly six. Version facts above were
+The rewritten dependency set drops from twelve entries to **five** direct runtime dependencies in
+`requirements/base.in` — Django, `psycopg[binary]`, `whitenoise`, `django-environ`, `gunicorn` —
+with `Pillow` returning in Epic 13 and `django-storages[s3]`/`boto3` alongside it. Version facts above were
 verified 2026-08-10 against the [Django release page](https://www.djangoproject.com/download/), the
 [Django install FAQ](https://docs.djangoproject.com/en/dev/faq/install/), the
 [Python version status page](https://devguide.python.org/versions/), and each package's PyPI
@@ -95,23 +98,34 @@ redesigning the same tables twice. See [roadmap.md](roadmap.md), Epic 17.
 
 | Topic | Current | Candidate | Decision | Status |
 |---|---|---|---|---|
-| Templating | Django templates, `APP_DIRS=True`, no shared `base.html` | Django templates + shared `base.html` + partials | — | Open |
-| CSS framework | Bootstrap (vendored, bundled in `bakery/static`) | current stable Bootstrap, or reconsider entirely | — | Open |
-| Asset pipeline | none (hand-copied static files) | Vite for SCSS/JS bundling + cache busting | — | Open |
-| Interactivity | plain JS per page, several empty JS files | vanilla JS modules, optionally HTMX for server-driven interactivity | — | Open |
-| Is a full SPA needed? | n/a | leaning no — server-rendered is enough per current scope | — | Open |
-| Template/CSS/JS linting | none | add where practical, alongside the Python tooling below | — | Open |
+| Templating | Django templates, `APP_DIRS=True`, no shared `base.html` — measured 2026-08-16: **32 templates, 4,277 lines, zero `{% extends %}`, zero `{% include %}`**, 31 with full `<!DOCTYPE>` boilerplate, navbar duplicated 32× | Django templates + shared `base.html` + partials | **Shared `base.html` + `{% include %}` partials** in `<app>/templates/partials/`. `django-template-partials` **not** adopted — a dependency for ~4 fragments; revisit if HTMX fragments proliferate (5.1, 5.2) | Decided ([ADR-030](decisions.md)) |
+| CSS framework | Bootstrap **5.0.0** vendored in `bakery/static` (released May 2021) | current stable Bootstrap, or reconsider entirely | **Bootstrap 5.3.x** — same major, so the classes across 32 templates stay largely valid: an upgrade, not a restyle. Keeps Epic 5 on structure rather than appearance, and its component semantics serve the WCAG 2.2 A target (5.4) | Decided ([ADR-030](decisions.md)) |
+| Asset pipeline | none (hand-copied static files) | Vite for SCSS/JS bundling + cache busting | **None — the Vite candidate is rejected.** It would add Node to the `Dockerfile`, a second lockfile beside [ADR-029](decisions.md)'s, and CI steps, to bundle **zero bytes of JS** and 922 lines of CSS, duplicating the hashing/compression 19.14's whitenoise already does. Instead: consolidate the 16 CSS files, native custom properties + nesting, whitenoise for cache-busting. **Revisit:** custom JS past a few hundred lines, or SCSS-variable-level Bootstrap customization (5.6) | Decided ([ADR-030](decisions.md)) |
+| Interactivity | **7 custom JS files, all 0 bytes** — there is no JavaScript in the project | vanilla JS modules, optionally HTMX for server-driven interactivity | **HTMX**, vendored at a pinned version, plus small vanilla modules. One ~14KB script, no bundler, server returns HTML fragments — what [ADR-028](decisions.md) already assumed when it rejected an API layer. Built as **progressive enhancement**: forms and links work with JS disabled. Alpine.js rejected — Bootstrap's JS bundle already covers dropdowns/modals/toasts (5.7, 5.25) | Decided ([ADR-030](decisions.md)) |
+| Is a full SPA needed? | n/a | leaning no — server-rendered is enough per current scope | **No** — a ratification, not a new decision: [ADR-028](decisions.md) rejected the API layer and [ADR-021](decisions.md)'s device matrix rejected a native app, which between them already foreclosed it | Decided ([ADR-030](decisions.md)) |
+| Template/CSS/JS linting | none | add where practical, alongside the Python tooling below | **`djlint`** for templates — a pip package, so it becomes the first real occupant of [ADR-029](decisions.md)'s `requirements/dev.in`, with no Node in dev. Standalone CSS/JS linting (`stylelint`/`prettier`) deferred to 9.17 on the same grounds as the pipeline row (5.8) | Decided ([ADR-030](decisions.md)) — closes the template half of 9.17 |
 | Accessibility target | none stated | a named WCAG conformance level to build against | **WCAG 2.2 Level A** — with a revisit trigger to AA before EU expansion (10.15). **Django's own form rendering supplies a material share of it** (`as_field_group()`, div-based templates): real label association, `aria-describedby`, `aria-invalid`, `<fieldset>`/`<legend>` grouping — framework output rather than hand-written markup (5.22, [ADR-027](decisions.md)) | Decided ([ADR-021](decisions.md)) |
 | Device / browser matrix | responsive, matrix unstated | one responsive UI across a named browser set | Phone→desktop; current **and previous** major Chrome/Firefox/Safari/Edge. No IE11, no native app | Decided ([ADR-021](decisions.md)) |
 | Localization | English only, `€` hardcoded in templates | translation-ready even while shipping one locale | Ship `en-IE`/EUR; **`gettext` on display text and one currency formatter from day one** — no hardcoded `€` (5.15, 5.16) | Decided ([ADR-021](decisions.md)) |
 | Performance budget | none | a target specific enough to detect a regression | p95 < 500 ms pages, < 2 s dashboard aggregate, ~10 concurrent users/tenant. Documented budget, **not** a CI gate — Railway Hobby shares CPU | Decided ([ADR-021](decisions.md)) |
 
-**Frontend direction (rationale, not yet decided):** the project does not need a full SPA to become
-production-ready — a modern server-rendered Django frontend is enough. The candidate shape is: keep
-Django templates for page rendering, add a shared `base.html` plus partials, move to a real asset
-pipeline (Vite is the leading candidate) for SCSS/CSS bundling, small JS modules, and cache-busted
-builds, and prefer lightweight progressive enhancement (vanilla JS modules, optionally HTMX for
-server-driven interactivity) over a client-side framework.
+**Frontend direction (decided — [ADR-030](decisions.md)):** a modern server-rendered Django frontend,
+with progressive enhancement over a client-side framework. Keep Django templates, add a shared
+`base.html` plus partials, upgrade Bootstrap in place, add HTMX for server-driven interactivity — and
+**no build step**. The Vite candidate this paragraph used to carry was rejected on measurement: with
+0 bytes of custom JavaScript and 922 lines of CSS, a bundler would add Node, a second lockfile and CI
+steps to duplicate work whitenoise's manifest storage already does.
+
+Two consequences of "no pipeline" are worth carrying forward, because they shift risk rather than
+remove it:
+
+- **5.3 becomes load-bearing.** Whitenoise is now the *only* cache-busting mechanism, and it does
+  nothing for the 23 templates that hardcode `/static/...`. 5.3 + 19.14 + 1.13 are the whole story on
+  asset versioning; done partially, the site silently serves stale CSS.
+- **Vendored assets need their own register.** Bootstrap and HTMX are dependencies that
+  `requirements/*.in` cannot see, so [ADR-029](decisions.md)'s owner/purpose rule is extended to them
+  by hand (5.25). Skipping it reproduces exactly the state this decision found: a four-year-old
+  vendored library nobody had noticed.
 
 ## Infrastructure / operations
 

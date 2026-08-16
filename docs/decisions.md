@@ -1423,7 +1423,219 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
   - Adds 11 tasks across Epics 2, 4, 5, 7, 10 and 11, and leaves the ingredient-line and categories
     halves of 9.18 open, along with 9.21's traceability entities.
 
-## ADR-029: <next decision goes here>
+## ADR-029: Dependency management — `uv pip compile` over a three-file `requirements/` split, with a stated owner per direct dependency
+
+- **Date:** 2026-08-16
+- **Status:** Accepted — closes the last two `Open` rows in [tech_stack.md](tech_stack.md)'s
+  `Dependencies` table (9.8); amends [ADR-025](decisions.md)'s package list on one entry (`Pillow`)
+- **Context:** [ADR-025](decisions.md) decided *which* packages the app depends on and fixed the
+  version **rule** — latest release compatible with Django 5.2 on Python 3.13 — while explicitly
+  refusing to pin versions in an append-only log: *"The ADR fixes the constraint; the lock file (9.8)
+  fixes the versions."* That left the mechanism undecided, and 19.12 `Blocked` behind it as the only
+  blocked task in Epic 19 and a first-release milestone item. The two rows are decided together
+  because they are one decision, not two: "every dependency has a named owner and a stated purpose"
+  is a claim that has to live *somewhere*, and where it lives is a property of the file layout. The
+  hygiene row's `Current` text ("unreviewed") is also already stale — [ADR-025](decisions.md)
+  performed exactly that review and removed six of twelve entries with a named reason each. What
+  remains is not an audit but a rule that keeps the audit true.
+- **Decision:**
+
+  **1. Tool — `uv`, in its `pip compile` mode.** `uv pip compile` reads hand-edited `.in` files and
+  emits fully-pinned `.txt` files in ordinary requirements format. Deliberately **not** `uv sync` /
+  `pyproject.toml` mode: the requirements-file format is what the `Dockerfile`, Railway, and every
+  fallback host in [ADR-013](decisions.md) already consume, so this adds determinism without
+  changing the install path anywhere. `uv` is a build-time tool — it is installed in the
+  `Dockerfile` and in CI at a **pinned** version, and never appears in the application's dependency
+  set.
+
+  **2. Layout — three sources, three locks.**
+
+  | File | Hand-edited? | Contents |
+  |---|---|---|
+  | `requirements/base.in` | yes | Runtime dependencies shared by every environment |
+  | `requirements/dev.in` | yes | `-r base.in` plus tooling: linter, test runner, anything never installed in the image |
+  | `requirements/prod.in` | yes | `-r base.in` plus production-only additions |
+  | `requirements/*.txt` | **no — generated** | Fully pinned, hashed output of `uv pip compile` |
+
+  The root `requirements.txt` is deleted once the split lands. `prod.in` starts as nothing but
+  `-r base.in`, and that is deliberate: the value is a **named artifact the `Dockerfile` points at**
+  that structurally cannot pick up dev tooling, not extra packages. It has a known future occupant
+  (an error-tracking SDK, 9.15).
+
+  **3. Determinism — hashes, a pinned resolution target, and a shared constraint.** Compile with
+  `--generate-hashes`; the `Dockerfile` installs with `--require-hashes`, so a re-uploaded or
+  substituted artifact fails the build instead of shipping. Compile with `--python-version 3.13` so
+  resolution matches the image regardless of the developer's local interpreter. Compile `base` first
+  and the other two against it with `-c requirements/base.txt`, so a package present in more than one
+  file cannot resolve to two different versions.
+
+  **4. Hygiene rule — the `.in` file *is* the register.** Every line in a `.in` file carries a
+  trailing comment naming its purpose and the epic or task that owns it; a dependency with no such
+  comment is removed at the next recompile rather than researched later. Transitive dependencies
+  exist **only** in the generated `.txt` — this is what [ADR-025](decisions.md) was reaching for when
+  it moved `asgiref` and `sqlparse` out of the hand-written file. The `.txt` files carry a
+  generated-by header and are never hand-edited; the fix for a wrong pin is a recompile, never a
+  keystroke.
+
+  **5. Refresh trigger.** Recompile when a `.in` changes, when a security advisory names a pinned
+  package, and otherwise on a monthly pass. [ADR-025](decisions.md)'s "latest compatible at lock
+  time" rule is evaluated at each recompile, not frozen at the first one.
+
+  **6. `Pillow` is removed from the dependency set until Epic 13** (amends
+  [ADR-025](decisions.md) clause 6, which kept and re-pinned it). Verified 2026-08-16: there is no
+  `ImageField` — and no `Pillow` import — anywhere in the codebase, because the fields that need it
+  do not exist yet (13.4, 13.5). It is the first thing rule 4 catches, and applying the rule to the
+  package that prompted it is the point. It returns in 13.1, alongside `django-storages[s3]` and
+  `boto3`, with an owner comment.
+- **Alternatives considered:**
+  - **`pip-tools`** — the candidate [tech_stack.md](tech_stack.md) named, and the closest call here.
+    Identical file layout and near-identical output, so nothing about this ADR's *structure* depends
+    on the choice. Rejected on trajectory rather than capability: `uv` resolves and installs an order
+    of magnitude faster (it is billed per-second Railway build time and CI minutes on a ~$6/mo
+    budget), covers venv creation and installation with the same binary, and is where the ecosystem's
+    active development has moved. The migration cost in the other direction is one command line, so
+    this is a cheap bet either way.
+  - **Poetry or PDM** — rejected. Both move dependency declaration into `pyproject.toml` with a
+    bespoke lock format, which means changing the install path in the `Dockerfile`, in CI, and on the
+    host, and abandoning the `requirements/` split this row specifies. That is a project-layout
+    migration bolted onto an epic that is already a framework upgrade with no test suite
+    ([ADR-025](decisions.md)) — the wrong thing to stack on top of 19.4.
+  - **`pip freeze > requirements.txt`** — rejected. It produces pins with no record of *which*
+    packages were actually asked for, so the direct/transitive distinction is lost and rule 4 becomes
+    unenforceable. It is roughly the state the current twelve-line file is already in, which is how
+    `environ==1.0` and `dj-database-url` survived in it unnoticed.
+  - **Skipping `--generate-hashes`** — considered seriously; hashes add friction to ad hoc
+    `pip install` in a local venv. Kept because "deterministic builds" is the row's stated goal and
+    pins alone do not deliver it against a mutated artifact, and because `uv pip compile` makes
+    regeneration fast enough that the friction resolves into one command.
+  - **Leaving both rows open until the quality-tooling row (9.17) decides what goes in `dev.in`** —
+    rejected. The *contents* of `dev.in` depend on 9.17; the layout, the lock workflow and the
+    hygiene rule do not. An initially thin `dev.in` is the expected state, not a symptom.
+- **Consequences:**
+  - **Unblocks 19.12**, the last `Blocked` task in Epic 19 and a first-release milestone item, and
+    closes 9.8 — leaving Epic 9's remaining open rows as 9.4, 9.13–9.17, 9.18 (two halves), 9.19,
+    9.20 and 9.21.
+  - **The `Dockerfile` changes twice in Epic 19**: 19.3 sets `python:3.13-slim`, and 19.16 switches
+    the install to a pinned `uv` against `requirements/prod.txt` with `--require-hashes`. Both touch
+    the same lines, so they belong in one pass.
+  - **19.2 now removes seven entries, not six** — `Pillow` joins `asgiref`, `sqlparse`, `pytz`,
+    `environ`, `dj-database-url` and `django-mathfilters`. `base.in` ends at **five** direct
+    dependencies: Django, `psycopg[binary]`, `whitenoise`, `django-environ`, `gunicorn`.
+  - **CI gains a drift check** (19.17): recompile and fail if the `.txt` files differ from what the
+    `.in` files produce. Without it the generated files are only as current as the last person who
+    remembered, which is the failure mode rule 4 exists to prevent.
+  - **A monthly recompile is a standing chore with no owner but the solo developer.** Named here
+    rather than pretended away; it folds into the 9.14/9.15 monitoring work if that produces a
+    scheduled job.
+  - The hygiene row's promise is now falsifiable: any `.in` line without an owner comment is a
+    visible defect in review, rather than a claim in a planning document.
+
+## ADR-030: Frontend stack — a shared template base, Bootstrap 5.3, HTMX, and deliberately no Node build step
+
+- **Date:** 2026-08-16
+- **Status:** Accepted — closes the `Frontend` table in [tech_stack.md](tech_stack.md) (9.13) and the
+  template half of 9.17; **rejects** that file's own Vite candidate
+- **Context:** Task 9.13, blocking 5.4, 5.6 and 5.7. Unlike the earlier stack rows, this one is
+  decided against a frontend that was measured rather than assumed (2026-08-16):
+
+  | Measured | Finding |
+  |---|---|
+  | Templates | 32 files, 4,277 lines, **zero `{% extends %}` and zero `{% include %}`** — 31 carry a full `<!DOCTYPE>` boilerplate and the navbar is duplicated 32 times |
+  | Static references | **Zero `{% static %}`**; 23 templates hardcode `/static/...` |
+  | Bootstrap | **5.0.0**, vendored (released May 2021); current is 5.3.x — the *same major* |
+  | Custom JavaScript | 7 files, **all 0 bytes** |
+  | Custom CSS | 16 files, 922 lines total; four are byte-identical 19-line files |
+  | Node tooling | none — no `package.json`, no Node in the `Dockerfile` |
+
+  The last two rows are what move this decision. [tech_stack.md](tech_stack.md) described the current
+  state as "plain JS per page, several empty JS files"; the interactivity layer is not thin, it is
+  **absent**. Much of the surrounding shape was also already fixed elsewhere:
+  [ADR-021](decisions.md) set WCAG 2.2 A, an evergreen browser matrix, one responsive UI and an
+  `en-IE`/EUR translation-ready target; [ADR-027](decisions.md) put form accessibility on Django's
+  own `as_field_group()` and pagination on `{% querystring %}`; [ADR-024](decisions.md) made
+  search/filter (5.9) and supplier price comparison (5.21) **Musts**; and [ADR-013](decisions.md)
+  fixed the budget at one solo developer and ~$6/mo.
+- **Decision:**
+
+  **1. Templating (row 1) — shared `base.html` plus `{% include %}` partials.** Partials live in
+  `<app>/templates/partials/`. No competing option was seriously in play; the measurement above is
+  the argument. `django-template-partials` is **not** adopted — a dependency for roughly four
+  fragments — with a revisit trigger if HTMX fragment templates proliferate past a handful.
+
+  **2. CSS framework (row 2) — stay on Bootstrap, upgrade 5.0.0 → 5.3.x.** Same major version, so
+  the classes across 32 templates stay largely valid: this is an upgrade, not a restyle. It buys four
+  years of fixes and component semantics that serve the WCAG 2.2 A target, and it keeps Epic 5's
+  effort on structure — `base.html`, partials, `{% static %}` — rather than on appearance.
+
+  **3. Asset pipeline (row 3) — none. This rejects the Vite candidate recorded in
+  [tech_stack.md](tech_stack.md).** Vite would add Node to the `Dockerfile`, a `package.json` and a
+  second lockfile immediately after [ADR-029](decisions.md) standardized the Python one, and extra CI
+  steps — in order to bundle **zero bytes of JavaScript** and 922 lines of CSS, while duplicating
+  cache-busting and compression that 19.14's whitenoise `CompressedManifestStaticFilesStorage`
+  already provides. Instead: consolidate the 16 CSS files into a small set, use native CSS custom
+  properties and nesting (safe on [ADR-021](decisions.md)'s evergreen matrix), and let whitenoise do
+  the hashing. **Revisit trigger:** custom JavaScript passing roughly a few hundred lines, or a need
+  to customize Bootstrap at the SCSS-variable level rather than by overriding CSS.
+
+  **4. Interactivity (row 4) — HTMX, vendored at a pinned version, plus small vanilla JS modules.**
+  A single ~14KB script with no bundler, so it composes with clause 3. The server returns HTML
+  fragments — exactly what [ADR-028](decisions.md) assumed when it rejected an API layer. It is built
+  as **progressive enhancement**: every form and link must work with JavaScript disabled, which
+  WCAG 2.2 A requires regardless. Alpine.js is rejected as a third overlapping layer — Bootstrap 5's
+  JS bundle already ships dropdowns, modals, toasts and collapse.
+
+  **5. SPA (row 5) — no, and this is a ratification rather than a new decision.**
+  [ADR-028](decisions.md) rejected an API layer and [ADR-021](decisions.md)'s device matrix rejected
+  a native app; between them an SPA was already foreclosed. Recorded so the row stops reading as
+  open.
+
+  **6. Linting (row 6) — `djlint` for templates; standalone CSS/JS linting deferred to 9.17.**
+  `djlint` is a pip package, so it becomes the first real occupant of
+  [ADR-029](decisions.md)'s `requirements/dev.in`, with no Node in dev either. `stylelint`/`prettier`
+  are rejected for now on the same grounds as clause 3: they would pull in a `package.json` for 922
+  lines of CSS and no JS.
+- **Alternatives considered:**
+  - **Vite** (the documented candidate) — rejected, see clause 3. It is the right tool for a frontend
+    this project does not have; the decision is reversible in a day if the revisit trigger fires.
+  - **`django-compressor`/libsass** — considered as the no-Node way to keep SCSS. Rejected: it adds a
+    Python dependency and a compile step that overlap whitenoise's job, and the libsass bindings lag
+    dart-sass upstream. It carries some of both options' downsides for little of either's benefit.
+  - **Tailwind** — rejected. It rewrites the markup in all 32 templates and forces the Node pipeline
+    back in regardless of clause 3, which is a large scope addition on top of a template rewrite that
+    already carries plenty.
+  - **Dropping the CSS framework for hand-written modern CSS** — rejected. 922 lines is genuinely
+    small, but it would hand a solo developer ownership of responsive tables, form styling, modals
+    and the whole accessibility surface, against a WCAG target — the opposite of the intent.
+  - **Vanilla JS only, no HTMX** — rejected. It means hand-writing fetch, DOM swapping, URL/history
+    sync and error handling for precisely the patterns 5.9 and 5.23 need, producing more custom
+    JavaScript to maintain solo and more surface for the accessibility target to go wrong.
+  - **Deferring the whole linting row to 9.17** — rejected narrowly; template linting directly serves
+    this epic's `base.html`/partials rewrite, so it is decided where it is used. Python formatting and
+    the test runner stay with 9.17.
+- **Consequences:**
+  - **5.3 stops being tidying and becomes load-bearing.** With no pipeline, whitenoise is now the
+    *only* cache-busting mechanism, and it does nothing for the 23 templates that hardcode
+    `/static/...`. 5.3 + 19.14 + 1.13 are the whole story on asset versioning — if 5.3 is done
+    partially, the result is a site that silently serves stale CSS.
+  - **Bootstrap's full stylesheet ships, un-tree-shaken** (~230KB minified, compressed by whitenoise
+    and cached). Accepted explicitly against [ADR-021](decisions.md)'s p95 budget: it is a cached
+    static asset at roughly ten concurrent users, not a per-request cost.
+  - **Vendored frontend assets need the [ADR-029](decisions.md) treatment.** Bootstrap and HTMX are
+    dependencies that `requirements/*.in` cannot see, so their versions and provenance get recorded
+    explicitly (5.25) — otherwise the repo repeats exactly the situation this ADR opened with: a
+    four-year-old vendored library nobody noticed.
+  - **`requirements/dev.in` gains its first occupant** (`djlint`), which is why
+    [ADR-029](decisions.md) treated an initially thin `dev.in` as expected rather than a gap.
+  - **Views acquire a fragment-rendering path**: on `HX-Request`, render the partial directly rather
+    than the full page. That is a small convention, but it must be settled before 5.9 is built, not
+    discovered during it (5.7).
+  - **Epic 5 still cannot start.** 5.22/5.23 need Django 5.2 (Epic 19) and 5.18/5.20/5.21 need
+    Epic 3's dated prices and receipts. This decision removes the *decision* blocker on 5.4/5.6/5.7,
+    not the sequencing one.
+  - Closes 9.13; Epic 9's remaining open rows are 9.4, 9.14, 9.15, 9.16, 9.17 (less template
+    linting), 9.18's two halves, 9.19, 9.20 and 9.21.
+
+## ADR-031: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed
