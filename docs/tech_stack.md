@@ -136,10 +136,41 @@ remove it:
 | Containerization | `Dockerfile` + `docker-compose.yaml` (expects external `bakery_simple` network) | Keep the custom Dockerfile as the deploy artifact on whichever host is chosen, rather than that platform's native buildpack — see ADR-004 and "Deployment method" below | Custom Dockerfile | Decided |
 | Host portability | Partially there by accident: `heroku.py` already reads `DATABASE_URL`, whitenoise serves static, media is S3-compatible. Undermined by a hardcoded port, `migrate` inside the container `CMD`, a host-named settings module, and no portable database dump | Any Docker + PostgreSQL host must be reachable with configuration changes only, never code changes — see "Host portability rules" below | Standing constraint (see ADR-015) | Decided |
 | Static/media storage | whitenoise for static assets; local `MEDIA_ROOT` config exists but points to a broken leftover path (`bluebiulding/media`) and nothing uses it yet | Keep whitenoise for static assets. For user-uploaded media (new: product photos, profile pictures), use S3-compatible object storage — see "Static & media file storage" below | Cloudflare R2 (see ADR-005) | Decided |
-| CI/CD | none | pipeline: install → lint → test → security scan → build | — | Open |
-| Error tracking / monitoring | none | Sentry or equivalent | — | Open |
-| Uptime monitoring / alerting | none | external uptime check + alerting against the app health endpoint | — | Open |
-| Backups | unknown/undocumented | documented PostgreSQL backup + restore + PITR strategy, with a drilled restore. Note the host constraint (ADR-013): Railway backups are **not automatic** — daily (6-day retention), weekly (1 month), and monthly (3 months) schedules are configurable and combinable, billed incrementally (copy-on-write), and there is **no PITR**. A PITR requirement would need tooling beyond Railway's built-in backups. | — | Open — 9.16 |
+| CI/CD | none | pipeline: install → lint → test → security scan → build | **GitHub Actions, extending the Epic 1 workflow ([ADR-011](decisions.md)) rather than replacing it, with a 70% repo-wide coverage floor.** Merge gate: the test suite, `ruff` + `djlint`, the migration/`collectstatic`/`docker build` checks already in 1.11/1.13, and `pip-audit` against [ADR-029](decisions.md)'s hashed lock, with Dependabot raising dependency PRs. **No SAST or image scanning** in the first release — revisit trigger in [ADR-031](decisions.md) | Decided ([ADR-031](decisions.md)) |
+| Deploy trigger | manual, on the home server | CI-driven or platform-native | **Railway git-watch on `production`**, with `migrate` as Railway's **pre-deploy command** — which satisfies [ADR-015](decisions.md) rule 4 (migrations out of `CMD`) without a bespoke pipeline. 6.14 ("block a bad deploy") is therefore satisfied by **branch protection**, not by a second gate: failing checks block the merge, and only a merge deploys | Decided ([ADR-031](decisions.md)) |
+| Error tracking / monitoring | none | Sentry or equivalent | **Sentry SaaS, free Developer tier, EU region (`de.sentry.io`)** — the region is fixed at organisation creation and **cannot be changed afterwards**, making it the one setup step that must not be got wrong. `sentry-sdk[django]` enters `requirements/base.in` with an owner comment ([ADR-029](decisions.md)); `send_default_pii` stays **off** and a `before_send` scrubber is mandatory, since a traceback here can carry supplier contacts, staff emails and costing data. New processor → DPA + subprocessor entry ([gdpr.md](gdpr.md) §7, 11.6) | Decided ([ADR-031](decisions.md)) |
+| Uptime monitoring / alerting | none | external uptime check + alerting against the app health endpoint | **UptimeRobot free tier** — 5-minute HTTPS **keyword** check against 7.4's health endpoint, email alerting, public status page, $0. Keyword rather than status-code only, so a health endpoint reporting a dead database fails the check instead of passing on its HTTP 200. Deliberately **external to Railway**: a monitor hosted on the thing it monitors proves nothing when that thing is down | Decided ([ADR-031](decisions.md)) |
+| Backups | unknown/undocumented | documented PostgreSQL backup + restore + PITR strategy, with a drilled restore. Note the host constraint (ADR-013): Railway backups are **not automatic** — daily (6-day retention), weekly (1 month), and monthly (3 months) schedules are configurable and combinable, billed incrementally (copy-on-write), and there is **no PITR**. A PITR requirement would need tooling beyond Railway's built-in backups. | **Two tracks, deliberately unequal.** (a) Railway's native daily/weekly/monthly snapshots — fast same-host rollback only (12.9). (b) The load-bearing one: a **nightly GitHub Actions job** runs `pg_dump -Fc --no-owner --no-privileges`, encrypts it **client-side with `age`**, and uploads to Cloudflare R2 under a 7-daily / 4-weekly / 12-monthly lifecycle rule — outside Railway by design ([ADR-015](decisions.md) rule 5). Weekly automated restore drill into a throwaway PostgreSQL 17 with 3.47's verification (3.48). **PITR rejected** — RPO of up to 24 h accepted, with a named revisit trigger | Decided ([ADR-031](decisions.md)) — closes 9.16 |
+
+### Operations tooling and the two backup tracks (per ADR-031)
+
+The four rows above are one decision: what runs around the app once it is live. All of it lands at
+**$0/mo** on free tiers, which is what keeps [ADR-013](decisions.md)'s ~$6/mo budget intact — the
+only new recurring cost is R2 storage, and a few hundred MB of dumps sits inside R2's 10 GB free
+tier alongside [ADR-005](decisions.md)'s media.
+
+The backup split is the part worth stating explicitly, because the two tracks answer different
+questions and only one of them is portable:
+
+| Track | Mechanism | Answers | Restorable elsewhere? |
+|---|---|---|---|
+| Same-host rollback | Railway daily/weekly/monthly volume snapshots (12.9) | "The release an hour ago corrupted data — put it back" | **No.** Copy-on-write volume snapshots, Railway-only |
+| Host-independent archive | Nightly `pg_dump -Fc --no-owner --no-privileges`, `age`-encrypted, in R2 (3.70) | "Railway is gone / we are moving host / that row was wrong three months ago" | **Yes** — this is the one [ADR-015](decisions.md) rule 5 requires |
+
+Three consequences that shape the tasks rather than just the tooling:
+
+- **The dump job lives outside the host it backs up.** Running it in GitHub Actions rather than as a
+  Railway cron keeps the escape hatch independent of the platform being escaped. The cost is that CI
+  needs database credentials and reaches Postgres over Railway's public TCP proxy — so those
+  credentials are backup-scoped and rotatable (3.41), not the app's.
+- **Client-side `age` encryption makes key custody a real task.** Cloudflare holds ciphertext it
+  cannot read, which is a clean answer for [gdpr.md](gdpr.md) §6 and 11.13 — but a lost private key
+  means *proven*-lost backups, not suspected-lost. 3.72 owns the key, and 3.48's weekly drill is
+  what proves the key still works.
+- **Backup retention is a separate clock from record retention.** The 7/4/12 schedule here is backup
+  lifetime; GDPR record retention stays `Open` in [gdpr.md](gdpr.md) §5 (11.4) and the food-law floor
+  in 10.9. What the schedule *does* fix is the erasure-request answer: personal data in backups is
+  gone within a year at the outside, and within five weeks for all but the monthlies.
 
 ### Hosting candidates (for the Django app + PostgreSQL)
 

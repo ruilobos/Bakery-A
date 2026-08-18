@@ -99,7 +99,17 @@ minimizing the personal data inside it. Two consequences for this section:
   and a documented refusal-with-reason where it doesn't. That has to be written into §3's erasure
   strategy before Epic 17 ships, not discovered during a request.
 
-Tasks: 10.9 (establish the floor), 11.4 (write the policy), 17.9 (enforce it).
+**Backup lifetime is a separate clock, and it is already fixed.** [ADR-031](decisions.md) sets the
+backup schedule at **7 daily / 4 weekly / 12 monthly** — a decision about how long a *dump* survives,
+not about how long a *record* is kept, which is still what 11.4 has to write. It matters here for one
+reason: an erasure request cannot reach into backups, so the honest answer to "when is this really
+gone?" is bounded by that schedule — within **five weeks** for everything but the monthly archives,
+and within **one year** at the outside. That bound has to appear in the §3 erasure response, and the
+restore runbook (8.5) has to say what happens if a restore reintroduces data that was erased after
+the dump was taken.
+
+Tasks: 10.9 (establish the floor), 11.4 (write the policy), 17.9 (enforce it), 11.13 + 3.71 (the
+backup-lifetime bound above).
 
 ## 6. Security measures
 
@@ -110,7 +120,17 @@ here; just track GDPR-specific gaps:
 
 - [ ] Stop logging plaintext passwords on failed login (`accounts/views.py`) — highest priority.
 - [ ] Confirm encryption in transit (HTTPS enforced) once Epic 2 lands.
-- [ ] Confirm backups are encrypted at rest, if/when a backup strategy is defined.
+- [ ] Confirm backups are encrypted at rest. **Strategy now defined** ([ADR-031](decisions.md)):
+      nightly `pg_dump` encrypted **client-side with `age`** before upload, so Cloudflare holds only
+      ciphertext, over a 7-daily/4-weekly/12-monthly lifecycle. Two things follow for this section —
+      the outer bound on how long deleted personal data survives in restorable form is **one year**
+      (and five weeks for all but the monthlies), which §5 must state; and the encryption key is held
+      outside CI, so key loss is data loss (11.13, 3.72).
+- [ ] Confirm the Sentry `before_send` scrubber actually strips personal data before it leaves the
+      app ([ADR-031](decisions.md), 7.23). Error tracking is the one processor that receives whatever
+      a traceback happens to contain — supplier contacts, staff emails, a tenant's costing data —
+      rather than a defined field set, so `send_default_pii=False` plus scrubbing is a §6 control,
+      not a configuration preference.
 - [ ] Access logging for who viewed/exported personal data (audit trail). Two cases now need naming
       explicitly: the **Read-only role can export** ([ADR-020](decisions.md)) — deliberate, and the
       audit log is what makes it acceptable rather than the role restriction; and the **Django admin
@@ -129,7 +149,8 @@ controller) — not just infrastructure vendors below.
 | **Railway** (chosen host — ADR-013; currently still self-hosted on the home server until Epic 12 executes) | Runs the app, stores the DB | Everything | **Required** — task 12.7 | Open — DPA not yet executed. US-incorporated: data stored in EU West (Amsterdam), but see §7.1 below on transfer safeguards |
 | Databricks (new — AI insights/batch analytics service, ADR-002) | Reads app data to compute margin alerts / analytics | Whatever the batch job queries — confirm it's limited to product/pricing/recipe data and excludes user accounts or supplier contact personal data unless proven necessary | Needed once a paid Databricks workspace is set up | Open |
 | Object storage for media (Cloudflare R2 — see `tech_stack.md` ADR-005) | Stores uploaded files, including profile pictures once that feature ships | Profile pictures (personal), product photos (not personal) | Needed before the profile-picture feature goes live | Open |
-| Email provider | Transactional mail — **user invitations** for the tenant self-administration area, plus any later notifications | Invitee email addresses and names | **Now required, not hypothetical** — [ADR-023](decisions.md)'s invite flow depends on it; provider choice is 9.22, DPA via 11.6 | Open |
+| **Brevo** (email provider — [ADR-028](decisions.md), 9.22 ✅) | Transactional mail — **user invitations** for the tenant self-administration area, **password reset**, plus any later notifications | Invitee email addresses and names | **Now required, not hypothetical** — [ADR-023](decisions.md)'s invite flow depends on it, and Django's built-in auth views make password reset email-only. DPA included by default; execute via 11.6 | Open — DPA not yet executed. French-owned, data centres in France/Belgium/Germany, ISO 27001:2022 |
+| **Sentry** (error tracking — [ADR-031](decisions.md), 9.15 ✅) | Receives unhandled exceptions and their context from the running app | **Undefined by nature** — whatever a traceback carries. Potentially supplier contact details, staff emails, tenant costing data, request metadata | **Required** — via 11.6. Free Developer tier, organisation created in the **EU region** (`de.sentry.io`), which is irreversible after creation | Open — DPA not yet executed. Mitigated at source by 7.23: `send_default_pii=False` plus a `before_send` scrubber. US-incorporated with EU storage — same §7.1 transfer question as Railway |
 
 ### 7.1 Data residency and international transfers
 

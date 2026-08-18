@@ -1635,7 +1635,161 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
   - Closes 9.13; Epic 9's remaining open rows are 9.4, 9.14, 9.15, 9.16, 9.17 (less template
     linting), 9.18's two halves, 9.19, 9.20 and 9.21.
 
-## ADR-031: <next decision goes here>
+## ADR-031: Operations — a coverage-gated CI pipeline, Railway git-watch deploys, Sentry EU, UptimeRobot, and a two-track backup strategy
+
+- **Date:** 2026-08-18
+- **Status:** Accepted — closes the `Infrastructure / operations` table in [tech_stack.md](tech_stack.md)
+  (9.14, 9.15, 9.16)
+- **Context:** Tasks 9.14, 9.15 and 9.16, blocking 6.12, 7.2, 7.5, 3.38, 3.40 and 3.44. These were
+  the last four `Open` rows in the infrastructure table, and they are decided together because they
+  share one set of constraints already fixed elsewhere:
+
+  | Constraint | Source |
+  |---|---|
+  | ~$6/mo total infrastructure, one solo developer, a free pilot with **one** tenant | [ADR-013](decisions.md), [ADR-016](decisions.md) |
+  | EU data residency; every vendor is a GDPR **processor** needing a DPA and a subprocessor entry | [ADR-013](decisions.md), [gdpr.md](gdpr.md) §7 |
+  | The app must stay movable to any Docker + PostgreSQL host with **configuration changes only** | [ADR-015](decisions.md), rule 5 in particular |
+  | Railway offers **no PITR**; its snapshots are copy-on-write volume snapshots, not restorable elsewhere | [ADR-013](decisions.md) |
+  | GitHub Actions is already the CI runner, with a minimal workflow in Epic 1 (1.11, 1.13) | [ADR-011](decisions.md) |
+  | Cloudflare R2 is already provisioned for media, with zero egress and a 10 GB free tier | [ADR-005](decisions.md) |
+  | Dependencies are pinned and hashed in `requirements/{base,dev,prod}.txt`; each direct dependency names an owner | [ADR-029](decisions.md) |
+
+  Two facts about the current state set the bar. There is **no test suite at all**, so any coverage
+  gate decided now is a target Epic 6 has to reach rather than a floor it has to hold. And backups
+  are literally "unknown/undocumented" — the risk being managed is not a slow restore but an
+  unrecoverable one, over data that [ADR-017](decisions.md) gives a **legal** retention floor.
+- **Decision:**
+
+  **1. CI merge gate (9.14) — extend the Epic 1 workflow with tests, lint, a dependency audit, and a
+  70% repo-wide coverage floor.** The blocking set on every PR is: the Django test suite, `ruff`
+  (Python) and `djlint` (templates, per [ADR-030](decisions.md)), the `manage.py check` /
+  `makemigrations --check` / `collectstatic` / `docker build` checks already in 1.11 and 1.13, and
+  `pip-audit` run against the hashed lock from [ADR-029](decisions.md). Dependabot raises dependency
+  PRs, which then pass through the same gate. Coverage is **70% across the repository**, one number,
+  enforced by `coverage report --fail-under=70`.
+
+  **2. No SAST or container scanning in the first release.** CodeQL and Trivy are deliberately left
+  out: this is a private repo (so CodeQL needs GitHub Advanced Security), and the realistic threat
+  here is a known CVE in a dependency — which `pip-audit` and Dependabot already cover — not a novel
+  taint-flow bug in ~2,000 lines of Django views. **Revisit trigger:** the repo going public, the
+  first tenant outside the pilot, or any handling of payment data.
+
+  **3. Deploys (9.14, second half) — Railway git-watch on `production`, with `migrate` as Railway's
+  pre-deploy command.** [ADR-015](decisions.md) already accepted git-watch as tolerated lock-in;
+  the pre-deploy hook is what makes it sufficient, because it runs migrations to completion **before**
+  the new version takes traffic, satisfying rule 4 (migrations out of the container `CMD`) without a
+  hand-maintained release script or a Railway token in GitHub secrets. Task 6.14 ("block deployments
+  when checks fail") is therefore satisfied **by branch protection**: `production` only advances by
+  merge, merges are blocked by 6.13's required checks, so an unverified commit cannot become a
+  deploy. There is no second gate to build, and no place for CI and the platform to disagree about
+  what is live.
+
+  **4. Error tracking (9.15) — Sentry SaaS, free Developer tier, EU region.** The organisation is
+  created in the EU region (`de.sentry.io`), which is **irreversible after creation** — the single
+  setup step that must not be got wrong. `sentry-sdk[django]` joins `requirements/base.in` with an
+  owner comment. Two configuration rules are part of this decision, not afterthoughts:
+  `send_default_pii` stays **off**, and a `before_send` scrubber strips request bodies, headers and
+  local variables — a traceback from this app can carry supplier contact details, staff emails and a
+  tenant's costing data, and shipping those to a processor by accident is a personal-data disclosure
+  that no DPA covers. Sentry environments and releases are tagged from the deploy so pilot noise is
+  separable from real production errors.
+
+  **5. Uptime (9.15, second half) — UptimeRobot free tier, keyword check, external to Railway.** A
+  5-minute HTTPS check against 7.4's health endpoint, matching on a **keyword in the response body**
+  rather than on HTTP 200, so a health endpoint that reports a failed database check fails the
+  monitor instead of passing it. Email alerting; the public status page is available if the pilot
+  ever wants one. It is hosted away from Railway deliberately — a monitor that shares fate with the
+  thing it monitors is decorative.
+
+  **6. Backups (9.16) — two tracks, deliberately unequal, and no PITR.**
+  - *Fast rollback:* Railway's native daily / weekly / monthly schedules, enabled explicitly since
+    they are **off by default** (12.9). Same-host only.
+  - *The real backup:* a nightly GitHub Actions job running
+    `pg_dump -Fc --no-owner --no-privileges` (flags per 3.46), encrypted **client-side with `age`**
+    before it leaves CI, uploaded to a Cloudflare R2 bucket separate from the media bucket, under a
+    lifecycle rule keeping **7 daily, 4 weekly, 12 monthly**. It runs outside Railway on purpose: an
+    escape hatch that depends on the platform it escapes is not one.
+  - *Proof:* 3.48's weekly automated restore drill — decrypt, restore into a throwaway PostgreSQL 17,
+    run 3.47's verification (row counts, constraint/FK validation, sequence positions, `REINDEX`),
+    and alert on failure. The drill is also the only thing that proves the `age` key still decrypts.
+  - *PITR is rejected*, accepting an RPO of up to 24 hours. **Revisit trigger:** the second paying
+    tenant, or the point where a day of lost goods receipts stops being re-enterable from paper
+    invoices.
+- **Alternatives considered:**
+  - **Coverage scoped to `control/services/` at 90%, or a no-regression ratchet** — both were better
+    aimed (the costing layer is where a wrong number becomes a mispriced product) but a single
+    repo-wide number is what a solo developer will actually keep honest, and scoping invites
+    arguing about which module counts. The blunt version is enforced in one CI line and is
+    tightenable later without renegotiation.
+  - **A coverage floor of 80%+** — rejected as a first target against a codebase with zero tests;
+    a gate that cannot be met is a gate that gets disabled.
+  - **GitHub Actions owning the deploy via the Railway CLI** — rejected. It buys explicit control of
+    migrate/release ordering, which the pre-deploy command already provides, in exchange for a
+    long-lived Railway token in GitHub secrets and a release script to maintain solo. It also swaps
+    accepted lock-in for a bespoke one.
+  - **Manual deploy approval on `production`** — rejected for now. A human checkpoint is right once
+    there are tenants who did not agree to be pilots; with one pilot bakery and one developer it adds
+    a step whose only reviewer is the person who wrote the change. Folds into the same revisit
+    trigger as clause 2.
+  - **GlitchTip self-hosted (Sentry-SDK-compatible)** — genuinely attractive on EU-ownership and
+    removes a processor entirely, but it needs a container **and its own PostgreSQL**, roughly
+    doubling the infrastructure bill and making the thing that watches the app another thing to
+    patch and watch. Because it speaks the same SDK, the switch stays a configuration change if
+    Sentry's free tier or ownership becomes a problem.
+  - **Logs plus `AdminEmailHandler` over Brevo, no error-tracking vendor** — rejected. Free and
+    processor-free, but with no grouping, deduplication or release correlation, one bad loop floods
+    the inbox and the signal is lost exactly when it matters.
+  - **Better Stack / Sentry's own uptime monitors** — both fine; UptimeRobot wins on being free
+    without a plan tier and independent of the error-tracking vendor. Using Sentry for uptime would
+    make one free tier the entire observability stack and let a Sentry outage take the alerting with
+    it.
+  - **The dump job as a Railway cron service** — the stronger *security* answer: it runs on the
+    private network, so the database never needs Railway's public TCP proxy and no DB credentials sit
+    in GitHub secrets. Rejected narrowly on the portability argument above, and mitigated instead by
+    backup-scoped, rotatable credentials (3.41). Worth reopening if the public-proxy exposure ever
+    proves uncomfortable — the job body is identical either way.
+  - **Railway snapshots plus manual pre-release dumps** — rejected outright: it fails
+    [ADR-015](decisions.md) rule 5, and "manual, when I remember" is precisely what 3.48 exists to
+    eliminate.
+  - **Real PITR via `pgBackRest`/`wal-g` shipping WAL to R2** — rejected for now. It is the only way
+    to get minutes-level RPO on a host with no PITR, but it is a self-managed component with its own
+    failure modes, added by a solo developer to protect a dataset measured in megabytes that is
+    re-enterable from paper invoices. See the revisit trigger in clause 6.
+  - **Relying on R2's default server-side encryption, or SSE-C** — SSE alone leaves Cloudflare
+    holding keys it could use, which weakens the §6 answer for a vendor that is already the media
+    processor; SSE-C keeps the key yours but must be passed correctly on every dump *and* every
+    restore, with no recovery if it drifts. Client-side `age` gives the strongest statement — the
+    processor stores ciphertext — for one extra command in the job.
+- **Consequences:**
+  - **Epic 6 acquires a hard number.** 70% coverage from zero is the largest single piece of work
+    this ADR creates, and it gates every subsequent merge once enabled. It is therefore turned on
+    **at the end of Epic 6**, not at its start (6.22) — enabling it first would block the very PRs
+    that write the tests.
+  - **`requirements/base.in` gains its sixth direct dependency** (`sentry-sdk[django]`), the first
+    addition since [ADR-029](decisions.md) set the register rule. `pip-audit` and `coverage` go to
+    `dev.in` alongside `djlint`.
+  - **A third processor joins [gdpr.md](gdpr.md) §7** (Sentry, after Railway and Cloudflare R2, with
+    Brevo from [ADR-028](decisions.md)). 11.6 grows to include it, and 11.13's "confirm backups are
+    encrypted at rest" now has a concrete answer to confirm: client-side `age`, so the storage
+    processor holds ciphertext.
+  - **Key custody becomes an operational responsibility with no software fallback.** The `age`
+    private key lives outside CI; if it is lost, every backup in R2 is unrecoverable. 3.72 owns it
+    and 3.48 is the recurring proof it still works — this is the one place where the weekly drill is
+    not merely good practice.
+  - **CI now needs database credentials**, which the repo has never held. They are backup-scoped and
+    separate from the app's (3.41), and reach Postgres over Railway's public TCP proxy — an exposure
+    that did not exist before and is the accepted cost of clause 6's independence.
+  - **Alerting arrives before the thing it protects.** Sentry and UptimeRobot both belong to Epic 7,
+    which depends on Epic 12 provisioning the host — so until that lands, the pilot runs unmonitored
+    on the home server. That is a sequencing fact, not a gap this ADR can close.
+  - **The RPO is a stated product position, not an oversight.** Up to 24 hours of goods receipts and
+    price rows can be lost. With [ADR-017](decisions.md)'s traceability records carrying a legal
+    retention floor, this must be written into the backup runbook (8.5) so it is a decision the
+    pilot bakery has seen rather than a surprise on the day.
+  - Closes 9.14, 9.15 and 9.16. Epic 9's remaining open rows are **9.4** (held for 9.20), 9.17's
+    Python half, 9.18's ingredient-line and categories halves, 9.19, 9.20 and 9.21.
+
+## ADR-032: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed
