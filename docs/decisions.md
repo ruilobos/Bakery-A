@@ -58,7 +58,8 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
 ## ADR-002: AI insights/batch analytics service built on Apache Spark + Databricks
 
 - **Date:** 2026-07-16
-- **Status:** Proposed
+- **Status:** Accepted — re-confirmed against the plain-query alternative, and given its cloud,
+  region, data-handover, trigger and cost model, by [ADR-036](decisions.md) (9.20)
 - **Context:** New requirement to surface AI-derived operational insights — e.g. alerts when a
   product's margin drops below expectation, a real-time analytics dashboard — computed from app
   events and the existing PostgreSQL data. This is being scoped as a new external service, not
@@ -1789,7 +1790,300 @@ other docs with normal markdown links (e.g. `[tech stack](tech_stack.md)`).
   - Closes 9.14, 9.15 and 9.16. Epic 9's remaining open rows are **9.4** (held for 9.20), 9.17's
     Python half, 9.18's ingredient-line and categories halves, 9.19, 9.20 and 9.21.
 
-## ADR-032: <next decision goes here>
+## ADR-032: One shared `RecipeLine` model, and categories as a tenant-scoped lookup table
+
+- **Date:** 2026-08-26
+- **Status:** Accepted
+- **Context:** The two remaining halves of 9.18. [ADR-022](decisions.md) gave both `Bs_Ingredients`
+  and `Recipe_Ingredients` a typed *component* reference (raw material **or** base recipe) alongside
+  their typed parent, which left the two tables structurally identical and reduced the choice between
+  them to a formality — but a formality that Epic 3's migrations cannot be written without.
+  Separately, `categorie` is a free-text `CharField` on `RawMaterial` and `Product`: unvalidated,
+  untranslatable, and useless for the filtering 5.9 has to build. [ADR-018](decisions.md) already sent
+  units to a lookup table, and 10.17 recorded that categories — unlike units — are reference data a
+  tenant may safely edit.
+- **Decision:**
+  1. **One `RecipeLine` model replaces both line tables.** It carries a typed parent
+     (`parent_product` **XOR** `parent_base_recipe`) and a typed component (`component_material`
+     **XOR** `component_recipe`), each pair enforced by a database `CHECK` constraint rather than by
+     convention, plus `quantity` and a `unit` FK per [ADR-018](decisions.md).
+  2. **`Product` and `Base_recipes` stay separate models.** This collapses the *lines*, not the
+     recipes. [ADR-022](decisions.md) considered and declined merging them behind an `is_sellable`
+     flag; nothing here reopens that — the migration is larger and the distinction is one the bakery
+     thinks in.
+  3. **Categories become a single tenant-scoped `Category` table** with a `kind` discriminator
+     (`material` / `product`), an `archived` flag per [ADR-019](decisions.md)'s soft-delete rule, and
+     uniqueness on `(bakery, kind, name)`. One table, not two — the two kinds differ only in which
+     model points at them.
+  4. **Categories are tenant-editable; units are not.** A `Category` row carries no arithmetic, so a
+     tenant inventing "Viennoiserie" breaks nothing. A `Unit` row carries a conversion factor, so
+     editing one silently rewrites every cost derived from it — which is why 10.17 separates them and
+     why this ADR does too.
+- **Alternatives considered:**
+  - **Keeping two line tables behind one abstract base** — rejected. It preserves the shape without
+    the benefit: the costing service still branches on type, and every later line-level feature
+    (allergen aggregation in 18.3, waste factors, per-line notes) gets built and tested twice.
+  - **Merging `Product` and `Base_recipes` into one `Recipe` model** — rejected here, consistent with
+    [ADR-022](decisions.md). Worth noting that this decision makes that migration *cheaper* later, not
+    harder: with one line table, merging the parents becomes a change to two FK columns.
+  - **`TextChoices` enum for categories** — rejected on 10.17. A fixed code-managed list means a
+    migration and a deploy every time a bakery names a new category, and every tenant sharing one
+    vocabulary, which the multi-tenant model in [ADR-006](decisions.md) does not support.
+  - **Two separate category tables** — rejected as duplicated CRUD, admin registration, settings UI and
+    tests for two tables that differ by one column.
+- **Consequences:**
+  - **The `CHECK` constraints are the decision.** A nullable-FK pair with no constraint is a worse
+    schema than two tables, because it permits a line with two parents or none. Both XORs are database
+    constraints written in the same migration as the model (3.73), not `clean()` methods — `clean()`
+    does not run on `bulk_create`, which is exactly how an import will write these rows.
+  - **The migration is a merge, not a rename.** Two tables of live prototype data fold into one with a
+    discriminating parent column; the old tables are dropped only after row counts reconcile (3.73).
+  - **It simplifies the two hardest traversals in the app at once.** [ADR-022](decisions.md)'s
+    recursive costing and [ADR-017](decisions.md)/17.7's multi-level trace are the same walk in
+    opposite directions over this one table — and 18.3's allergen aggregation is a third. One
+    cycle-guard implementation (3.59, 4.16) now covers all of them.
+  - **Free-text categories must be backfilled per tenant, not globally.** Today's values are one
+    bakery's typing; migrating them means distinct-value extraction into `Category` rows scoped to the
+    pilot tenant, with the free-text column dropped afterwards (3.74).
+  - **`kind` must be validated against the referencing model**, or a product can be filed under a
+    flour category. The FK cannot express that; the form and the service layer must (3.74).
+  - Closes 9.18 completely. Unblocks 3.19 and the categories half of 3.26; creates 3.73, 3.74. Note
+    that 3.42 and 4.14 still cite 9.18 as their blocker — both were already closed by
+    [ADR-027](decisions.md) (pooling → 7.19) and [ADR-028](decisions.md) (no cache), and are corrected
+    in the backlog by this pass.
+
+## ADR-033: Traceability entity model — receipt headers with lines, production runs emitting batches, date-prefixed lot codes, and stock derivable but not surfaced
+
+- **Date:** 2026-08-26
+- **Status:** Accepted
+- **Context:** 9.21, the last decision Epic 3 is waiting on. [ADR-017](decisions.md) fixed the
+  direction — goods receipts, production runs, outbound records, and the rule that **a lot is an event,
+  not an attribute** — but explicitly left the entity shape, the lot-code strategy, and the
+  stock question open. All three touch tables Epic 3 is about to restructure, so deciding them
+  afterwards means restructuring twice.
+- **Decision:**
+  1. **Goods receipts are a header with lines.** `GoodsReceipt` holds supplier, receipt date and
+     document reference; `GoodsReceiptLine` holds raw material, supplier lot code, quantity, unit,
+     best-before, and the price actually paid in [ADR-018](decisions.md)'s
+     `purchase_price`/`pack_quantity`/`purchase_unit` shape. A delivery note is one record with many
+     lines, and modelling it that way is what makes "show me that delivery" a lookup rather than a
+     group-by.
+  2. **Production runs consume specific receipt lines and emit a batch.** `ProductionRun` →
+     `Consumption` (FK to `GoodsReceiptLine`, quantity consumed in canonical units) and an output
+     `Batch` carrying the internal lot code. `OutboundRecord` hangs off `Batch`.
+  3. **Internal lot codes are `YYYYMMDD-NNN`**, sequence resetting daily, unique per
+     `(bakery, lot_code)`, allocated **server-side inside the transaction that creates the batch** —
+     never client-side, never by counting existing rows.
+  4. **Quantity-on-hand is derivable but not surfaced.** Because `Consumption` records the quantity
+     taken from each receipt line, on-hand is `Σ received − Σ consumed` — computable, never stored,
+     and **not displayed anywhere this round**: no stock field, no stock page, no low-stock alerts.
+- **Alternatives considered:**
+  - **Flat receipt lines carrying supplier and date on every row** — rejected. It denormalises the
+    delivery note into its items and loses the document as a record, which is the unit an FSAI
+    inspector and a supplier query both work in.
+  - **Receipts first, production runs in a later slice** — rejected on [ADR-017](decisions.md)'s own
+    warning: a partial traceability implementation that looks complete is worse than none. Receipts
+    alone give one step *back* and nothing forward, while presenting a "Traceability" section to a real
+    food business operator.
+  - **Opaque per-tenant sequence (`B-000123`)** — rejected. It is simpler to generate, but a lot code's
+    job is to be read off a label, quoted on a phone call, and sorted on paper; the date earns its
+    place in the string.
+  - **User-entered lot codes** — rejected as the default. Many bakeries print their own codes, but a
+    format the app cannot guarantee is a format the trace query cannot rely on. Revisit if the pilot
+    turns out to have an established scheme worth honouring.
+  - **A full stock ledger with adjustments, waste and stock-takes** — rejected; it contradicts
+    [ADR-024](decisions.md)'s `Could` rating and is a different product promise (inventory management)
+    with accuracy expectations this app cannot meet.
+  - **Showing the derived figure read-only** — rejected, and this was the closest call. A number on
+    screen is trusted regardless of its caveat label; "received minus consumed" ignores waste,
+    spillage and unrecorded use, so it would be wrong in a bakery's normal operation, not in an edge
+    case.
+- **Consequences:**
+  - **`Consumption.quantity_consumed` is load-bearing beyond traceability.** It is the single field
+    that keeps stock derivable later without a schema change (17.14) — the whole content of
+    [ADR-024](decisions.md)'s "design so it *could* be derived".
+  - **Lot-code allocation needs a concurrency-safe implementation, not a helper function.** Two runs
+    finishing in the same second must not collide; the unique constraint is the backstop, the
+    transactional allocation is the mechanism, and gaps after a rollback are acceptable (17.13).
+  - **This is where [ADR-022](decisions.md)'s costing gets its data.** "Latest receipt by receipt date"
+    now has a concrete table to query, and `GoodsReceiptLine` is the price-history source 17.12 asks
+    about — which answers 10.5's input-price-history question as a by-product.
+  - **Receipt lines are append-only** (17.5), which makes them the first tables in the schema where
+    [ADR-019](decisions.md)'s soft-delete is not enough — corrections are new records, not edits.
+  - **Epic 3 must build `RawMaterial` knowing these tables are coming.** Specifically: no `lot` field,
+    no `stock` field, and `quantity` numeric with a unit FK (3.10, 3.14) so a receipt line can be
+    reconciled against the catalogue row.
+  - **The pilot will ask for stock.** The answer is deliberate and should be given as one: the data is
+    being recorded, the feature is not being claimed until it can be trusted. Recorded here so it is a
+    position rather than an omission.
+  - Closes 9.21. Unblocks 17.1, 17.2, 17.3; creates 17.13, 17.14; confirms the direction of 17.12.
+
+## ADR-034: Python quality tooling — `ruff` for both linting and formatting, `pytest-django` as the test runner
+
+- **Date:** 2026-08-26
+- **Status:** Accepted
+- **Context:** The Python half of 9.17. [ADR-030](decisions.md) already closed templates (`djlint`)
+  and deferred standalone CSS/JS linting; [ADR-031](decisions.md) already named `ruff` in the CI gate
+  and set a 70% repo-wide coverage floor. What was left unstated is whether `ruff` also *formats*
+  (or whether `black`/`isort` join it), and what actually runs the tests — a question with no legacy
+  cost attached, since every `tests.py` in the repo is an empty stub.
+- **Decision:**
+  1. **`ruff` does both** — `ruff check` and `ruff format`. No `black`, no `isort`, no `flake8`.
+  2. **`pytest` + `pytest-django` + `pytest-cov`** run the suite, replacing `manage.py test`.
+  3. **Tool configuration lives in a `pyproject.toml` holding only `[tool.*]` sections.** It is not a
+     packaging file and declares no dependencies — [ADR-029](decisions.md)'s requirements-file model is
+     untouched, and this file must never grow a `[project]` or `[build-system]` table.
+  4. `pytest`, `pytest-django`, `pytest-cov` and `ruff` all enter `requirements/dev.in` with the
+     owner/purpose comment [ADR-029](decisions.md) requires, alongside `djlint`.
+- **Alternatives considered:**
+  - **Django's own test runner with `coverage.py`** — genuinely close, and consistent with how
+    [ADR-028](decisions.md) rejected DRF and [ADR-030](decisions.md) rejected Vite. It lost on the
+    specific shape of this suite: the costing tests are table-driven across unit conversions × VAT
+    boundaries × rounding × recursion depth, which is what `parametrize` exists for, and
+    [ADR-008](decisions.md)'s tenant-isolation tests want composable fixtures more than they want
+    `setUp`. `subTest()` covers the first case; it reports failures worse.
+  - **`ruff` for linting with `black` for formatting** — rejected. `ruff format` is a deliberate
+    reimplementation of black's style; running both adds a dependency and a CI step to reach the same
+    output, and [ADR-029](decisions.md)'s register would ask what it is for.
+  - **Adding `mypy`** — not adopted and not rejected on merit; it is simply out of scope for a codebase
+    with no annotations yet. Revisit when [ADR-028](decisions.md)'s service layer exists, since typed
+    `Decimal` boundaries are where it would pay.
+- **Consequences:**
+  - **The documented test command changes**, and it is documented in three places — `CLAUDE.md`, the
+    README rewrite (8.1), and the CI workflow. `python manage.py test` stops being the answer (6.24).
+  - **`--cov-fail-under=70` is where [ADR-031](decisions.md)'s floor is actually enforced**, which
+    keeps 6.22's "switch the gate on at the end of the epic" a one-line change rather than a rework.
+  - **Django's test-database machinery still applies** — `pytest-django` wraps it rather than replacing
+    it, so migrations, `--reuse-db` and transactional test cases behave as Django documents them. This
+    is why the choice carries little lock-in: the tests are still Django tests.
+  - **First real occupants of `requirements/dev.in`.** Together with `djlint` from
+    [ADR-030](decisions.md), this is the file's actual content, and the first test of whether the
+    owner-comment rule survives contact with a real dependency list.
+  - Closes 9.17 completely. Unblocks 6.10 and 6.11; creates 6.23, 6.24; feeds 6.12 and 6.22.
+
+## ADR-035: Tenant full data export — one CSV per table plus a JSON manifest, in a ZIP
+
+- **Date:** 2026-08-26
+- **Status:** Accepted
+- **Context:** 9.19. [ADR-008](decisions.md) committed to a tenant-scoped full export in a format that
+  does **not** assume the recipient runs a compatible PostgreSQL, and named two candidates — portable
+  ANSI SQL, or a per-table CSV bundle with a relationship manifest — without choosing. Epic 14 is
+  blocked on the choice.
+- **Decision:** A **ZIP containing one CSV per tenant-scoped table plus a `manifest.json`**. The
+  manifest carries the export timestamp, a schema version, and for each table its columns, types,
+  primary key and foreign-key map, so relationships survive a format that cannot express them.
+  Generated by a **single service function**, exposed two ways: an Owner-only download in the
+  settings area ([ADR-023](decisions.md)'s tenant self-administration surface) and a management
+  command for support use.
+- **Alternatives considered:**
+  - **Portable ANSI SQL (`CREATE TABLE`/`INSERT`)** — rejected, though it was ADR-008's first-named
+    option. Hand-generating correct, portable DDL means maintaining a type map and quoting rules
+    against every future model change, and the output serves only a developer. The CSV bundle serves
+    both audiences ADR-008 named: it opens in a spreadsheet for the bakery owner and loads into any
+    DBMS for whoever they hire.
+  - **`manage.py dumpdata` JSON** — rejected. Nearly free to build, but it is a *Django serialization*
+    format, not a DBMS-portable one, which is precisely the dependency ADR-008 set out to avoid.
+  - **A tenant-scoped `pg_dump`** — already rejected by ADR-008; unchanged here.
+- **Consequences:**
+  - **The manifest is the deliverable, not the CSVs.** CSV loses types, nulls-versus-empty-strings, and
+    every relationship; the manifest is what makes the bundle reconstructable, so 14.3 is a
+    correctness task rather than a documentation nicety.
+  - **Synchronous download is adequate and should be re-checked, not assumed.** One bakery's data is
+    megabytes ([ADR-013](decisions.md)'s scale), so it fits [ADR-021](decisions.md)'s budget as a
+    direct response — but the check belongs in 14.6, since a tenant with years of goods receipts is a
+    different size than today's catalogue.
+  - **Every export is a bulk disclosure of one tenant's business data**, so 14.4's gating and audit log
+    are part of the feature, not a follow-up — and the Owner-only restriction uses
+    [ADR-020](decisions.md)'s capability names, not a role comparison.
+  - **The GDPR personal-data export (Epic 15) is still a separate mechanism** per
+    [ADR-009](decisions.md). It can reuse this bundle *shape* scoped to one subject; whether it does is
+    15.2's call, not this ADR's.
+  - **Decimal fidelity in CSV is a real trap.** Money and quantities must be written at full stored
+    precision, never at [ADR-018](decisions.md)'s 2-dp presentation rounding — an export that rounds is
+    an export that silently loses data (14.1).
+  - Closes 9.19. Unblocks 14.1; creates 14.6.
+
+## ADR-036: AI insights confirmed on Databricks Serverless Jobs (AWS, EU Ireland), fed by an R2 extract on a nightly schedule — and gunicorn/WSGI stands
+
+- **Date:** 2026-08-26
+- **Status:** Accepted
+- **Context:** 9.20 and 9.4. [ADR-002](decisions.md) proposed Spark on Databricks for the insights
+  service but was never confirmed: its own "alternatives considered" recorded that a plain-Python or
+  scheduled-query approach had not been compared, and [ADR-024](decisions.md) went further, making a
+  scheduled query over [ADR-018](decisions.md)'s dated price rows the **null hypothesis** Spark had to
+  beat. Left unsettled with it: the trigger contract, where the service runs relative to the app, the
+  data it may see, and the cost model — plus 9.4, which [ADR-025](decisions.md) deliberately held back
+  because a live analytics dashboard is the only thing in scope that could argue for ASGI.
+- **Decision:**
+  1. **Spark on Databricks is confirmed** — the engine choice in [ADR-002](decisions.md) stands, and
+     that ADR moves from `Proposed` to `Accepted`.
+  2. **Databricks Serverless Jobs on AWS, EU (Ireland) `eu-west-1`.** Serverless job compute only —
+     no all-purpose or interactive cluster, and no cluster lifecycle for the app to manage. This is
+     what makes per-use billing real: there is no machine to start, idle, or forget to stop.
+  3. **Django hands over an extract; Databricks never touches PostgreSQL.** A nightly job writes a
+     scoped, **personal-data-free** costing extract (product, date, cost, price, margin, tenant) to a
+     dedicated Cloudflare R2 prefix ([ADR-005](decisions.md)); the Databricks job reads only that.
+  4. **Nightly schedule, results POSTed back.** The job runs on Databricks' own schedule and returns
+     results to a plain `JsonResponse` callback endpoint ([ADR-028](decisions.md)'s two-endpoint
+     exception), authenticated with a shared secret. No event triggering, no Jobs API call from the
+     request path.
+  5. **Hard cost ceiling ~$15/mo**, with a spend alert configured before the first production run.
+  6. **9.4: gunicorn, WSGI, sync workers**, latest version pinned at lock time
+     ([ADR-029](decisions.md)). Revisit trigger, and only this one: the insights dashboard needing
+     **push** updates (SSE/WebSocket) rather than polling.
+- **Alternatives considered:**
+  - **A scheduled query inside Django** ([ADR-024](decisions.md)'s null hypothesis) — not adopted. It
+    would have been cheaper and added no processor, and it remains the correct answer if the insights
+    scope never grows past margin alerts. The decision to keep Spark is a deliberate bet on headroom
+    for the analytics and ML work Epic 16 is meant to grow into, made with the cost and compliance
+    consequences below stated rather than discovered.
+  - **Databricks reading Railway PostgreSQL directly over the public TCP proxy** (ADR-002's literal
+    shape) — rejected. It exposes the production database to a third-party network and drags every
+    readable table, including supplier contacts and user accounts, into GDPR transfer scope. The R2
+    handoff costs one nightly job and removes both problems.
+  - **Passing data in the Jobs API payload** — rejected; no persistence means no history, and trend
+    analysis is most of the point.
+  - **Event-triggered runs on price/receipt changes** — rejected for the first release. Serverless
+    startup is seconds rather than minutes, so latency is not the objection; debounce, retry and
+    deduplication logic in the app is. A margin alert is a daily concern — a price change at 14:03
+    does not need a 14:04 alert. Revisit if a genuinely interactive insight appears.
+  - **All-purpose/interactive Databricks cluster** — rejected as the shape that generates surprise
+    bills, which is exactly what the ~$15/mo ceiling exists to prevent.
+  - **ASGI now** (9.4) — rejected. [ADR-028](decisions.md)'s service layer is sync throughout, so an
+    async view would raise `SynchronousOnlyOperation` against the ORM; adopting ASGI would impose that
+    constraint from day one for a feature rated `Could`.
+- **Consequences:**
+  - **This is the first recurring cost increase since [ADR-013](decisions.md).** Total infrastructure
+    goes from ~$6/mo to roughly $21/mo at the ceiling — a 3.5× rise against [ADR-016](decisions.md)'s
+    zero revenue. It is a funded bet, not a free addition, and 16.8 must measure a real run before
+    production spend rather than trusting the estimate.
+  - **The DBU rate is not recorded here on purpose.** Databricks serverless pricing changes and is
+    region- and tier-dependent; 16.8 records the *measured* cost of one real run at provisioning time.
+    An unverified number in an append-only log is worse than no number.
+  - **Two new processors join [gdpr.md](gdpr.md) §7** — Databricks Inc. and AWS — both requiring a DPA
+    before real data flows (11.17, 16.4). The R2 extract is what keeps this manageable: with no
+    personal data in the handover, the transfer is business data only, and both processors sit in the
+    EEA (AWS `eu-west-1`; Railway is EU West per [ADR-013](decisions.md)), so no Chapter V transfer
+    mechanism is needed for the data itself. **Databricks Inc. being US-headquartered is a
+    subprocessor/DPA question, not a data-location one** — worth stating explicitly so the distinction
+    is not re-litigated later.
+  - **The extract schema is a published contract.** The Django job and the Databricks notebook evolve
+    in different repositories on different schedules; an unversioned extract format is how that breaks
+    silently, so the manifest carries a version and the notebook rejects an unknown one (16.13).
+  - **A silent job failure is the real operational risk.** Insights that stop arriving look identical
+    to "no alerts this week" — so job-failure alerting (16.11) is part of the feature, not part of
+    Epic 7's monitoring.
+  - **The callback endpoint is an unauthenticated-by-session, internet-facing write path** — the only
+    one in the app. Shared secret, tenant scoping, and rate limiting are requirements on 16.10, and it
+    is the one endpoint [ADR-027](decisions.md)'s `LoginRequiredMiddleware` must be exempted from
+    besides the cover and login pages.
+  - **9.4 closes with it.** Nothing in this shape is async: the extract job is a management command,
+    the callback is a short POST. Unblocks 7.14.
+  - Closes 9.20 and 9.4 — and with them, **every open row in
+    [tech_stack.md](tech_stack.md) and all of Epic 9**. Creates 16.8–16.13, 11.17; unblocks 16.1, 16.2,
+    16.3.
+
+## ADR-037: <next decision goes here>
 
 - **Date:**
 - **Status:** Proposed
