@@ -1,285 +1,326 @@
 # Project Requirements
 
-How to use this file: this is the running source of truth for *what the app should do*, separate
-from [`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md) (the task backlog — epics and
-tasks, no undecided material) and `tech_stack.md` (*what it's built with*). Fill in sections as you
-decide them; leave `Status: Open` rows alone until you've actually made the call. When a requirement
-changes scope meaningfully, log why in [decisions.md](decisions.md).
+**What the app should do**, and **what data-protection obligations come with it** — separate from the
+task backlog ([`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md)) and from what it is built
+with ([tech_stack.md](tech_stack.md)).
 
-Once something here is decided, it must also appear as a task in an epic in the backlog. Epic 10
-(`requirements-discovery`) is the backlog counterpart of this file: one task per group of `Open`
-rows below.
+Two reading rules:
+
+- **Decided rows are summaries.** The reasoning lives in the ADR named on the row — don't re-derive it
+  and don't restate it here.
+- **`Open` rows carry the detail deliberately**, because that detail is what the decision needs. An
+  `Open` row is not permission to build against it.
+
+Backlog counterparts: Epic 10 (`requirements-discovery`) for the product questions, Epic 11
+(`gdpr-data-inventory`) for the data-protection ones.
+
+---
+
+# Part 1 — Product
 
 ## Vision
 
-_What should Bakery be once this redesign is done? One paragraph — who uses it, for what, and
-what "better" looks like. (Current baseline, from the old README: a single-bakery back office for
-tracking raw materials, suppliers, and product costs/margins.)_
+Bakery is moving from a single-bakery back office (raw materials, suppliers, product costs/margins)
+to a **multi-tenant SaaS product** — one deployment, one shared database, many bakeries' data, each
+row scoped to its tenant ([ADR-006](decisions.md), [ADR-008](decisions.md)).
 
-Multi-tenant confirmed (see [decisions.md](decisions.md) ADR-006): Bakery is moving from a
-single-bakery back office to a multi-tenant SaaS product — one deployment, one shared database,
-serving many bakeries' data concurrently, each scoped to its own tenant. Who the buyer/user personas
-are beyond "a bakery" is still Open (see the role matrix below).
+## Go-to-market and market (Decided — [ADR-016](decisions.md))
 
-### Go-to-market, phase 1 (Decided — [ADR-016](decisions.md))
-
-| Question | Decision |
+| | |
 |---|---|
-| Who are the first real users? | **One friendly Irish bakery**, running a pilot. A real food business operator with real data — not a test tenant |
-| Timeline pressure? | **None.** No committed launch date; sequencing is driven by readiness and risk, not by a date |
-| Paid beta or free pilot? | **Free pilot.** No payment provider, no subscription state, no billing tables, no invoicing. Billing is out of scope this round |
-| Pricing/plan structure? | **Flat per-bakery monthly subscription** when pricing arrives — all features, unlimited users per tenant. Recorded so nothing is built that contradicts it: **no feature gating by plan, no per-seat counting** |
-| How are tenants onboarded? | Still **Open** — task 10.10 |
+| First users | **One friendly Irish bakery**, a real food business operator with real data — not a test tenant |
+| Timeline | **None committed.** Sequencing is driven by readiness and risk |
+| Commercial model | **Free pilot** — no payment provider, subscription state, billing tables or invoicing |
+| Eventual pricing | **Flat per-bakery monthly subscription**, all features, unlimited users. Recorded so nothing contradicts it: **no feature gating by plan, no per-seat counting** |
+| Onboarding | **Manual provisioning**; first Owner created with the tenant, staff via Owner invitations ([ADR-023](decisions.md)/[ADR-024](decisions.md)) |
+| Market | **Phase 1 Ireland**, phase 2 wider EU |
 
-Consequences worth keeping visible: the `Bakery` tenant model (3.1) needs no plan/tier fields; the
-role matrix below is driven by capability only, never by plan; and the pilot bakery is a real
-controller under ADR-006, so the per-tenant DPA (11.5) applies to the pilot too.
-
-### Target market (Decided)
-
-**Phase 1: Ireland.** All initial tenants are Irish bakeries. **Phase 2: wider EU**, timing and
-countries Open.
-
-This is not only a sales matter — it drives several technical and compliance positions:
-
-| Consequence | Where it lands |
-|---|---|
-| Irish Data Protection Commission is the supervisory authority (72-hour breach notification) | [gdpr.md](gdpr.md) §8 |
-| All tenants are EU-based, so GDPR applies to every tenant from day one — no non-EU carve-out | [gdpr.md](gdpr.md) §0 |
-| Hosting must store data in the EU/EEA; Amsterdam qualifies for Irish customers (Art. 1(3) free movement — data need not stay *in* Ireland) | [ADR-013](decisions.md), [gdpr.md](gdpr.md) §7 |
-| EU-owned hosting is a weak differentiator in Ireland but a stronger one in continental Europe — hence the residency revisit trigger at expansion | [ADR-013](decisions.md), task 11.14 |
-| Language/locale: English only for phase 1; multi-language and multi-currency become questions at EU expansion | Open — feeds the i18n question below |
-
-Pricing structure, the free-pilot model, and the first-user question are now closed by
-[ADR-016](decisions.md) above. Still Open: how tenants are onboarded (10.10), and which EU countries
-come next (10.11).
+Consequences kept visible: `Bakery` (3.1) needs no plan/tier fields; roles are capability-driven,
+never plan-driven; the pilot is a real controller, so the per-tenant DPA (11.5) applies to it too;
+Irish tenants make the **DPC** the supervisory authority and put every tenant in GDPR scope from day
+one; hosting must store data in the EU/EEA, which Amsterdam satisfies ([ADR-013](decisions.md)).
 
 ## Regulatory scope beyond GDPR (Decided)
 
-**Batch/lot food traceability is in scope** — see [ADR-017](decisions.md).
-
-A bakery is a food business operator, and EU Regulation 178/2002 Article 18 obliges it to identify
-**one step back** (which supplier supplied which input) and **one step forward** (who a given output
-went to), producing those records to the competent authority on demand — the **FSAI** in Ireland.
-The app today is a pure current-state catalogue with no notion of a delivery, a lot code, or a
-production run, so it cannot support that record-keeping at all.
+**Batch/lot traceability — EU Reg. 178/2002 Art. 18** ([ADR-017](decisions.md)). A bakery is a food
+business operator and must identify **one step back** (which supplier supplied which input) and **one
+step forward** (who a given output went to), producing records to the **FSAI** on demand. The app is
+a pure current-state catalogue today — no delivery, lot code or production run — so it cannot support
+that at all. Built as **Epic 17**, not folded into Epic 3.
 
 | Aspect | Position |
 |---|---|
-| Regulatory floor | One-step-back and one-step-forward. Full internal mass-balance is a **Should**, not a **Must** |
-| Where it's built | **Epic 17** (`feature-traceability`) — its own epic, not folded into the Epic 3 schema redesign |
-| Prerequisite | Epic 3: tenant scoping, numeric quantities, canonical units. A traceability record with an untrustworthy quantity isn't worth writing |
-| Record integrity | Append-only — no hard delete, no silent retroactive edit (17.5) |
-| Retention | Food law sets a **minimum** retention (commonly 5 years, shorter for short-shelf-life goods). Where a record names a supplier contact, that floor and GDPR retention must be reconciled, not chosen freely — 10.9 → [gdpr.md](gdpr.md) §5 |
-| Not in scope | HACCP plans, temperature/cleaning logs, allergen labelling as such (separate, still Open), automated recall workflows |
+| Floor | One-step-back and one-step-forward. Full internal mass-balance is a **Should**, not a Must |
+| Prerequisite | Epic 3 — tenant scoping, numeric quantities, canonical units. A record with an untrustworthy quantity isn't worth writing |
+| Integrity | Append-only — no hard delete, no silent retroactive edit (17.5) |
+| Retention | Food law sets a **minimum**, which GDPR minimization cannot override — see [Retention & deletion](#retention--deletion) |
+| Not in scope | HACCP plans, temperature/cleaning logs, automated recall workflows |
 
-Two knock-on effects on decisions still listed as Open below: entities referenced by a traceability
-record can never be hard-deleted (so soft delete stops being a judgment call for `Supplier` and
-`RawMaterial`), and a goods-receipt line naturally carries the price actually paid on that date —
-which would answer input price history as a side effect. Decide the data-semantics questions with
-that in mind rather than independently.
+**Allergen declaration — EU FIC 1169/2011** ([ADR-024](decisions.md)). A separate obligation, rated
+**Should**, built as **Epic 18** — deliberately outside Epic 17 so the Art. 18 core isn't delayed,
+but reusing [ADR-022](decisions.md)'s recipe recursion, since allergens aggregate up the tree exactly
+like cost.
 
-Allergen data (EU FIC 1169/2011) was **not** decided in this round — it is a plausible neighbour of
-traceability but a separate obligation, and stays Open.
+## User roles (Decided — [ADR-020](decisions.md))
 
-## User roles / personas
+Three roles, scoped per tenant, held on a **membership record** (user × bakery × role) rather than on
+the user, because Django's global `Group` cannot express "Owner of bakery A".
 
-**Decided — three roles, scoped per tenant** ([ADR-020](decisions.md)). A bakery's Owner administers
-only their own bakery's data, never another tenant's. The role lives on a **membership record**
-(user × bakery × role), not on the user, because Django's global `Group` cannot express "Owner of
-bakery A".
+| Role | Real-world | Can | Cannot |
+|---|---|---|---|
+| **Owner** | The owner or whoever runs the business side | Everything Staff can, plus invite/remove users and set roles, change tenant settings and pricing, archive records, run exports | Touch another tenant's data; hard-delete anything under [ADR-019](decisions.md)'s archive rule; edit a traceability record after the fact |
+| **Staff** | Bakers and counter staff | Create and edit raw materials, suppliers, base recipes, products; record goods receipts and production runs | Manage users, change tenant settings or pricing, archive records |
+| **Read-only** | The accountant or auditor | View everything in the tenant; run exports | Write anything |
+| ~~Manager~~ | — | **Deferred, not rejected** — a real distinction in a larger bakery (pricing and suppliers without user administration), but the pilot can't yet articulate it, and a guessed permission set is worse than no role | |
 
-| Role | Who is this in real life? | Can do | Cannot do | Status |
-|---|---|---|---|---|
-| **Owner** | The bakery owner or whoever runs the business side | Everything Staff can, plus: invite/remove users and set their roles, change tenant settings, set and change pricing, archive records, run exports | Touch another tenant's data. Hard-delete anything covered by [ADR-019](decisions.md)'s archive rule. Edit a traceability record after the fact ([ADR-017](decisions.md)) | **Decided** |
-| **Staff** | Bakers and counter staff doing daily work | Create and edit raw materials, suppliers, base recipes and products; record goods receipts and production runs | Manage users, change tenant settings, change pricing, archive records | **Decided** |
-| **Read-only** | The accountant or auditor | View everything in the tenant; run exports | Write anything at all | **Decided** |
-| ~~Manager~~ | — | — | — | **Deferred, not rejected** — a real distinction in a larger bakery (pricing and suppliers without user administration), but the pilot can't yet articulate it. A guessed permission set is worse than no role |
-
-Two implementation rules that keep this cheap to extend: permission checks are **capability-named**
-(`can_manage_users`), never `role == "owner"`, so adding Manager later is a table row rather than a
-rewrite (2.16); and **Read-only can export**, which is deliberate — a read-only account can still
-extract data in bulk, so every export is audit-logged (11.10, 14.4, 15.4). The logging is what makes
-that acceptable, not the role.
-
-Still open: whether one person may hold memberships in several tenants in the product UI — the data
-model supports it, offering it is a product choice (10.14).
+Two rules keep this cheap to extend: checks are **capability-named** (`can_manage_users`), never
+`role == "owner"` (2.16); and **Read-only can export**, which is deliberate — every export is
+audit-logged (11.10, 14.4, 15.4), and *that* is what makes it acceptable, not the role restriction.
 
 ## Functional requirements by area
 
-For each existing area: what should stay as-is, what should change, what's genuinely new.
-
-### Dashboard
-- Current: lists all products with computed unit cost / net price / margin %.
-- **Change ([ADR-023](decisions.md)):** becomes a real **overview page** — a summary strip (product
-  count, average margin, materials with no or stale pricing), the worst-margin products, and recent
-  input price movements. The full product list moves to its own page.
-- **Sequencing note:** this depends on **Epic 3**, not just Epic 5 — "recent price movements" and
-  "stale pricing" need ADR-018's dated prices and ADR-022's receipts to exist first (5.18).
-- Still Open: what counts as a **stale** price (10.16). An arbitrary threshold would train users to
-  ignore the badge.
-
-### Raw materials
-- Current: CRUD per category, tied to one supplier each.
-- **Change ([ADR-022](decisions.md)):** the **latest goods receipt sets the current cost** — most
-  recent by *receipt date*, ties broken by creation time, so back-dated entries behave correctly. A
-  manual price stays possible for materials never yet received (so a new product can be costed before
-  the ingredient is first bought) and is labelled an **estimate**.
-- **New requirement:** every cost figure carries its **provenance** — receipt-derived or estimated.
-  A margin computed from a guess and one computed from an invoice are not the same claim, and the UI
-  and exports must be able to say which it is.
-- Still open as a priority call: supplier price comparison across raw materials (feature backlog).
-
-### Suppliers
-- Current: CRUD, name is the primary key.
-- **Change:** surrogate primary key with name **unique per tenant** among non-archived rows, and
-  archive instead of delete ([ADR-019](decisions.md)). Phone becomes a string field.
-- New requirements: none beyond the schema work in Epic 3.
-
-### Base recipes
-- Current: name + yield + ingredient lines with per-line cost — and **disconnected from products**, so
-  a base recipe's cost can never reach anything that's sold. Half a feature.
-- **Change ([ADR-022](decisions.md)):** a **product's ingredient line may reference a base recipe**,
-  and costing recurses into it. This is what base recipes were for.
-- **Consequence:** `recipe_yeld` becomes load-bearing — cost per unit of yield is what a parent
-  consumes, so the yield needs a real numeric value and a unit from the ADR-018 unit table (3.60).
-- **Consequence:** a base recipe containing itself, directly or transitively, would make costing loop
-  forever. Cycle prevention is a validation rule plus a depth guard, not a convention (3.59, 4.16).
-
-### Products
-- Current: category + yield + price + VAT + ingredient lines; cost/margin computed per product.
-- **Change:** ingredient lines accept raw materials **or** base recipes ([ADR-022](decisions.md));
-  prices are net-of-VAT with dated history and a VAT rate *code* ([ADR-018](decisions.md)); archive
-  replaces delete ([ADR-019](decisions.md)).
-- New requirements: product photo (Epic 13), subject to the MoSCoW pass.
-
-### Settings / users / export
-- Current: CSV export per entity, ad hoc user CRUD (note: user delete view has a known bug —
-  it deletes `RawMaterial` instead of the user model).
-- Keep / Change / Remove: Keep the existing per-entity bulk CSV exports as an admin/operational
-  feature (see [decisions.md](decisions.md) ADR-009). **Rebuild the area as the tenant's
-  self-administration surface** ([ADR-023](decisions.md)): the Owner invites and removes users and
-  sets their roles, edits bakery details, manages reference data, and runs exports. Read-only users
-  reach exports and nothing else writable. This **replaces** the broken user-delete view rather than
-  patching it.
-- New requirements: Two new exports, decided in ADR-008/ADR-009 — (1) a tenant-scoped full data
-  export in a portable, DBMS-importable format (see backlog below); (2) a dedicated GDPR
-  personal-data export, scoped to one data subject, separate from the bulk admin export.
-- **New external dependency:** inviting users needs **email**, which the app does not send today. A
-  provider must be chosen (9.22), configured from environment variables, and covered by a DPA (11.6)
-  before invitations ship — this turns the hypothetical email-provider row in [gdpr.md](gdpr.md) §7
-  into a real one.
-- Still Open: **which reference data a tenant may edit.** VAT rates and categories are safe. **Unit
-  conversion factors are not** — a wrong factor silently corrupts every cost figure depending on it,
-  with no error surfaced anywhere. Likely system-managed units with a tenant-selectable subset, but
-  that is a decision to make, not to assume (10.17).
-
-## New feature backlog
-
-Prioritize with MoSCoW (Must / Should / Could / Won't-this-round) once there's enough to sort.
-Carried over from the old README/plan as candidates, not commitments:
-
-| Feature | Priority | Notes | Status |
-|---|---|---|---|
-| Supplier price comparison for the same raw material | **Must** | Core buying-decision value. **Forces a schema change:** `RawMaterial` has a single supplier FK today, so a comparison view would show one row. The real supply relationship belongs on the goods receipt ([ADR-022](decisions.md)); the FK becomes at most an optional *preferred supplier* — 3.63, view in 5.21. Depends on Epic 17, since receipts are what it compares | **Decided** ([ADR-024](decisions.md)) |
-| Real search/filter across raw materials, suppliers, products | **Must** | The current inputs exist and do nothing, which is worse than absent. Epic 5 is rewriting these templates anyway — 5.9 resolves to *build it*, not *remove it* | **Decided** ([ADR-024](decisions.md)) |
-| Historical cost/price snapshots & trend reporting | **Should** | **Now cheap rather than speculative** — [ADR-018](decisions.md) versions both input prices (via ADR-017 goods receipts) and sale prices (dated `ProductPrice` rows), so the underlying history exists as a by-product. Deferred because trends need months of accumulated data that won't exist at launch. Gives Epic 16's margin alerts an actual baseline | **Decided** ([ADR-024](decisions.md)) |
-| Self-service user registration | **Won't (this round)** | Open signup into a shared database with no billing gate produces spam tenants and abandoned accounts holding personal data you're then obliged to retain and delete. **Tenants are provisioned manually**; staff accounts come from Owner invitations ([ADR-023](decisions.md)). Revisit at tenant #2 or when billing exists to gate it | **Decided** ([ADR-024](decisions.md)) |
-| Reporting dashboards beyond the current per-product view | **Should** | [ADR-023](decisions.md)'s overview dashboard delivers the first slice and is **the whole of the reporting story for the first release** — worth stating plainly so it isn't quietly expanded | **Decided** ([ADR-024](decisions.md)) |
-| AI-driven insights service: margin alerts (notify when a product's margin drops below expectation), dynamic real-time analytics dashboard | **Could — re-scope before spending** | Keep the goal, revisit the engine. A margin alert over [ADR-018](decisions.md)'s dated prices is a **scheduled query, not a Spark cluster** — that is now the null hypothesis Spark has to beat (9.20), and it must be settled before any Databricks spend. See [tech_stack.md](tech_stack.md) and ADR-002 (still only `Proposed`) | **Decided** ([ADR-024](decisions.md)) |
-| Product photo upload | **Could** | Cosmetic for a costing tool. New `photo` field on `Product`, stored in object storage — see [tech_stack.md](tech_stack.md) "Static & media file storage" and ADR-005 | **Decided** ([ADR-024](decisions.md)) |
-| User profile picture upload | **Won't (this round)** | Personal data with an undecided legal basis (11.3), an object-storage DPA, and erasure obligations — real compliance cost for no operational value at a one-tenant pilot. Takes 11.3 off the critical path. Not rejected, deferred | **Decided** ([ADR-024](decisions.md)) |
-| Multi-tenancy (`Bakery` model + tenant scoping across all business models) | | Confirmed direction — see [decisions.md](decisions.md) ADR-006/ADR-008. Required foundation for Phase 3; not optional | Decided (direction) |
-| Tenant full data export, portable/DBMS-importable format | **Should** | Lets a departing tenant take their full dataset with them — see ADR-008. Potential product differentiator, not just a compliance mechanism. Depends on Epic 3 | Decided (direction + priority) |
-| GDPR personal-data export (dedicated, subject-scoped) | **Should** | Second export alongside the bulk CSV export, scoped to one data subject — see ADR-009 and [gdpr.md](gdpr.md) §3 Portability | Decided (direction + priority) |
-| Better user & role management (per-tenant role assignment, inviting/removing users, self-service tenant admin) | **Must — merged, no longer a separate feature** | This *is* [ADR-023](decisions.md)'s settings area assigning [ADR-020](decisions.md)'s roles. Fully covered by 5.19, 2.8, 3.58 and 9.22 — kept here as a pointer only, so the two don't drift | **Decided** ([ADR-024](decisions.md)) |
-| Batch/lot traceability (goods receipts, production runs, one-step-back/one-step-forward trace) | **Must** | Legal obligation on the user, not a nice-to-have — EU Reg. 178/2002 Art. 18, see [ADR-017](decisions.md). Epic 17; depends on Epic 3 | Decided (in scope) |
-| Allergen data on raw materials, aggregated to products (EU FIC 1169/2011) | **Should** | **In scope, as Epic 18** — a legal obligation on a bakery selling to consumers, and it reuses [ADR-022](decisions.md)'s recipe recursion directly (allergens aggregate up the tree exactly like cost). Kept **outside** Epic 17 so the Art. 18 traceability core isn't delayed by scope growing around it. Same warning as traceability: incomplete allergen data that looks authoritative is worse than none (18.5) | **Decided** ([ADR-024](decisions.md)) |
-| Stock / inventory levels as a by-product of goods receipts and production runs | **Could** | Receipts and production runs *imply* quantity-on-hand, but claiming stock figures are accurate is a materially bigger promise than claiming a cost is. Not an epic — but 9.21 should design the traceability entities so stock **could** be derived later without the app claiming to track it now | **Decided** ([ADR-024](decisions.md)) |
-| Billing / subscriptions | **Won't (this round)** | Phase 1 is a free pilot with a flat per-bakery price when it arrives — [ADR-016](decisions.md). No billing epic exists; proposing one needs an ADR superseding it | Decided (out of scope) |
-
-## Business rules & data semantics
-
-Open business questions that the Phase 3 schema redesign is blocked on. These are questions about
-what the numbers *mean*, not about how to model them — the structural counterparts live in
-[tech_stack.md](tech_stack.md) "Data model — structural open questions".
-
-**This section is now fully decided** — four rows by [ADR-018](decisions.md) (decided as one model,
-because a price's meaning determines the unit, which determines where VAT can be applied, which
-determines what a price-history row must contain) and three by [ADR-019](decisions.md). The one
-remaining `Open` row below is a tax question, not a modelling one.
-
-| Question | Why it matters | Status |
+| Area | Current | Change |
 |---|---|---|
-| Does `RawMaterial.price` mean price per purchase unit, or price per normalized base unit? | Every cost/margin figure in the app depends on the answer; today it's implicit | **Decided** — purchase price + pack quantity + purchase unit, as the invoice states it (€12.50 / 25 / kg); cost per canonical unit is derived at cost time and never persisted ([ADR-018](decisions.md)) |
-| What are the canonical units used for costing, and how are purchase units converted to them? | Needed before normalized unit handling can be implemented | **Decided** — **kilogram / litre / each**, one per dimension; purchase units convert via a factor held in a reference table, so new units are data, not code. Note the precision cost below |
-| How should VAT be represented (rate vs. amount, inclusive vs. exclusive), and where is it applied? | Currently inconsistent between products and the dashboard math | **Decided** — all stored money is **net (ex-VAT)**; VAT applied only at display/sale; rates in a dated reference table (`code`, `percent`, `valid_from`, `valid_to`), referenced by the product |
-| Must product pricing history be versioned, or is only the current price meaningful? | Determines whether Phase 3 adds price-history tables; also feeds the historical-trends feature above | **Decided** — yes, from **two sources**: input prices come free from ADR-017 goods receipts (each delivery dates the price paid); sale prices get dated `ProductPrice` rows |
-| Which entities must remain historically visible after "deletion" (suppliers? raw materials? products?) | Determines where soft delete/archive replaces hard delete | **Decided** — soft delete for anything referenced by a record that outlives it: `Supplier`, `RawMaterial`, `Product` (outbound trace + dated prices), `Base_recipes` (production runs). Ingredient lines stay hard-deletable ([ADR-019](decisions.md)) |
-| Is supplier name genuinely required to be unique, once it stops being the primary key? | Determines whether a unique constraint survives the PK change | **Decided** — unique **per tenant**, and only among non-archived rows (otherwise archiving a name would block it forever). Not globally unique: two bakeries may both buy from "Odlums" ([ADR-019](decisions.md)). **Now also case-insensitive** ([ADR-027](decisions.md), 3.64): ADR-019 wanted normalized comparison but declined it as too costly to build — Django 4.0's functional unique constraints make it one declaration, so "Odlums"/"odlums" no longer split one supplier's price history in two |
-| Should the Django admin and the in-app settings area expose the same operations, or should one be narrowed? | Two overlapping administration surfaces is a permissions and support risk | **Decided** — different audiences, not the same operations. In-app settings is the tenant surface (tenant-scoped, role-checked, audited); Django admin is **superuser-only support tooling** for the project owner, never linked from the tenant UI ([ADR-019](decisions.md)) |
-| Which VAT rate applies to which product? | A **tax** question, not an engineering one — Irish VAT treatment of bakery goods is genuinely non-obvious (bread vs. flour confectionery). The schema must let a tenant set it per product and must not ship guessed assignments | Open — 10.13 |
+| **Dashboard** | Lists all products with computed unit cost / net price / margin % | Becomes a real **overview page** — summary strip (product count, average margin, materials with no or stale pricing), worst-margin products, recent input price movements; the full product list moves to its own page ([ADR-023](decisions.md), 5.18). **Depends on Epic 3**, not just Epic 5 — price movements and staleness need dated prices and receipts to exist |
+| **Raw materials** | CRUD per category, one supplier each | The **latest goods receipt sets current cost** — most recent by *receipt date*, ties by creation time, so back-dated entries behave correctly. A manual price stays possible for materials never received, labelled an **estimate**. Every cost figure carries its **provenance**: a margin from a guess and one from an invoice are not the same claim. The single supplier FK becomes at most an optional *preferred supplier* — the real supply relationship lives on the receipt ([ADR-022](decisions.md)/[ADR-024](decisions.md); 3.61–3.63) |
+| **Suppliers** | CRUD, name is the primary key | Surrogate PK; name unique **per tenant, case-insensitively**, among non-archived rows; archive instead of delete; phone becomes a string ([ADR-019](decisions.md)/[ADR-027](decisions.md)) |
+| **Base recipes** | Name + yield + ingredient lines — and **disconnected from products**, so a base recipe's cost never reaches anything sold. Half a feature | A **product's ingredient line may reference a base recipe**, with costing recursing into it. `recipe_yeld` becomes load-bearing (cost per unit of yield is what a parent consumes), and cycle prevention becomes a validation rule plus a depth guard, not a convention ([ADR-022](decisions.md); 3.59, 3.60, 4.16) |
+| **Products** | Category + yield + price + VAT + ingredient lines | Lines accept raw materials **or** base recipes; prices net-of-VAT with dated history and a VAT rate *code*; archive replaces delete. Product photo is a **Could** (Epic 13) |
+| **Settings / users / export** | CSV export per entity; ad hoc user CRUD (the delete view has a known bug — it deletes `RawMaterial`) | Rebuilt as the tenant's **self-administration surface** ([ADR-023](decisions.md), 5.19) — Owner invites/removes users and sets roles, edits bakery details, manages reference data, runs exports; Read-only reaches exports and nothing else writable. This **replaces** the broken delete view rather than patching it. Bulk CSV exports stay as an admin feature ([ADR-009](decisions.md)); two new exports arrive as Epics 14 and 15. Inviting users needs **email** — Brevo over SMTP (9.22 ✅), which also makes password reset email-only |
 
-**One consequence worth keeping visible.** Choosing kilogram/litre as canonical (rather than
-gram/millilitre) means small ingredients become small fractions: 7 g of yeast is `0.007 kg`, a pinch
-of spice `0.0005 kg`. Quantities therefore need at least `Decimal(12,4)` (`Decimal(12,6)` is safer),
-money must be carried at more than two decimal places internally, and rounding to 2 dp happens **only
-at presentation** — with the rounding rule written down and tested (3.51, 6.16) rather than inherited
-from whatever Python happens to do. Manageable, but only because it's explicit.
+## Feature backlog (Decided — [ADR-024](decisions.md), MoSCoW pass)
 
-## Non-functional requirements
+| Priority | Features |
+|---|---|
+| **Must** | Multi-tenancy (Epic 3) · batch/lot traceability (Epic 17) · real search/filter (5.9 — the current inputs exist and do nothing, which is worse than absent) · supplier price comparison (5.21 + 3.63; **depends on Epic 17**, since receipts are what it compares) · user & role management (**merged**, not separate — it *is* ADR-023's settings area assigning ADR-020's roles: 5.19, 2.8, 3.58, 9.22) |
+| **Should** | Tenant full data export (Epic 14) · GDPR personal-data export (Epic 15) · allergen data (Epic 18) · trend reporting (cheap rather than speculative — [ADR-018](decisions.md) versions both price sources as a by-product — but deferred because trends need months of data that won't exist at launch) · reporting dashboards beyond the per-product view (ADR-023's overview is **the whole of the reporting story for the first release**) |
+| **Could** | Product photos (Epic 13) · stock levels (**not an epic** — [ADR-033](decisions.md) keeps on-hand derivable via `Consumption.quantity_consumed` without surfacing it) · AI insights (Epic 16; engine confirmed on Databricks Serverless by [ADR-036](decisions.md), and now a cost decision at ~$6 → ~$21/mo) |
+| **Won't (this round)** | Profile pictures (**deferred, not rejected** — personal data with an undecided legal basis, a storage DPA and erasure obligations, for no operational value at a one-tenant pilot) · self-service registration (open signup with no billing gate produces spam tenants and abandoned accounts holding personal data you must then retain and delete) · billing/subscriptions ([ADR-016](decisions.md); proposing one needs a superseding ADR) |
 
-All decided by [ADR-021](decisions.md) — deliberately before Epic 5's template rewrite, since
-accessibility and localization are far cheaper to build in than to retrofit.
+## Business rules & data semantics (Decided)
 
-| Area | Requirement | Status |
+What the numbers *mean*; the structural counterparts are in [tech_stack.md](tech_stack.md).
+Four rows by [ADR-018](decisions.md) — decided as one model, because a price's meaning determines the
+unit, which determines where VAT applies, which determines what a price-history row contains — and
+three by [ADR-019](decisions.md).
+
+| Question | Decision |
+|---|---|
+| What does `RawMaterial.price` mean? | **Purchase price + pack quantity + purchase unit**, as the invoice states it (€12.50 / 25 / kg); cost per canonical unit derived at cost time, never persisted |
+| Canonical costing units, and conversion? | **Kilogram / litre / each**, one per dimension; purchase units convert via a factor in a reference table, so new units are data, not code |
+| How is VAT represented and applied? | All stored money **net (ex-VAT)**; VAT only at display/sale; rates in a dated table (`code`, `percent`, `valid_from`, `valid_to`), referenced **by code** |
+| Must pricing history be versioned? | **Yes, from two sources** — input prices free from goods receipts; sale prices as dated `ProductPrice` rows |
+| Which entities survive "deletion"? | **Soft delete** for anything referenced by a record that outlives it: `Supplier`, `RawMaterial`, `Product`, `Base_recipes`. Ingredient lines stay hard-deletable |
+| Is supplier name unique? | **Per tenant**, among non-archived rows only, and **case-insensitive** ([ADR-027](decisions.md)). Not globally — two bakeries may both buy from "Odlums" |
+| Django admin vs. in-app settings? | **Different audiences.** In-app settings is the tenant surface (scoped, role-checked, audited); Django admin is **superuser-only** support tooling, never linked from the tenant UI |
+
+**The consequence worth keeping visible:** kilogram/litre canonical units make small ingredients small
+fractions — 7 g of yeast is `0.007 kg`, a pinch of spice `0.0005 kg`. Quantities need at least
+`Decimal(12,4)` (`12,6` safer), money is carried beyond 2 dp internally, and rounding to 2 dp happens
+**only at presentation**, with the rule written down and tested (3.50, 3.51, 6.16).
+
+## Non-functional requirements (Decided — [ADR-021](decisions.md))
+
+Decided deliberately *before* Epic 5's rewrite, since accessibility and localization are far cheaper
+to build in than to retrofit.
+
+| Area | Requirement |
+|---|---|
+| Performance | p95 **< 500 ms** normal pages, **< 2 s** dashboard costing aggregate, ~10 concurrent users/tenant, on thousands of rows. A documented budget, **not** a CI gate (Railway Hobby shares CPU); verifiable once Epic 7's monitoring exists. Two carve-outs: the invitation and password-reset POSTs send SMTP inline (10.18) |
+| Accessibility | **WCAG 2.2 Level A** — alt text, real form labels, no keyboard traps, nothing conveyed by colour alone. Revisit trigger: 10.15 |
+| Device support | One **responsive** UI, phone through desktop. Recording a goods receipt at the delivery door on a phone is a real use case |
+| Localization | **English (`en-IE`) and euro only**, but translation-ready: `gettext` on display text, **one** currency formatter, **no hardcoded `€`** |
+| Browser support | Current **and previous** major Chrome, Firefox, Safari, Edge. No IE11, no legacy Edge, no native app |
+| Security | Epic 2 |
+| Data protection | [Part 2](#part-2--data-protection-gdpr) |
+
+## Out of scope this round (Decided)
+
+Billing/payments/subscriptions and plan-tier gating ([ADR-016](decisions.md)) · HACCP plans,
+temperature/cleaning logs, recall workflows, full mass-balance ([ADR-017](decisions.md)) · persistent
+hosted staging ([ADR-014](decisions.md)) · a JSON API layer and any caching including Redis
+([ADR-028](decisions.md)) · profile pictures, self-service registration, stock tracking as a product
+promise ([ADR-024](decisions.md)).
+
+---
+
+# Part 2 — Data protection (GDPR)
+
+**This is not legal advice** — a real legal/DPO review is a prerequisite to relying on it.
+
+Before any GDPR-related code is written (consent flows, deletion endpoints, audit logs, export
+changes), this part must already describe *what personal data exists and why*. That is discovery, not
+coding: fill in the inventory, decide policy, log the decision in [decisions.md](decisions.md), then
+implement. Epic 11 carries one task per open item; Epic 15 carries the portability fix.
+
+## Controller / processor model (Decided — [ADR-006](decisions.md))
+
+**Bakery-the-product is the data Processor; each bakery tenant is the data Controller** for its own
+staff and supplier-contact personal data. Three obligations follow, all still Open:
+
+- A **DPA between Bakery-the-product and each tenant** (11.5) — not just with the infrastructure
+  processors. The pilot bakery is a controller regardless of whether money changes hands, so this
+  applies to the free pilot too.
+- **Cross-tenant access must be technically impossible, not merely policy** — the query-layer scoping
+  of [ADR-008](decisions.md) (3.3, 3.55, 4.6, 6.9, 6.18). A missed filter is both a security bug and a
+  processor-obligation breach.
+- A **DPIA reassessment**, triggered by this decision — see [DPIA](#dpia).
+
+**Supervisory authority: the Irish Data Protection Commission (DPC)**, since phase-1 tenants are all
+Irish.
+
+## Personal data inventory
+
+Every place personal data is stored or processed. Personal data = anything identifying or capable of
+identifying a living person, **including B2B contacts** — a supplier's named contact person counts.
+
+| Category | Examples | Where | Data subject | Legal basis | Retention | Status |
+|---|---|---|---|---|---|---|
+| App user accounts | username, email, password hash | Django `auth_user` | Staff/employee | Contract / legitimate interest | Open | **Open** |
+| Supplier contact info | `contact` name, `phone`, `email` | `control.Supplier` | Third party (supplier's employee) | Legitimate interest | Open | **Open** |
+| Session data | Django session cookie | `django_session` | Staff/employee (indirectly) | Contract | Django default (session expiry) | **Open** |
+| Login attempt records | username, timestamp, outcome — **never the submitted password** | Structured audit log (2.23) | Staff/employee | Legitimate interest (security) | Open — its own retention question, feeds the DPIA | **Open.** The historical `print()` of the submitted password in `accounts/views.py` was verified **unreachable dead code** (`accounts.urls` is never included — [ADR-028](decisions.md)); the file is deleted by 4.5 and replaced by 2.23. Recorded because "it never executed" is the fact worth having on file |
+| CSV exports | full supplier / raw material / product / user tables | Generated on demand, not persisted | Mixed | Same as source data | n/a (not stored) | **Open** |
+| Traceability records *(Epic 17, not built)* | goods receipts, production runs, outbound records; may name the supplier's contact and the staff member who ran a batch | Epic 17 models, tenant-scoped | Supplier contact and staff/employee | **Legal obligation** (EU Reg. 178/2002 Art. 18) for the record; contract/legitimate interest for the staff attribution | **Set by food law, not by us** — a legal *minimum* | **Open** — 10.9, 11.4 |
+| Insights extract *(Epic 16, not built)* | product, date, cost, price, margin, tenant | Cloudflare R2 prefix, read by Databricks | — | **Deliberately contains no personal data** ([ADR-036](decisions.md)) | Tied to the nightly job's lifecycle | **Open** — confirm in 16.9/11.17 |
+| User profile pictures | uploaded photo on a `Profile` model | R2, referenced from Postgres | Staff/employee (self-uploaded) | Likely consent — confirm before building | Delete on account deletion or on request | **Deferred out of this round** ([ADR-024](decisions.md)). 11.3 must still resolve before the feature ever ships |
+
+Add rows as new personal data appears. Completing this inventory is **11.1**; documenting the legal
+basis *with its reasoning* for each row is **11.2** — "we assumed legitimate interest" is not enough
+once this matters for real users.
+
+## Data subject rights
+
+| Right | What it means here | State |
 |---|---|---|
-| Security | see [`PRODUCTION_UPDATE_PLAN.md`](../PRODUCTION_UPDATE_PLAN.md) Epic 2 | Tracked elsewhere |
-| GDPR / data protection | see [gdpr.md](gdpr.md) | Tracked elsewhere |
-| Performance | p95 **< 500 ms** for normal pages, **< 2 s** for the dashboard costing aggregate, at ~10 concurrent users per tenant, on thousands of rows (not millions). Sized to what Railway Hobby actually holds | **Decided** — a documented budget, verifiable once Epic 7's monitoring exists (5.14) |
-| Accessibility | **WCAG 2.2 Level A** — alt text, real form labels, no keyboard traps, nothing conveyed by colour alone | **Decided** — with an explicit revisit trigger, see below |
-| Device support | One **responsive** UI, phone through desktop. Recording a goods receipt at the delivery door on a phone is a real use case | **Decided** |
-| Localization | **English (`en-IE`) and euro only** — but translation-ready: display text through `gettext`, money through **one** formatter, **no hardcoded `€`** anywhere | **Decided** |
-| Browser support | Current **and previous** major version of Chrome, Firefox, Safari, Edge. No IE11, no legacy Edge, no native mobile app | **Decided** |
+| **Access** | A user or supplier contact asks what data is held about them | **Open.** The CSV export exists but is an admin bulk export, not scoped to "my data only" |
+| **Rectification** | Correct inaccurate data | **Mostly covered** by existing CRUD/update views |
+| **Erasure** | Delete personal data on request | **Open.** Delete views exist per model but there is no cascading/anonymization strategy, and the user-delete view has a known bug. Once media exists, deletion must remove the stored object from R2, not just the DB row (13.9). **Traceability adds a hard limit** — see below |
+| **Restriction** | Mark data "don't use, don't delete yet" | **Open.** [ADR-019](decisions.md)'s archive/soft-delete mechanism is the natural place to build it, rather than a second parallel flag |
+| **Portability** | Provide data in a machine-readable format | **Decided, not built.** Keep the bulk CSV export as an admin feature and add a dedicated subject-scoped export ([ADR-009](decisions.md), Epic 15) — separate from the tenant-wide export (Epic 14), which is a "take all my bakery's data" feature, not the portability mechanism |
+| **Objection** | Opt out of a given processing purpose | **Open** |
 
-**One thing worth naming about Level A.** It excludes AA's contrast ratios (4.5:1), visible focus
-indicators, consistent navigation, and error-suggestion requirements. That is a reasonable call for a
-pilot with a handful of known users. The gap becomes real the first time a tenant has a staff member
-who needs it, or a buyer asks for a conformance statement — likeliest at EU expansion, where public
-procurement and the European Accessibility Act point at AA. Recorded as a **revisit trigger (10.15)**,
-tied to the same expansion point as 10.11 and 11.14. Building semantic HTML and real labels for Level
-A during Epic 5 keeps the remaining distance to AA small.
+Closing the restriction/objection/erasure gaps is **11.9**; Access and Portability are **Epic 15**.
 
-## Out of scope (for now)
+**The erasure limit is the part that needs deciding, not discovering.** A traceability record inside
+its food-law retention window **cannot be deleted**. The strategy must cover: anonymizing the personal
+fields where the trace stays intact, and a **documented refusal-with-reason** where it doesn't. That
+has to be written into the erasure response **before Epic 17 ships**, not during a request.
 
-_Explicitly not building this round, so nobody re-litigates it mid-phase. Fill in as things get
-deferred._
+## Retention & deletion
 
-Confirmed out of scope so far (the full list is task 10.6):
+**Open** — no policy exists today and data appears to be kept indefinitely. Writing it is **11.4**.
 
-| Not building | Why | Source |
-|---|---|---|
-| Billing, payments, subscriptions, dunning | Phase 1 is a free pilot with one tenant | [ADR-016](decisions.md) |
-| Plan/tier feature gating and per-seat counting | Pricing shape is flat per-bakery; gating would permanently complicate Epics 2 and 4 for revenue that doesn't exist | [ADR-016](decisions.md) |
-| HACCP plans, temperature/cleaning logs, automated recall workflows | Traceability is scoped to the Art. 18 one-step-back/one-step-forward floor | [ADR-017](decisions.md) |
-| Full internal mass-balance reconciliation | A **Should**, not the regulatory floor — revisit after Epic 17 ships | [ADR-017](decisions.md) |
-| Persistent hosted staging environment | Local Docker Compose is the dev/test tier | [ADR-014](decisions.md) |
-| User profile pictures | Personal data with an undecided legal basis, a storage DPA and erasure obligations — real compliance cost, no operational value at a one-tenant pilot. **Deferred, not rejected** | [ADR-024](decisions.md) |
-| Self-service user registration / public signup | Open signup into a shared database with no billing gate produces spam tenants and abandoned accounts holding personal data. Tenants are provisioned manually; staff come from Owner invitations | [ADR-024](decisions.md) |
-| Stock / inventory tracking as a product promise | Receipts and production runs imply quantity-on-hand, but claiming it's accurate is a bigger promise than claiming a cost is. 9.21 keeps the door open in the schema | [ADR-024](decisions.md) |
-| HACCP, temperature logs, recall workflows, mass-balance | Traceability is scoped to the Art. 18 floor | [ADR-017](decisions.md) |
+**One constraint is not ours to choose.** Food law imposes a **minimum** retention on traceability
+records ([ADR-017](decisions.md)) — commonly five years, shorter for short-shelf-life products. Where
+such a record names a supplier's contact or the staff member who ran a batch, that floor and GDPR's
+storage-limitation principle must be **reconciled, not traded off**: the obligation to retain wins for
+the fields it actually covers, and the answer for the rest is to keep the record while minimizing the
+personal data inside it. Two consequences:
+
+- The policy must be written **per field**, not per record, for traceability data — the lot code and
+  quantities are retained by law; the contact's name may not need to be.
+- An erasure request from a supplier contact cannot delete such a record within its window (see
+  above).
+
+Establishing the food-law floor itself is **10.9**, and it is a regulatory question, not an
+engineering one — it must be confirmed against guidance, not assumed.
+
+**Backup lifetime is a separate clock, and it is already fixed.** [ADR-031](decisions.md) sets the
+backup schedule at **7 daily / 4 weekly / 12 monthly** — how long a *dump* survives, not how long a
+*record* is kept. It matters here because an erasure request cannot reach into backups, so the honest
+answer to "when is this really gone?" is bounded by that schedule: within **five weeks** for
+everything but the monthly archives, and within **one year** at the outside. That bound must appear in
+the erasure response, and the restore runbook (8.5) must say what happens if a restore reintroduces
+data erased after the dump was taken (11.13, 3.71).
+
+## Consent & cookies
+
+Only a Django session cookie for authentication today — no analytics, tracking or marketing cookies
+observed in the codebase. If that changes, a cookie banner plus a consent record becomes necessary and
+the decision gets logged.
+
+**Status: Open** — 11.11 confirms no tracking has been added by a later integration.
+
+## Security measures
+
+Article 32 requires "appropriate technical and organizational measures", overlapping heavily with
+Epic 2 — don't duplicate that work here. The GDPR-specific gaps:
+
+- [ ] **Credential-free login auditing** (2.23) plus brute-force throttling (2.22).
+- [ ] Confirm encryption in transit once Epic 2 lands (2.14).
+- [ ] Confirm backups are encrypted at rest (11.13) — **client-side `age` before upload**, so the
+      storage processor holds only ciphertext. The key lives outside CI, so key loss is data loss
+      (3.72), and 3.48's weekly drill is what proves the key still works.
+- [ ] Confirm the Sentry `before_send` scrubber actually strips personal data before it leaves the app
+      (7.23). Error tracking is the one processor that receives **whatever a traceback happens to
+      contain** — supplier contacts, staff emails, a tenant's costing data — rather than a defined
+      field set, so `send_default_pii=False` plus scrubbing is a control, not a preference.
+- [ ] **Access logging for who viewed or exported personal data** (2.15, 11.10). Two cases need naming:
+      **Read-only can export** ([ADR-020](decisions.md)) — deliberate, with the audit log as what makes
+      it acceptable; and the **Django admin is a deliberate cross-tenant surface**
+      ([ADR-019](decisions.md)) whose access must be logged like any other.
+
+Third-party processors, their DPA status, and the data-residency/international-transfer position live
+in [tech_stack.md](tech_stack.md) "Processors & data residency", alongside the vendors themselves.
+
+## Breach notification
+
+GDPR requires notifying the supervisory authority within **72 hours** of becoming aware of a breach,
+and affected individuals "without undue delay" where there is high risk to them.
+
+**Open** — no process defined yet (11.8, feeding runbook 8.7). Two settled inputs to defining it:
+
+- The authority is the **Irish DPC**.
+- As **processor**, Bakery-the-product's first obligation on becoming aware is to notify the
+  **affected tenant (the controller) without undue delay**; the tenant then notifies the DPC. The
+  per-tenant DPA must state this, and **the 72-hour clock is the controller's** — so the notification
+  path to tenants has to be fast enough not to consume it.
+
+## DPIA
+
+Required when processing is likely to result in high risk to individuals. The scope changed from the
+original baseline (a single bakery) to confirmed multi-tenant SaaS with many bakeries' data in one
+shared database — which was explicitly the trigger for reassessment, so a DPIA should now be **scoped
+rather than deferred again** (11.7).
+
+Likely still not "high risk" in the GDPR sense — B2B supplier contacts and staff accounts, no
+large-scale sensitive/special-category data, no systematic monitoring — **but that judgment should be
+made deliberately, not by default.** Two angles to include:
+
+- [ADR-017](decisions.md)'s: production runs record *which staff member* ran which batch, retained for
+  years by legal obligation. That is **employee activity data**, and should be assessed rather than
+  waved through as "just traceability".
+- The login-attempt records from 2.23, which are personal data with their own retention question.
+
+**Status: Open.**
+
+---
 
 ## Open questions
 
-- ~~How many bakeries/tenants does this need to support — one, or multi-tenant?~~ Resolved:
-  multi-tenant, single shared database — see [decisions.md](decisions.md) ADR-006/ADR-008.
-- ~~Any regulatory requirements beyond GDPR (e.g. food safety/traceability data)?~~ Resolved: yes —
-  batch/lot traceability under EU Reg. 178/2002 Art. 18 is in scope, built as Epic 17. See
-  [ADR-017](decisions.md) and "Regulatory scope beyond GDPR" above. Allergen labelling (EU FIC
-  1169/2011) is a separate obligation and remains Open.
-- ~~Who are the actual first users, and what's the timeline pressure (if any)?~~ Resolved: one
-  friendly Irish bakery running a free pilot, no committed date — see [ADR-016](decisions.md) and
-  "Go-to-market, phase 1" above.
-- How are tenants onboarded — self-service signup, or manual provisioning by an operator? (10.10)
-- Which EU countries follow Ireland, and on what trigger? (10.11 — pairs with the hosting-residency
-  revisit in 11.14)
+Each of these blocks work; none should be answered in passing.
+
+| # | Question | Why it matters / what a good answer needs |
+|---|---|---|
+| 10.8 | What does the traceability floor actually require in practice, per FSAI guidance — and what granularity of outbound record is expected for **direct-to-consumer** sales? | **Blocks Epic 17.** The scope is set in principle but not verified against the regulator's own guidance, and direct-to-consumer is treated differently from wholesale. Getting this wrong means either over-building or shipping something that is not a compliance record |
+| 10.9 | What is the food-law retention floor for traceability records, and how does it reconcile with GDPR retention where a record names a supplier contact? | Not ours to choose — it is a legal minimum. Pairs with 11.4 and drives 17.9. The answer must be **per field**, not per record |
+| 10.10 | What seed/reference data does a new tenant start with? | Onboarding mechanics are otherwise resolved (manual provisioning). What remains is units, VAT rates and categories at tenant creation — pairs with 3.37, 3.52, 3.53, 10.17 and 12.10 (the PR environment comes up with an empty database) |
+| 10.11 | Which EU countries follow Ireland, and on what trigger? | Left Open by [ADR-016](decisions.md). Re-runs the localization, currency **and** hosting-residency questions at once — pairs with 10.15 and 11.14, which share the same trigger point |
+| 10.12 | What allergen scope applies — the 14 declarable allergens, and what a costing tool records vs. what belongs on a label? | Unblocks 18.1/18.2/18.4. Same shape as 10.8 did for traceability: a regulatory scope check, not a design choice |
+| 10.13 | Which Irish VAT rate applies to which product category? | A **tax** question, not an engineering one — Irish treatment of bakery goods is genuinely non-obvious (bread vs. flour confectionery). The schema must let a tenant set it per product and **must not ship guessed assignments**. Feeds 3.53 |
+| 10.14 | May one person hold memberships in several tenants in the product UI (e.g. an accountant serving three bakeries)? | The data model already supports it; whether it is *offered* is a product choice. It changes login and tenant-switching UX, and makes 2.21's permission-cache invalidation user-visible rather than theoretical |
+| 10.15 | Should the accessibility target move from Level A to AA? | Level A excludes AA's contrast ratios (4.5:1), visible focus indicators, consistent navigation and error suggestions. **Revisit trigger:** EU expansion, or the first tenant/buyer who needs it — public procurement and the European Accessibility Act point at AA. Building semantic HTML and real labels during Epic 5 keeps the remaining distance small |
+| 10.16 | What makes a raw-material price "stale"? | Unblocks 4.18. A warning badge on an arbitrary threshold trains users to ignore it, so the threshold needs a reason |
+| 10.17 | Which reference data may a tenant edit? | VAT rates and categories are safe. **Unit conversion factors are not** — a wrong factor silently corrupts every dependent cost figure with no error surfaced anywhere. Likely system-managed units with a tenant-selectable subset, but that is a decision, not an assumption. Feeds 3.52 and 5.19 |
+| 10.18 | Record the invitation and password-reset POSTs as explicit exclusions from the p95 < 500 ms budget | Both send SMTP inline; there is no task queue, and [ADR-028](decisions.md) declined Redis, so Celery for a few dozen emails a month would reintroduce it. A documented carve-out is the cheaper answer — but it must be written down, or 7.20 reports it as a regression |
+| 11.1–11.2 | Complete the personal-data inventory and document each row's legal basis with reasoning | Everything else in Part 2 depends on it. **11.1 blocks 15.1** — you cannot scope a subject export without knowing which fields are personal data |
+| 11.3 | What is the legal basis for profile pictures? | **No longer on the critical path** ([ADR-024](decisions.md) defers the feature), but still required before it ever ships |
+| 11.4 | Retention and deletion policy per category, with deletion triggers | Unblocks 3.38. Must be **per field** for traceability data (see [Retention & deletion](#retention--deletion)) |
+| 11.5 | A DPA template usable per tenant, Bakery-the-product as processor | Applies to the free pilot too |
+| 11.7 | Scope and carry out the DPIA | See [DPIA](#dpia) — include the employee-activity-data angle and login history |
+| 11.8 | Define the breach notification process | See [Breach notification](#breach-notification) — the authority and processor→controller path are settled inputs. Feeds 8.7 |
+| 11.9 | Close the restriction, objection and erasure gaps | Including the traceability erasure limit and deleting stored objects from R2, not just DB rows |
+| 11.11 | Confirm no tracking/analytics cookies exist; define the consent path if that changes | |
+| 11.12 | Name the point of contact for data subject requests | Narrowed: phase 1 has one tenant, so controller-side is the pilot bakery and processor-side is the project owner. Still needs naming for real |
+| — | Processor DPAs and transfer safeguards (11.6, 11.13–11.17, 12.7) | Tracked with the vendors in [tech_stack.md](tech_stack.md) "Processors & data residency" |

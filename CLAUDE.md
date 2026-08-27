@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bakery is a Django web app (originally an MSc capstone prototype) that lets a bakery track raw materials, suppliers, and products, and computes per-product cost/margin from recipe ingredient data. It is currently being hardened from prototype to production quality — see `PRODUCTION_UPDATE_PLAN.md`, the authoritative **task backlog**: every phase/workstream is an Epic (numbered 1–16, mapping 1:1 to the branch rows in `docs/roadmap.md`) holding numbered, individually-tracked tasks (`3.12` = Epic 3, task 12). Treat that file as the source of truth for planned work; don't re-derive priorities from scratch. Reference task IDs in plans, commits, and PRs. A task marked `Blocked` is blocked on an `Open` decision in `docs/` — make and log the decision first, don't implement it (see ADR-012).
+Bakery is a Django web app (originally an MSc capstone prototype) that lets a bakery track raw materials, suppliers, and products, and computes per-product cost/margin from recipe ingredient data. It is currently being hardened from prototype to production quality — see `PRODUCTION_UPDATE_PLAN.md`, the authoritative **task backlog**: every phase/workstream is an Epic (numbered 1–19, mapping 1:1 to the branch rows in `docs/roadmap.md`) holding numbered, individually-tracked tasks (`3.12` = Epic 3, task 12). Treat that file as the source of truth for planned work; don't re-derive priorities from scratch. Reference task IDs in plans, commits, and PRs. A task marked `Blocked` is blocked on an `Open` decision in `docs/` — make and log the decision first, don't implement it (see ADR-012).
 
 This is also a broader redesign in progress — new features, GDPR compliance, and a possible tech
 stack change are still being decided, not just the engineering hardening in
@@ -12,18 +12,19 @@ stack change are still being decided, not just the engineering hardening in
 
 ## Planning & documentation (`docs/`)
 
-Five living documents track decisions that aren't in the code yet. Read the relevant one(s)
+Four living documents track decisions that aren't in the code yet. Read the relevant one(s)
 before proposing anything in that area — don't re-derive a requirement or stack choice from
 scratch if it's already marked `Open` or `Decided` there:
 
-- `docs/project_requirements.md` — what the app should do: personas, per-area functional
-  requirements, new feature backlog, non-functional requirements. Separate from engineering
-  quality work (that's `PRODUCTION_UPDATE_PLAN.md`).
-- `docs/tech_stack.md` — what it's built with: current vs. candidate vs. decided, per layer
-  (runtime, dependencies, backend, frontend, infra, quality tooling).
-- `docs/gdpr.md` — personal data inventory, legal basis, data subject rights, retention,
-  breach process. Data-inventory work here is a discovery task, not a coding task — the
-  inventory needs to exist before consent/deletion/audit-log code gets written against it.
+- `docs/project_requirements.md` — **Part 1**: what the app should do (personas, per-area
+  functional requirements, feature backlog, non-functional requirements). **Part 2**: data
+  protection (GDPR) — personal data inventory, legal basis, data subject rights, retention,
+  breach process, DPIA. Data-inventory work is a discovery task, not a coding task: the inventory
+  must exist before consent/deletion/audit-log code is written against it. Separate from
+  engineering quality work (that's `PRODUCTION_UPDATE_PLAN.md`).
+- `docs/tech_stack.md` — what it's built with: current vs. decided, per layer (runtime,
+  dependencies, backend, frontend, infra, quality tooling), plus the third-party **processors,
+  their DPA status and the data-residency/transfer position**, which live with the vendors.
 - `docs/decisions.md` — append-only ADR log. Every real decision (stack, architecture, data
   model, process — including the branch strategy in ADR-001) gets logged here with context and
   alternatives considered, not just stated in chat. Never delete an entry; supersede it instead.
