@@ -1,58 +1,103 @@
 # Bakery Production Backlog
 
-The **task backlog** — 352 tasks across 19 epics. Every phase, discovery workstream and feature is
-an **Epic**; every epic holds numbered tasks that can be picked up, tracked and closed.
+The **task backlog** — 305 tasks across 19 epics. Every phase, discovery workstream and feature is an
+**Epic**; every epic holds numbered tasks that can be picked up, tracked and closed. This file owns
+**epic and task status and sequencing**.
 
-**It holds work, not planning.** Anything still being decided lives in `docs/`:
+**It holds work, not planning.** One home per kind of thing:
 
 | If it is… | It lives in… |
 |---|---|
-| A choice not yet made (stack, versions, tooling, hosting) | [docs/tech_stack.md](docs/tech_stack.md) |
-| A product/business question (personas, roles, features, data semantics) | [docs/project_requirements.md](docs/project_requirements.md) |
-| A privacy/compliance question (legal basis, retention, DPAs, DPIA) | [docs/project_requirements.md](docs/project_requirements.md) Part 2 |
-| A decision that *has* been made, **with its full reasoning** | [docs/decisions.md](docs/decisions.md) |
-| Sequencing, branch status, release milestones | [docs/roadmap.md](docs/roadmap.md) |
+| A question with no answer yet — stack, product, or data protection | [docs/roadmap.md](docs/roadmap.md) |
+| A decision that *has* been made, with its reasoning | [docs/decisions.md](docs/decisions.md) |
+| What the app should do, and its GDPR obligations | [docs/project_requirements.md](docs/project_requirements.md) |
+| What it is built with | [docs/tech_stack.md](docs/tech_stack.md) |
 
-The flow is one-directional: **a decision lands in `decisions.md` → it becomes tasks here.** Every
-`Accepted`/`Decided` entry in `docs/` maps to at least one task (see
-[Decision → task coverage](#decision--task-coverage)).
+The flow is one-directional: **open question → decided → ADR → tasks here.** Every `Accepted` entry in
+`decisions.md` maps to at least one task (see [Decision → task coverage](#decision--task-coverage)).
 
 ## How to use this backlog
 
-- **Epic = phase = branch.** Numbers and branch names map 1:1 to [roadmap.md](docs/roadmap.md), which
-  owns epic-level status. Task-level status lives here.
 - **Task IDs are stable** (`3.12` = Epic 3, task 12). Reference them in commits, PRs and plans. Never
   renumber — append new tasks at the end of their section.
-- **Statuses:** `Not started` → `In progress` → `Done`, or `Blocked` (Notes says what on).
-- **A `Blocked` task must not be implemented.** Make and log the decision as an ADR first.
+- **Task status:** `Not started` → `In progress` → `Done`, or `Blocked` (Notes says what on).
+  **Epic status** is the table below: `Not started` → `Planned` (plan agreed, branch not opened) →
+  `In progress` → `In review` (PR open) → `Done` (merged to `main`).
+- **A `Blocked` task must not be implemented.** Its blocker is an open decision in
+  [roadmap.md](docs/roadmap.md); make and log the ADR first.
+- **Epic = branch**, named per [ADR-010](docs/decisions.md): `phase-N-<slug>` for hardening phases,
+  `feature-` / `gdpr-` / `stack-<slug>` otherwise. Every branch targets `main`; promoting `main` →
+  `production` with a release tag is a separate step. A phase needs an approved plan before moving
+  past `Not started`.
 - **New work starts as a task here**, not as a paragraph. If it needs a decision first, add the
-  question to the right `docs/` file plus a "decide X, log an ADR" task to Epic 9/10/11.
-- **Notes cite the governing ADR and the trap worth knowing — not the argument.** The reasoning is
-  in `decisions.md` by design; don't copy it back.
+  question to [roadmap.md](docs/roadmap.md) instead.
+- **Notes cite the governing ADR and the trap worth knowing — not the argument.** The reasoning is in
+  `decisions.md` by design; don't copy it back.
 
 ## Backlog at a glance
 
-| Epic | Name | Branch | Tasks | Blocked by |
-|---|---|---|---|---|
-| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | 13 | — |
-| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | 23 | Epic 1 |
-| [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | 74 | Epic 19 |
-| [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | 20 | Epic 3 |
-| [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | 25 | Epics 3, 19 |
-| [6](#epic-6--testing--quality-gates) | Testing & quality gates | `phase-6-testing-ci` | 24 | Epics 1–5 |
-| [7](#epic-7--observability--operations) | Observability & operations | `phase-7-observability` | 23 | Epic 12 |
-| [8](#epic-8--documentation--team-readiness) | Documentation & team readiness | `phase-8-docs` | 9 | Epics 1–7 |
-| [9](#epic-9--tech-stack-decisions-discovery) | Tech stack decisions (discovery) | `stack-decisions` | 22 | **Done** |
-| [10](#epic-10--requirements-discovery) | Requirements discovery | `requirements-discovery` | 18 | — |
-| [11](#epic-11--gdpr-data-inventory--policy) | GDPR data inventory & policy | `gdpr-data-inventory` | 17 | — |
-| [12](#epic-12--hosting-migration) | Hosting migration | `stack-hosting-migration` | 11 | — |
-| [13](#epic-13--media-storage-for-user-uploads) | Media storage for user uploads | `feature-media-storage` | 11 | Epics 3, 19 |
-| [14](#epic-14--tenant-full-data-export) | Tenant full data export | `feature-tenant-data-export` | 6 | Epic 3 |
-| [15](#epic-15--gdpr-personal-data-export) | GDPR personal-data export | `feature-gdpr-data-export` | 6 | Epic 11 |
-| [16](#epic-16--ai-insights--alerts-service) | AI insights & alerts service | `feature-ai-insights-service` | 13 | Epic 11 |
-| [17](#epic-17--batch--lot-traceability) | Batch & lot traceability | `feature-traceability` | 14 | Epics 3, 10 (10.8) |
-| [18](#epic-18--allergen-data) | Allergen data | `feature-allergen-data` | 6 | Epics 3, 17, 10 (10.12) |
-| [19](#epic-19--runtime--dependency-upgrade) | Runtime & dependency upgrade | `stack-runtime-upgrade` | 17 | Epic 2 |
+| Epic | Name | Branch | Status | Tasks | Blocked by |
+|---|---|---|---|---|---|
+| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | Not started | 13 | — |
+| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | Not started | 23 | Epic 1 |
+| [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
+| [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
+| [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | Not started | 25 | Epics 3, 19 |
+| [6](#epic-6--testing--quality-gates) | Testing & quality gates | `phase-6-testing-ci` | Not started | 24 | Epics 1–5 |
+| [7](#epic-7--observability--operations) | Observability & operations | `phase-7-observability` | Not started | 23 | Epic 12 |
+| [8](#epic-8--documentation--team-readiness) | Documentation & team readiness | `phase-8-docs` | Not started | 9 | Epics 1–7 |
+| 9 | Tech stack decisions | `stack-decisions` | **Done** 2026-08-26 | — | Closed by ADR-025 → ADR-036 |
+| 10 | Requirements discovery | `requirements-discovery` | In progress | — | Its questions live in [roadmap.md](docs/roadmap.md) `10.x` |
+| [11](#epic-11--gdpr-data-inventory--policy) | GDPR data inventory & policy | `gdpr-data-inventory` | Not started | 10 | Judgments live in [roadmap.md](docs/roadmap.md) `11.x` |
+| [12](#epic-12--hosting-migration) | Hosting migration | `stack-hosting-migration` | Not started | 11 | — |
+| [13](#epic-13--media-storage-for-user-uploads) | Media storage for user uploads | `feature-media-storage` | Not started | 11 | Epics 3, 19 |
+| [14](#epic-14--tenant-full-data-export) | Tenant full data export | `feature-tenant-data-export` | Not started | 6 | Epic 3 |
+| [15](#epic-15--gdpr-personal-data-export) | GDPR personal-data export | `feature-gdpr-data-export` | Not started | 6 | Epic 11 |
+| [16](#epic-16--ai-insights--alerts-service) | AI insights & alerts service | `feature-ai-insights-service` | Not started | 13 | Epic 11 |
+| [17](#epic-17--batch--lot-traceability) | Batch & lot traceability | `feature-traceability` | Not started | 14 | Epic 3, roadmap 10.8 |
+| [18](#epic-18--allergen-data) | Allergen data | `feature-allergen-data` | Not started | 6 | Epics 3, 17, roadmap 10.12 |
+| [19](#epic-19--runtime--dependency-upgrade) | Runtime & dependency upgrade | `stack-runtime-upgrade` | Not started | 17 | Epic 2 |
+
+## Execution order
+
+Driven by risk and dependencies — **no date pressure** (one Irish pilot, no committed launch date,
+[ADR-016](docs/decisions.md)). Feature epics 13–18 slot in after their prerequisites, ordered by
+ADR-024's MoSCoW pass.
+
+1. **Epic 11 (discovery) runs first or alongside Epic 1** — it needs no code changes and unblocks
+   Epics 13, 15 and 16.
+2. Epic 1 — repository cleanup, branch/release setup, minimal CI.
+3. Epic 2 — security fixes and permissions hardening.
+4. **Epic 19 — the runtime upgrade.** Must land **before** Epic 3, so Epic 3's migrations are written
+   once, against the target version. Numbered 19 because task IDs are never renumbered.
+5. Epic 3 — database redesign, multi-tenancy, safe migrations.
+6. Epic 4 — services layer, real forms.
+7. Epic 5 — template consolidation and asset modernization.
+8. Epic 6 — test suite and the full CI gate.
+9. Epic 12 → Epic 7 — provision the host, then observability and deployment hardening.
+10. Epic 8 — documentation and runbooks, once what they document is stable.
+
+**Epic 17 is the exception to "features last"** — traceability is a Must ([ADR-017](docs/decisions.md))
+and its data model had to be settled before Epic 3's schema work, or Epic 3 gets redesigned twice.
+Supplier price comparison is likewise a Must that **depends on Epic 17**, since goods receipts are the
+data it compares.
+
+## Milestone: first production release scope
+
+Risk reduction over feature expansion. Shippable when these are done:
+
+- Secrets removed from source (2.1) and `DEBUG = False` outside dev (2.2)
+- Settings split by environment (1.5)
+- Authentication and authorization enforced in views (2.6, 2.7, 2.17)
+- Credential-free login auditing in place (2.23)
+- Known functional defects fixed, including the user-delete flow (6.7)
+- Repository artifacts cleaned up (1.1, 1.2)
+- Basic automated tests for core flows (6.8)
+- Deployment configuration normalized (7.7, 7.8, 7.9)
+- **Supported runtime: Django 5.2 LTS on Python 3.13, PostgreSQL 17 (Epic 19)** — shipping a real
+  pilot bakery onto a framework that stopped receiving security patches in April 2024 is not a
+  defensible first release, so this is scope, not a follow-up
+- Dependency upgrade path prepared with lock files (19.12, 19.16, 19.17)
 
 ---
 
@@ -71,7 +116,7 @@ ship safely through a PR.
 | 1.2 | Expand `.gitignore` to cover Python, Django, environment, build and IDE artifacts | Not started | |
 | 1.3 | Keep only source assets in `bakery/static/`; confirm nothing depends on the committed `staticfiles/` output | Not started | **Prerequisite for 5.3** — a committed stale manifest is the classic "worked locally, 500 in production". ADR-027 |
 | 1.4 | Re-save `requirements.txt` as UTF-8 (currently UTF-16LE) | Not started | Blocks tooling that reads it. Absorbed into 19.2 if Epic 19 lands first |
-| 1.5 | Split settings into `settings/base.py` + `local.py` + `test.py`; retire the Heroku module | Not started | ADR-028 (9.9 ✅): **three** modules, not four — `base.py` *is* production. `manage.py` and the `Dockerfile` both default to `base`. Pairs with 2.1, 2.19; deletes `settings/heroku.py` (7.9) and `runtime.txt` |
+| 1.5 | Split settings into `settings/base.py` + `local.py` + `test.py`; retire the Heroku module | Not started | ADR-028: **three** modules, not four — `base.py` *is* production. `manage.py` and the `Dockerfile` both default to `base`. Pairs with 2.1, 2.19; deletes `settings/heroku.py` (7.9) and `runtime.txt` |
 | 1.6 | Remove dead code, duplicate assets and unused views/forms (e.g. `control/forms.py: Raw_Material_Form`, wired into nothing) | Not started | |
 | 1.7 | Rename prototype identifiers: `categorie`→`category`, `recipe_yeld`→`recipe_yield`, `Base_recipes`→`BaseRecipe`, `Bs_Ingredients`→`BaseRecipeIngredient`, `Recipe_Ingredients`→`ProductIngredient` | Not started | Transitional migrations + compatibility layers, never a big-bang rename; sequence with Epic 3 |
 
@@ -101,7 +146,7 @@ ship safely through a PR.
 | 2.3 | Environment-specific `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and cookie settings | Not started | |
 | 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | Not started | |
 | 2.5 | Hold object-storage (R2) access keys as environment variables — never hardcoded | Not started | ADR-005; pairs with 13.3 |
-| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Not started | ADR-028 (9.9 ✅). Retires today's inversion: `base.py` ships a real `SECRET_KEY`/`DEBUG = True` and `heroku.py:11` defaults `DEBUG` to `True` in the *production* module. Pairs with 1.5, 2.1 |
+| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Not started | ADR-028. Retires today's inversion: `base.py` ships a real `SECRET_KEY`/`DEBUG = True` and `heroku.py:11` defaults `DEBUG` to `True` in the *production* module. Pairs with 1.5, 2.1 |
 
 ### Authentication and authorization
 
@@ -115,7 +160,7 @@ ship safely through a PR.
 | 2.16 | Express every permission check as a named capability (`can_manage_users`, `can_edit_pricing`, `can_record_receipt`), never `role == "owner"` | Not started | ADR-020. Costs nothing with three roles; keeps adding Manager a table row rather than a rewrite |
 | 2.17 | Enable `LoginRequiredMiddleware`; mark deliberate exceptions with `@login_not_required` (the `core` cover page, the login view, 16.10's callback) | Not started | ADR-027, Django 5.1 — **needs Epic 19**. Inverts the default so a forgotten view fails closed. The real fix for "access control enforced in templates" |
 | 2.18 | Configure `SECRET_KEY_FALLBACKS` so the signing key rotates without invalidating active sessions | Not started | ADR-027, Django 4.1 — **needs Epic 19**. Pairs with 2.1; makes 8.6's runbook something someone would actually run |
-| 2.20 | Define the capability set per role as permission codenames; implement the custom auth backend resolving `has_perm()` against the active membership | Not started | ADR-028 (9.12 ✅). Keeps `PermissionRequiredMixin`, `@permission_required` and `{% if perms.… %}` working — **one** permission vocabulary. Needs 3.58 |
+| 2.20 | Define the capability set per role as permission codenames; implement the custom auth backend resolving `has_perm()` against the active membership | Not started | ADR-028. Keeps `PermissionRequiredMixin`, `@permission_required` and `{% if perms.… %}` working — **one** permission vocabulary. Needs 3.58 |
 | 2.21 | Middleware resolving the active bakery + membership onto the request, invalidating Django's cached permissions whenever the active tenant changes | Not started | ADR-028. The invalidation half is a **cross-tenant leak** if missed — a two-membership user would carry bakery A's capabilities into bakery B. Test it (6.9) |
 
 ### Input and data protection
@@ -183,7 +228,7 @@ ingredient line, categories and traceability entities before these migrations ge
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 3.19 | Build the shared `RecipeLine` model — typed parent (`parent_product` XOR `parent_base_recipe`), typed component (`component_material` XOR `component_recipe`), `quantity` + unit FK — replacing both `Bs_Ingredients` and `Recipe_Ingredients` | **Unblocked** | ADR-032 (9.18 ✅). Both XORs are database `CHECK` constraints in the same migration, **not** `clean()` — `clean()` does not run on `bulk_create`, which is how an import writes these rows. Merge migration is 3.73 |
+| 3.19 | Build the shared `RecipeLine` model — typed parent (`parent_product` XOR `parent_base_recipe`), typed component (`component_material` XOR `component_recipe`), `quantity` + unit FK — replacing both `Bs_Ingredients` and `Recipe_Ingredients` | **Unblocked** | ADR-032. Both XORs are database `CHECK` constraints in the same migration, **not** `clean()` — `clean()` does not run on `bulk_create`, which is how an import writes these rows. Merge migration is 3.73 |
 | 3.20 | Uniqueness constraints preventing duplicate ingredient lines for the same parent/item/unit | Not started | |
 
 ### Database best practices
@@ -217,14 +262,14 @@ ingredient line, categories and traceability entities before these migrations ge
 | 3.35 | Data validation rules for prices, VAT, yields and quantities | Not started | |
 | 3.36 | Import/export contracts and field definitions | Not started | Feeds Epics 14 and 15 |
 | 3.37 | Seed/reference data strategy for categories and units | Blocked | Depends on 3.26; pairs with 10.10 |
-| 3.38 | Backup, restore and retention procedures, including a tested restore drill | Not started | **Unblocked** by ADR-031 (9.16 ✅): *backup* retention is 7 daily / 4 weekly / 12 monthly — a **different clock** from GDPR *record* retention (11.4) and the food-law floor (10.9). Executed by 3.70–3.72, 3.44–3.48; written up in 8.5 |
+| 3.38 | Backup, restore and retention procedures, including a tested restore drill | Not started | **Unblocked** by ADR-031: *backup* retention is 7 daily / 4 weekly / 12 monthly — a **different clock** from GDPR *record* retention (11.4) and the food-law floor (10.9). Executed by 3.70–3.72, 3.44–3.48; written up in 8.5 |
 
 ### Database operations for production
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 3.39 | Run on managed PostgreSQL as a service separate from the app | Not started | ADR-007; provisioned in 12.2 |
-| 3.40 | Enable automated backups; **PITR deliberately not adopted** | Not started | ADR-031 (9.16 ✅). **RPO up to 24 h is an accepted, stated position** — record it in 8.5 so the pilot bakery has seen it. Executed by 12.9 + 3.70 |
+| 3.40 | Enable automated backups; **PITR deliberately not adopted** | Not started | ADR-031. **RPO up to 24 h is an accepted, stated position** — record it in 8.5 so the pilot bakery has seen it. Executed by 12.9 + 3.70 |
 | 3.41 | Separate application and database credentials per environment | Not started | Includes the **backup-scoped, rotatable** credentials 3.70 needs in CI |
 | 3.42 | ~~Add connection pooling if traffic requires it~~ | **Superseded by 7.19** | Closed by ADR-027 — Django 5.1's native psycopg pool, no separate pooler service |
 | 3.43 | Monitor slow queries and add indexes based on observed workload | Not started | Needs 7.1/7.20 to observe |
@@ -276,7 +321,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 3.67 | `db_default` for the non-null columns this epic adds to populated tables | Not started | Django 5.0. Removes a separate data-migration step per column |
 | 3.68 | Load 3.54's backfill with `COPY ... ON_ERROR ignore` + `LOG_VERBOSITY` so a bad row is reported, not fatal | Not started | PostgreSQL 17. An all-or-nothing import is the wrong tool for a per-row judgment exercise |
 | 3.69 | Use `pg_restore --transaction-size` and parallel large-object restore in the drill | Not started | PostgreSQL 17. 3.48 only has value if it stays fast enough to keep running |
-| 3.70 | Nightly backup job as a scheduled GitHub Actions workflow: `pg_dump -Fc --no-owner --no-privileges` → `age` encrypt → upload to R2 | Not started | ADR-031 (9.16 ✅). Uses 3.46's scripts. **Runs outside Railway on purpose.** Needs backup-scoped DB credentials (3.41) over Railway's public TCP proxy, and write-only R2 credentials. Must fail loudly — a silently skipped nightly job is indistinguishable from a working one until it matters |
+| 3.70 | Nightly backup job as a scheduled GitHub Actions workflow: `pg_dump -Fc --no-owner --no-privileges` → `age` encrypt → upload to R2 | Not started | ADR-031. Uses 3.46's scripts. **Runs outside Railway on purpose.** Needs backup-scoped DB credentials (3.41) over Railway's public TCP proxy, and write-only R2 credentials. Must fail loudly — a silently skipped nightly job is indistinguishable from a working one until it matters |
 | 3.71 | Provision the backup R2 bucket — **separate from the media bucket** — with a 7 daily / 4 weekly / 12 monthly lifecycle rule | Not started | Separate so media credentials can never read or delete backups. Fits R2's 10 GB free tier. The 12 monthlies are the outer bound on how long deleted personal data survives in restorable form — feeds [project_requirements.md](docs/project_requirements.md) "Retention & deletion" and 11.4 |
 | 3.72 | Generate the `age` key pair, publish the **public** key to CI, store the private key outside CI with a documented recovery path | Not started | CI only ever needs the public key, so a compromised runner cannot read any backup. **The private key has no software fallback** — lose it and every dump is unrecoverable, which is why 3.48 must decrypt. Custody goes in the 8.5 and 8.6 runbooks |
 | 3.73 | Migrate `Bs_Ingredients` + `Recipe_Ingredients` into `RecipeLine`, add both XOR `CHECK` constraints, drop the old tables only after row counts reconcile | Not started | ADR-032. A merge, not a rename. Constraints ship in the same migration as the model (3.19) |
@@ -292,13 +337,13 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 4.1 | Move costing/margin into `control/services/`, one implementation — deleting both the model `@property` methods and the inline `float()` loops in `control/views.py` | Not started | ADR-028 (9.10 ✅). Properties are **deleted, not delegated**; the `float()` math is deleted rather than ported. Build 4.19 first |
+| 4.1 | Move costing/margin into `control/services/`, one implementation — deleting both the model `@property` methods and the inline `float()` loops in `control/views.py` | Not started | ADR-028. Properties are **deleted, not delegated**; the `float()` math is deleted rather than ported. Build 4.19 first |
 | 4.2 | Make views thin: query, validate, delegate, render | Not started | |
 | 4.3 | Use class-based or function-based views consistently | Not started | |
 | 4.4 | Replace broad/ineffective exception patterns with correct query handling | Not started | |
-| 4.5 | Delete the dead custom auth code — `accounts/views.py` and `accounts/urls.py` — leaving Django's auth views as the only auth surface | Not started | ADR-028 (9.12 ✅). `bakery/urls.py` **never includes `accounts.urls`**, so `user_login` is unreachable and renders a template path that doesn't exist. A pure deletion. **Keep `accounts/templates/registration/`** |
+| 4.5 | Delete the dead custom auth code — `accounts/views.py` and `accounts/urls.py` — leaving Django's auth views as the only auth surface | Not started | ADR-028. `bakery/urls.py` **never includes `accounts.urls`**, so `user_login` is unreachable and renders a template path that doesn't exist. A pure deletion. **Keep `accounts/templates/registration/`** |
 | 4.6 | Make every service-layer query tenant-scoped by construction | Not started | ADR-008. Tested in 6.9 |
-| 4.19 | Build the `control/services/` skeleton: `cost_products(queryset, …)` as the **primary batch entrypoint** loading the whole ingredient graph in a bounded number of queries, single-object costing as a thin wrapper, and a frozen `CostBreakdown` dataclass carrying amount, canonical unit, provenance and as-of date | Not started | ADR-028 (9.10 ✅). Batch-first is not a preference — 5.18 costs every product per request against the p95 < 2 s budget, and it is **why no cache is needed**. Carries ADR-022's recursion, cycle guard and depth limit. Prerequisite for 4.1 |
+| 4.19 | Build the `control/services/` skeleton: `cost_products(queryset, …)` as the **primary batch entrypoint** loading the whole ingredient graph in a bounded number of queries, single-object costing as a thin wrapper, and a frozen `CostBreakdown` dataclass carrying amount, canonical unit, provenance and as-of date | Not started | ADR-028. Batch-first is not a preference — 5.18 costs every product per request against the p95 < 2 s budget, and it is **why no cache is needed**. Carries ADR-022's recursion, cycle guard and depth limit. Prerequisite for 4.1 |
 | 4.20 | Give the batch signature a per-tenant version-stamp parameter, bumped by writes to costing inputs, so a cache can later attach at that seam | Not started | ADR-028. Inputs that must bump it: goods receipts, recipe edits, cascading base-recipe edits, VAT rows, `ProductPrice` rows |
 
 ### Forms and validation
@@ -323,10 +368,10 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 4.15 | ~~Build the agreed API surface (DRF or a small read-only reporting/export API)~~ | **Cancelled** (2026-08-13) | **No API layer** — ADR-028 (9.11 ✅). Health/callback endpoints are plain `JsonResponse` views. Cancelled rather than deferred; the ADR carries the revisit trigger |
+| 4.15 | ~~Build the agreed API surface (DRF or a small read-only reporting/export API)~~ | **Cancelled** (2026-08-13) | **No API layer** — ADR-028. Health/callback endpoints are plain `JsonResponse` views. Cancelled rather than deferred; the ADR carries the revisit trigger |
 | 4.16 | Recursive costing through base-recipe ingredient lines, with an explicit depth guard | Not started | ADR-022. Schema-level cycle rejection is 3.59; the depth guard is defence in depth for data that predates it. Tested in 6.20 |
 | 4.17 | Return cost **provenance** with every costing result | Not started | ADR-022, backed by 3.62. Consumed by 5.18/5.20 and the exports |
-| 4.18 | Implement the "stale price" rule as a service-layer concern rather than a template condition | Blocked | Threshold `Open` — 10.16. ADR-023 |
+| 4.18 | Implement the "stale price" rule as a service-layer concern rather than a template condition | Blocked | ADR-023. Blocked on [roadmap.md](docs/roadmap.md) 10.16 — the staleness threshold |
 
 ---
 
@@ -388,22 +433,22 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 6.19 | Test the three-role capability matrix: Read-only cannot write, Staff cannot manage users or pricing, Owner cannot reach another tenant | Not started | Covers 2.8, 2.16. Extends 6.4 |
 | 6.20 | Test recursive costing: costing through a base recipe returns the right figure, and a self-referencing or transitively cyclic recipe is **rejected** rather than looping | Not started | Covers 3.59, 4.16. The cycle case hangs a request if missed |
 | 6.21 | Test cost provenance: receipt-derived and estimated figures are distinguishable, and a back-dated receipt updates current cost correctly by receipt date | Not started | Covers 3.61, 3.62, 4.17 |
-| 6.22 | Add coverage measurement to CI, then enable `--fail-under=70` as a required check | Not started | ADR-031 (9.14 ✅). **Enable the gate last** — switching it on first blocks the PRs that write the tests. Measure and report from the start so the number is visible while it climbs. Repo-wide, one number |
+| 6.22 | Add coverage measurement to CI, then enable `--fail-under=70` as a required check | Not started | ADR-031. **Enable the gate last** — switching it on first blocks the PRs that write the tests. Measure and report from the start so the number is visible while it climbs. Repo-wide, one number |
 
 ### Tooling
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 6.10 | Add and configure the agreed formatter/linter across the codebase | **Unblocked** | **`ruff check` + `ruff format`** — ADR-034 (9.17 ✅). No `black`, no `isort`. Config in `[tool.ruff]` of the tool-only `pyproject.toml` |
+| 6.10 | Add and configure the agreed formatter/linter across the codebase | **Unblocked** | **`ruff check` + `ruff format`** — ADR-034. No `black`, no `isort`. Config in `[tool.ruff]` of the tool-only `pyproject.toml` |
 | 6.11 | Wire template linting into the CI gate | **Unblocked** | **`djlint`** (ADR-030/ADR-034). The tooling work itself is 5.8 |
-| 6.23 | Adopt `pytest` + `pytest-django` + `pytest-cov`, with `[tool.pytest.ini_options]` in the tool-only `pyproject.toml` | Not started | ADR-034 (9.17 ✅). `--cov-fail-under=70` is where the floor is enforced, keeping 6.22 a one-line change. `pytest-django` wraps Django's test-database machinery rather than replacing it |
+| 6.23 | Adopt `pytest` + `pytest-django` + `pytest-cov`, with `[tool.pytest.ini_options]` in the tool-only `pyproject.toml` | Not started | ADR-034. `--cov-fail-under=70` is where the floor is enforced, keeping 6.22 a one-line change. `pytest-django` wraps Django's test-database machinery rather than replacing it |
 | 6.24 | Update the documented test command from `manage.py test` to `pytest` in `CLAUDE.md`, the README (8.1) and CI | Not started | ADR-034. Three places, and the stale one is always the one someone follows |
 
 ### CI/CD
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 6.12 | Extend the Epic 1 workflow (don't replace it) with: install from the hashed lock, the real test suite, `ruff` + `djlint`, `pip-audit` | Not started | ADR-011, shape fixed by ADR-031 (9.14 ✅). **No CodeQL/Trivy** this release. Coverage is 6.22, deliberately separate |
+| 6.12 | Extend the Epic 1 workflow (don't replace it) with: install from the hashed lock, the real test suite, `ruff` + `djlint`, `pip-audit` | Not started | ADR-011, shape fixed by ADR-031. **No CodeQL/Trivy** this release. Coverage is 6.22, deliberately separate |
 | 6.13 | Enable required status checks on `main` and `production`, blocking merge when checks fail | Not started | ADR-010. **This is also the deploy gate** — see 6.14 |
 | 6.14 | Block deployments when checks fail | Not started | **Satisfied by 6.13, not a second mechanism** — ADR-031. `production` only advances by merge and Railway deploys only what lands there. The work is *verifying* that chain end to end (attempt a failing merge, confirm no deploy fires) |
 | 6.15 | Run the unit suite on every PR into `main` as the feature-branch gate | Not started | ADR-014 — the automated half of the test split; integration verification of merged `main` stays manual against `docker-compose`. Part of 6.12 |
@@ -419,10 +464,10 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 7.1 | Structured application logging | Not started | |
-| 7.2 | Error tracking: create the Sentry organisation **in the EU region**, add `sentry-sdk[django]` to `base.in` with its owner comment, wire the DSN from the environment | Not started | ADR-031 (9.15 ✅). **The region is chosen at org creation and cannot be changed** — the fix is a new organisation. Tag environment and release so pilot noise stays separable. PII handling is 7.23 and is **not optional** |
+| 7.2 | Error tracking: create the Sentry organisation **in the EU region**, add `sentry-sdk[django]` to `base.in` with its owner comment, wire the DSN from the environment | Not started | ADR-031. **The region is chosen at org creation and cannot be changed** — the fix is a new organisation. Tag environment and release so pilot noise stays separable. PII handling is 7.23 and is **not optional** |
 | 7.3 | Log security-relevant events, admin actions and failed operations without leaking secrets | Not started | Pairs with 2.9, 2.23 |
 | 7.4 | Health checks for application and database connectivity | Not started | Must return something 7.5's keyword check can assert on |
-| 7.5 | Uptime monitoring: a 5-minute UptimeRobot **keyword** check against 7.4's endpoint, email alerting | Not started | ADR-031 (9.15 ✅). Keyword on the body, **not** HTTP 200 alone — otherwise a health endpoint correctly reporting a dead database still passes. Hosted away from Railway on purpose |
+| 7.5 | Uptime monitoring: a 5-minute UptimeRobot **keyword** check against 7.4's endpoint, email alerting | Not started | ADR-031. Keyword on the body, **not** HTTP 200 alone — otherwise a health endpoint correctly reporting a dead database still passes. Hosted away from Railway on purpose |
 
 ### Deployment and infrastructure
 
@@ -436,14 +481,14 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 7.11 | Add a migration release step and **remove `migrate` from the container start command** in both the `Dockerfile` `CMD` and `docker-compose.yaml` | Not started | ADR-015 rule 4. Migrating on boot makes every replica race and ties the schema change to container start. **Pairs with 12.11** — do both in one pass or migrations run twice |
 | 7.12 | Write and test the rollback procedure, using 1.10's release tags | Not started | |
 | 7.13 | Document every environment variable per environment as a committed `.env.example` (names and example values only — never real secrets) | Not started | ADR-015 rule 8 — this file is the migration checklist; if it lives only in a host's dashboard, moving host becomes archaeology |
-| 7.14 | Run the app under Gunicorn in production | **Unblocked** | **gunicorn, WSGI, sync workers**, latest pinned at lock time — ADR-036 (9.4 ✅). Binds `$PORT` per 7.17. Revisit only if the insights dashboard needs SSE/WebSocket push |
-| 7.15 | Automate deploys: Railway git-watch on `production` only | Not started | ADR-010, narrowed by ADR-014, settled by ADR-031 (9.14 ✅). Platform-native git-watch, **not** a GitHub Actions deploy job — that would need a long-lived Railway token in CI and a release script to maintain. Migrations are 12.11 |
+| 7.14 | Run the app under Gunicorn in production | **Unblocked** | **gunicorn, WSGI, sync workers**, latest pinned at lock time — ADR-036. Binds `$PORT` per 7.17. Revisit only if the insights dashboard needs SSE/WebSocket push |
+| 7.15 | Automate deploys: Railway git-watch on `production` only | Not started | ADR-010, narrowed by ADR-014, settled by ADR-031. Platform-native git-watch, **not** a GitHub Actions deploy job — that would need a long-lived Railway token in CI and a release script to maintain. Migrations are 12.11 |
 | 7.16 | Keep serving static assets via whitenoise; confirm it still fits once object storage is in play | Not started | Decided "no change" — a verification task |
 | 7.17 | Bind Gunicorn to `$PORT` with a local fallback (`--bind 0.0.0.0:${PORT:-8000}`) instead of the hardcoded `:8000` | Not started | ADR-015 rule 3. Railway, Render, Fly, DigitalOcean, Clever Cloud and Heroku all inject the port they expect |
 | 7.18 | Confirm no persistent state is written to the app container's local disk | Not started | ADR-015 rule 7. Pairs with 2.13 and Epic 13 |
 | 7.19 | Enable Django's native psycopg pool (`DATABASES["OPTIONS"]["pool"]`) and `CONN_HEALTH_CHECKS`; tune `min_size`/`max_size` against Railway's connection limit | Not started | ADR-027, Django 5.1 — **needs Epic 19**. In-process, so no PgBouncer to run, monitor or patch. Health checks matter on a platform that recycles connections. Supersedes 3.42 |
 | 7.20 | Enable `pg_stat_statements` and check the ADR-021 budgets against it (p95 < 500 ms pages, < 2 s dashboard) | Not started | ADR-027, PostgreSQL 17. Nothing currently measures those budgets. Feeds 3.43, 5.14. **The named trigger** for ADR-028's caching ladder: fix the queries, then a version-keyed per-view cache (4.20), then Redis only for cross-worker coherence |
-| 7.21 | Configure email from environment variables: `smtp.EmailBackend` against Brevo in `base.py`, console in `local.py`, locmem in `test.py`, `DEFAULT_FROM_EMAIL` set | Not started | ADR-028 (9.22 ✅). No dependency — the provider stays swappable by configuration alone. Variables go in 7.13's `.env.example`; credentials follow 2.1. **Blocks 5.19 and 5.24** |
+| 7.21 | Configure email from environment variables: `smtp.EmailBackend` against Brevo in `base.py`, console in `local.py`, locmem in `test.py`, `DEFAULT_FROM_EMAIL` set | Not started | ADR-028. No dependency — the provider stays swappable by configuration alone. Variables go in 7.13's `.env.example`; credentials follow 2.1. **Blocks 5.19 and 5.24** |
 | 7.22 | Create the Brevo account, verify the sending domain, publish SPF, DKIM and DMARC records | Not started | ADR-028. The half that is not code, and the usual cause of "the invitation never arrived" — unauthenticated mail from a new domain lands in spam regardless of the application being correct. Do before 5.19 ships to a real pilot user |
 | 7.23 | Configure Sentry PII handling: `send_default_pii=False` plus a `before_send` scrubber stripping request bodies, headers, cookies and local variables | Not started | ADR-031. **The GDPR-load-bearing half of 7.2.** Test it — trigger a deliberate exception on a view handling personal data and inspect what actually arrived |
 
@@ -467,99 +512,29 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 
 ---
 
-## Epic 9 — Tech stack decisions (discovery)
-
-**Branch:** `stack-decisions` · **Status: Done, 2026-08-26** · 22/22 tasks closed
-
-Every task was "make the call, write it into [tech_stack.md](docs/tech_stack.md), log an ADR" — no
-implementation. `tech_stack.md` has no `Open` rows left. **The outcomes are summarised here; the
-reasoning is in the ADR.** A new stack question re-opens the epic with a new task *and* an `Open` row
-in `tech_stack.md`; it does not get answered in passing.
-
-| ID | Question | Outcome | ADR | Done | Knock-on |
-|---|---|---|---|---|---|
-| 9.1 | Target Python version | **3.13** — spans Django 5.2 and 6.2, so the next LTS hop needs no Python change | 025 | 08-10 | `runtime.txt` deleted |
-| 9.2 | Django version and upgrade route | **5.2 LTS, direct from 3.2** (no 4.2 stop) | 025 | 08-10 | Creates **Epic 19** |
-| 9.3 | Pinned PostgreSQL version | **17**, local and production majors must match | 026 | 08-10 | 3.45, 19.10 |
-| 9.4 | WSGI/ASGI server | **gunicorn, WSGI, sync workers** — nothing in the confirmed insights shape is async | 036 | 08-26 | Unblocks 7.14 |
-| 9.5 | PostgreSQL driver | **`psycopg[binary]` 3** | 025 | 08-10 | 19.6 |
-| 9.6 | Versions for `whitenoise`/`django-environ`/`Pillow`/`asgiref` set | **A rule, not pins** — latest compatible at lock time; `pytz`, `environ==1.0` and `dj-database-url` removed | 025 | 08-10 | Pins come from 9.8 |
-| 9.7 | Keep `django-mathfilters`? | **Goes** — classifiers stop at Django 3.x, a hard blocker | 025 | 08-10 | 19.5 |
-| 9.8 | Dependency management | **`uv pip compile` over `requirements/{base,dev,prod}.in`** → pinned, hashed `.txt`; the **`.in` file is the register** | 029 | 08-16 | Unblocks 19.12; creates 19.16, 19.17; amends 025 (`Pillow`) |
-| 9.9 | Settings module layout | **`base.py` + `local.py` + `test.py`, no `production.py`** | 028 | 08-13 | Rescopes 1.5; creates 2.19 |
-| 9.10 | Where business logic lives | **`control/services/` — plain functions, frozen dataclass returns, batch-first**; models lose costing entirely | 028 | 08-13 | Unblocks 4.1; creates 4.19, 4.20 |
-| 9.11 | Is a JSON API needed? | **No API layer, no framework pre-selected** | 028 | 08-13 | **Cancels 4.15** |
-| 9.12 | Auth/permissions approach | **Django's built-in auth views only**; capabilities as permission codenames on a custom auth backend | 028 | 08-13 | Makes 4.5 a pure deletion, 2.10 dead code; creates 2.20–2.23 |
-| 9.13 | Frontend stack | **`base.html` + `{% include %}` partials, Bootstrap 5.3.x, HTMX, no SPA, no build step** — decided against a measured frontend (0 `{% extends %}`, 0 `{% static %}`, 0 bytes of JS) | 030 | 08-16 | Unblocks 5.4, 5.6, 5.7; rescopes 5.6; creates 5.25 |
-| 9.14 | CI/CD shape beyond the Epic 1 minimum | **Tests + `ruff`/`djlint` + `pip-audit` + a 70% repo-wide coverage floor**, extending 1.11; Railway git-watch with `migrate` as pre-deploy | 031 | 08-18 | Unblocks 6.12, 7.15; creates 6.22, 12.11; 6.14 satisfied by branch protection |
-| 9.15 | Error tracking and uptime | **Sentry free tier, EU region** (irreversible after org creation) **+ UptimeRobot free tier**, both $0 | 031 | 08-18 | Unblocks 7.2, 7.5; creates 7.23 |
-| 9.16 | Backup/restore/PITR | **Two unequal tracks, no PITR** — Railway snapshots for same-host rollback, plus a nightly `age`-encrypted `pg_dump` to R2 on a 7/4/12 lifecycle. **RPO up to 24 h accepted** | 031 | 08-18 | Unblocks 3.38, 3.40, 3.44; creates 3.70–3.72 |
-| 9.17 | Lint/format and test tooling | **`ruff` for lint *and* format; `pytest` + `pytest-django` + `pytest-cov`**; config in a `[tool.*]`-only `pyproject.toml` | 034 | 08-26 | Unblocks 6.10, 6.11; creates 6.23, 6.24 |
-| 9.18 | Ingredient line, categories, ~~caching~~, ~~pooling~~ | **One shared `RecipeLine`** (both XORs as database `CHECK` constraints) **+ one tenant-scoped `Category`** with a `kind` discriminator; categories tenant-editable, units **not** | 032 | 08-26 | Unblocks 3.19 + categories half of 3.26; creates 3.73, 3.74; **corrects 3.42, 4.14** |
-| 9.19 | Tenant export format and mechanism | **A ZIP of per-table CSVs + `manifest.json`**, one service function exposed as an Owner-only download *and* a management command | 035 | 08-26 | Unblocks 14.1; creates 14.6 |
-| 9.20 | Re-confirm Spark/Databricks; confirm the cost model | **Confirmed** — Serverless Jobs, AWS EU (Ireland), fed by a personal-data-free R2 extract, nightly, shared-secret callback, hard **~$15/mo** ceiling. ADR-002 `Proposed` → `Accepted` | 036 | 08-26 | Unblocks 16.1–16.3; creates 16.8–16.13, 11.17; **also closes 9.4** |
-| 9.21 | Traceability model, lot codes, stock | **Header + lines, full event chain; `YYYYMMDD-NNN` per-tenant lot codes; stock derivable but not surfaced.** Decided **before Epic 3 starts**, which was the point | 033 | 08-26 | Unblocks 17.1–17.3; creates 17.13, 17.14 |
-| 9.22 | Email provider | **Brevo over SMTP**, Django's built-in backend, no dependency. Resend rejected on a fact: EU residency is Pro-only at $20–35/mo | 028 | 08-13 | Creates 7.21, 7.22, 5.24, 11.16 |
----
-
-## Epic 10 — Requirements discovery
-
-**Branch:** `requirements-discovery` · **Depends on:** —
-
-Each task fills in [project_requirements.md](docs/project_requirements.md) and logs an ADR where a
-real choice is made. **10.1–10.7 are Done** (2026-08-06), so this epic no longer blocks Epic 2,
-Epic 3's schema semantics, or Epic 5.
-
-| ID | Task | Status | Notes |
-|---|---|---|---|
-| 10.1 | Personas and a per-tenant role capability matrix | **Done** | 2026-08-06 — **three** roles, not four: Owner / Staff / Read-only on a membership record (ADR-020). Manager deferred. Unblocked 2.8, 3.4 |
-| 10.2 | Keep/change/remove and new requirements per area | **Done** | 2026-08-06 — all six areas, via ADR-022 (receipts drive cost; lines accept base recipes) and ADR-023 (dashboard overview; tenant self-administration). Created 3.59–3.62, 4.16–4.18, 5.18–5.20, 6.20, 6.21, 9.22, 10.16, 10.17 |
-| 10.3 | Prioritize the feature backlog with MoSCoW | **Done** | 2026-08-06 — ADR-024. **Must:** multi-tenancy, traceability, search, supplier comparison, user/role management (merged). **Should:** both exports, trend reporting, allergen data (**new Epic 18**). **Could:** product photos, stock levels, AI insights. **Won't:** profile pictures, self-service registration, billing. Unblocked 5.9; created 3.63, 5.21, Epic 18 |
-| 10.4 | Non-functional targets | **Done** | 2026-08-06 — ADR-021: p95 500 ms/2 s, **WCAG 2.2 Level A**, responsive + evergreen browsers, English/€ but translation-ready. Unblocked 5.12; created 5.14–5.17 and the 10.15 revisit trigger |
-| 10.5 | Business data-semantics questions | **Done** | 2026-08-06 — all seven closed: four by ADR-018, three by ADR-019. Unblocked 3.6, 3.10, 3.11, 3.15, 3.16, 3.22, 3.34 |
-| 10.6 | Explicit out-of-scope list for this round | **Done** | 2026-08-06 — table in [project_requirements.md](docs/project_requirements.md), completed once 10.3 landed |
-| 10.7 | First real users, jurisdiction, regulatory scope beyond GDPR, timeline pressure | **Done** | 2026-08-06 — one Irish pilot bakery, free pilot, no deadline (ADR-016); Ireland/EU; traceability in scope (ADR-017). Feeds 11.1, 11.12, Epic 17 |
-| 10.8 | Confirm the traceability regulatory floor against FSAI guidance: what one-step-back/forward requires in practice, and what granularity of outbound record is expected for direct-to-consumer sales | Not started | ADR-017. **Blocks Epic 17** — the scope is set in principle but not verified against the regulator's own guidance |
-| 10.9 | Decide the food-law retention floor and reconcile it with GDPR retention where a record names a supplier contact | Not started | ADR-017. Pairs with 11.4; feeds [project_requirements.md](docs/project_requirements.md) "Retention & deletion" and 17.9 |
-| 10.10 | Tenant onboarding mechanics, and what seed/reference data a new tenant starts with | Mostly resolved | ADR-024: **manual provisioning**, first Owner created with the tenant, staff via invitations; public signup is `Won't`. What's left is the **seed/reference data** — pairs with 3.37, 3.52, 3.53, 10.17, 12.10 |
-| 10.11 | Which EU countries follow Ireland, and on what trigger; then re-run localization, currency and hosting-residency | Not started | Left `Open` by ADR-016. Pairs with 10.4, 10.15, 11.14 |
-| 10.12 | Confirm allergen scope against FSAI/FIC guidance — the 14 declarable allergens, and what a costing tool records vs. what belongs on a label | **In scope, priority set** | ADR-024 rates allergen data a **Should** — now **Epic 18**. What remains is the scope check that unblocks 18.1/18.2/18.4 |
-| 10.13 | Determine which Irish VAT rate applies to which product category, and seed the rate table | Not started | A **tax** question, not an engineering one (ADR-018). The schema must let a tenant set it per product; do **not** ship guessed assignments. Feeds 3.53 |
-| 10.14 | Whether one person may hold memberships in several tenants in the product UI | Not started | Left `Open` by ADR-020 — the model supports it; whether it is *offered* is a product choice, and it changes login/tenant-switching UX and makes 2.21's cache invalidation user-visible |
-| 10.15 | Re-evaluate the accessibility target (Level A → AA) before EU expansion, or on the first tenant/buyer who needs it | Not started | ADR-021 — Level A excludes AA's contrast ratios, focus visibility, consistent navigation and error suggestions. Same trigger point as 10.11, 11.14 |
-| 10.16 | Define what makes a price "stale" | Not started | ADR-023. A badge on an arbitrary threshold trains users to ignore it. Unblocks 4.18 |
-| 10.17 | Decide which reference data a tenant may edit: VAT rates and categories are safe, **unit conversion factors are not** | Not started | ADR-023. A wrong factor silently corrupts every dependent cost figure with no error surfaced. Likely system-managed units with a tenant-selectable subset — a decision, not an assumption. Feeds 3.52, 5.19 |
-| 10.18 | Record the invitation and password-reset POSTs as explicit exclusions from the p95 < 500 ms page budget, with the reason | Not started | ADR-028. Both send SMTP inline; there is no task queue and Redis was declined, so Celery for a few dozen emails a month would reintroduce it. Must be written down, or 7.20 reports it as a regression |
-
----
-
 ## Epic 11 — GDPR data inventory & policy
 
 **Branch:** `gdpr-data-inventory` · **Depends on:** — · **Blocks:** Epics 13, 15, 16, and any
 consent/erasure/audit-log code
 
-Discovery first: the inventory and policy must exist before compliance code is written against them.
-Not legal advice — a real legal/DPO review is a prerequisite to relying on it.
+The executional half of data protection: build the inventory, execute the agreements, wire the
+logging. **The judgments — legal basis, retention policy, erasure strategy, the DPIA, transfer
+safeguards — are open decisions in [roadmap.md](docs/roadmap.md) (`11.2`, `11.3`, `11.4`, `11.7`,
+`11.9`, `11.14`, `11.15`) and must not be answered here.** Not legal advice; a real legal/DPO review
+is a prerequisite to relying on any of it.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 11.1 | Complete the personal-data inventory | Not started | [project_requirements.md](docs/project_requirements.md) "Personal data inventory" |
-| 11.2 | Document the legal basis for each inventory row, with reasoning | Not started | §2 |
-| 11.3 | Decide and document the legal basis for profile pictures | Not started | §1 — **no longer on the critical path** (ADR-024 defers the feature). Still required before it ever ships |
-| 11.4 | Retention and deletion policy per data category, with deletion triggers | Not started | §5. Unblocks 3.38. **Must be written per *field* for traceability data** — 10.9's floor is not ours to choose, so the lot code and quantities are retained by law while the contact's name may not need to be |
-| 11.5 | DPA template usable per tenant, Bakery-the-product as processor | Not started | §0/§7 — ADR-006. Applies to the free pilot too |
-| 11.6 | DPAs with each third-party processor: Railway, Cloudflare R2, Brevo, Sentry (Databricks/AWS are 11.17) | Blocked | Railway resolved as host (12.1 ✅) — execute via 12.7. Email is a **real** processor now (9.22 ✅, 11.16). **Sentry added** by ADR-031 — a processor that by design receives whatever a traceback contains, which is why 7.23's scrubbing is part of the DPA story |
-| 11.7 | Scope and carry out the DPIA now that multi-tenant SaaS is confirmed | Not started | §9 — triggered by ADR-006. Include ADR-017's angle: production runs record *which staff member* ran which batch, retained for years by legal obligation — employee activity data, assessed deliberately rather than waved through as "just traceability". Also covers 2.23's login history |
-| 11.8 | Define the breach notification process (72-hour supervisory-authority deadline) | Not started | §8. The processor→controller path is a settled input. Feeds 8.7 |
-| 11.9 | Close the data-subject-rights gaps: restriction, objection, and a real erasure/anonymization strategy — including deleting the stored object, not just the DB row | Not started | §3. Access/portability is Epic 15. **Erasure has a hard limit:** a traceability record inside its retention window cannot be deleted — the strategy must cover anonymizing personal fields while keeping the trace intact, plus a documented refusal-with-reason. Settle **before** Epic 17 ships |
-| 11.10 | Access logging for who viewed or exported personal data | Not started | §6. Extends 2.9. Covers both the Read-only export path and the Django admin's cross-tenant access (2.15) |
-| 11.11 | Confirm no tracking/analytics cookies exist; define the consent path if that changes | Not started | §4 |
-| 11.12 | Name the point of contact for data subject requests | Not started | 10.7 ✅ narrowed it: one tenant, so controller-side is the pilot bakery and processor-side is the project owner. Still needs naming for real |
-| 11.13 | Confirm backups are encrypted at rest — **client-side `age` before upload** | Not started | §6. **Unblocked** by ADR-031 (9.16 ✅): a verification task now. Confirms 3.70/3.72 do what the ADR says; R2's server-side encryption is a second layer, not the answer relied on |
-| 11.14 | Re-evaluate hosting residency and vendor ownership **before onboarding any tenant outside Ireland** | Not started | ADR-013, [tech_stack.md](docs/tech_stack.md) "Processors & data residency". EU-owned alternatives priced ~2.5–3× at decision time (Clever Cloud, Scaleway). Migration stays cheap only while ADR-004/007/015 hold |
-| 11.15 | Confirm Railway's transfer-safeguard position (DPF and/or SCCs) and record it in §7.1 | Not started | Part of 12.7. §7.1 stays `Open` until this lands. Same question applies to Sentry |
-| 11.16 | Add Brevo to the §7 processor table — EU hosting, ISO 27001:2022, DPA reference, and what personal data reaches it | Not started | ADR-028 (9.22 ✅). Narrow but real: recipient email address, display name, reset/invite token. **No transfer safeguard needed** — EU-owned and EU-hosted. DPA via 11.6 |
-| 11.17 | Add Databricks Inc. and AWS (EU Ireland) to the §7 subprocessor list, with DPAs, and confirm the extract carries no personal data | Not started | ADR-036. Both in the EEA, so the **data** needs no Chapter V mechanism; Databricks being US-headquartered is a subprocessor/DPA question. Pairs with 16.3, 16.4, 16.9 |
+| 11.1 | Complete the personal-data inventory | Not started | [project_requirements.md](docs/project_requirements.md) "Personal data inventory". **Blocks 15.1** — you cannot scope a subject export without knowing which fields are personal data. Feeds roadmap 11.2 |
+| 11.5 | DPA template usable per tenant, Bakery-the-product as processor | Not started | ADR-006. Applies to the free pilot too |
+| 11.6 | Execute DPAs with each third-party processor: Railway, Cloudflare R2, Brevo, Sentry (Databricks/AWS are 11.17) | Blocked | Railway resolved as host (12.1 ✅) — execute via 12.7. Sentry by design receives whatever a traceback contains, which is why 7.23's scrubbing is part of the DPA story |
+| 11.8 | Define the breach notification process (72-hour supervisory-authority deadline) | Not started | The authority (Irish DPC) and the processor→controller path are settled inputs. Feeds runbook 8.7 |
+| 11.10 | Access logging for who viewed or exported personal data | Not started | Extends 2.9. Covers both the Read-only export path and the Django admin's cross-tenant access (2.15) |
+| 11.11 | Confirm no tracking/analytics cookies exist; define the consent path if that changes | Not started | |
+| 11.12 | Name the point of contact for data subject requests | Not started | Narrowed: one tenant, so controller-side is the pilot bakery and processor-side is the project owner. Still needs naming for real |
+| 11.13 | Confirm backups are encrypted at rest — **client-side `age` before upload** | Not started | ADR-031. A verification task: confirms 3.70/3.72 do what the ADR says. R2's server-side encryption is a second layer, not the answer relied on |
+| 11.16 | Add Brevo to the processor table — EU hosting, ISO 27001:2022, DPA reference, and what personal data reaches it | Not started | ADR-028. Narrow but real: recipient email, display name, reset/invite token. **No transfer safeguard needed** — EU-owned and EU-hosted |
+| 11.17 | Add Databricks Inc. and AWS (EU Ireland) to the subprocessor list, with DPAs, and confirm the extract carries no personal data | Not started | ADR-036. Both in the EEA, so the **data** needs no Chapter V mechanism; Databricks being US-headquartered is a subprocessor/DPA question. Pairs with 16.3, 16.4, 16.9 |
 
 ---
 
@@ -582,7 +557,7 @@ Move the Django app and PostgreSQL off the self-hosted home server onto **Railwa
 | 12.8 | Set the region to **EU West (Amsterdam)** *before* creating any service | Not started | ADR-013. **Railway's default is US West** — the personal data lives in the database, so a default-region Postgres puts it in California. Volumes follow their service's region, and EU-West Metal supports volumes on Hobby (since 2025-03-14), so this is purely sequencing. Moving a volume later forces a migration **with downtime**. Confirm on both services after provisioning |
 | 12.9 | Configure Railway's automated backup schedules — for fast same-host rollback, **not** the portable backup | Not started | ADR-013/ADR-031 — **off by default**. Enable all three (daily/weekly/monthly); no PITR. Copy-on-write volume snapshots are **not restorable on another host** — 3.44/3.70 covers that |
 | 12.10 | Provide migrations + seed data for the release-PR environment, which comes up empty | Not started | ADR-014 — PR environments clone services and config but not volume data, so without this the preview is an unusable login page. Pairs with 3.37/10.10 |
-| 12.11 | Set `manage.py migrate` as Railway's **pre-deploy command**, so it completes before the new version takes traffic | Not started | ADR-031 (9.14 ✅). What makes platform-native git-watch sufficient and satisfies ADR-015 rule 4 without a release script. **Pairs with 7.11** — `migrate &&` must come out of the `Dockerfile` `CMD` and the compose command in the same pass, or migrations run twice and every replica races |
+| 12.11 | Set `manage.py migrate` as Railway's **pre-deploy command**, so it completes before the new version takes traffic | Not started | ADR-031. What makes platform-native git-watch sufficient and satisfies ADR-015 rule 4 without a release script. **Pairs with 7.11** — `migrate &&` must come out of the `Dockerfile` `CMD` and the compose command in the same pass, or migrations run twice and every replica races |
 
 ---
 
@@ -619,7 +594,7 @@ portability mechanism (Epic 15).
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 14.1 | Implement the export format — a ZIP of one CSV per tenant-scoped table plus a `manifest.json` (timestamp, schema version, columns, types, PK, FK map) | **Unblocked** | ADR-035 (9.19 ✅). Explicitly **not** `pg_dump`, not hand-generated ANSI SQL, not `dumpdata`. Money and quantities at **full stored precision**, never 2-dp presentation rounding — an export that rounds silently loses data |
+| 14.1 | Implement the export format — a ZIP of one CSV per tenant-scoped table plus a `manifest.json` (timestamp, schema version, columns, types, PK, FK map) | **Unblocked** | ADR-035. Explicitly **not** `pg_dump`, not hand-generated ANSI SQL, not `dumpdata`. Money and quantities at **full stored precision**, never 2-dp presentation rounding — an export that rounds silently loses data |
 | 14.2 | Build the service that walks every tenant-scoped table for a given tenant | Not started | Needs 3.1/3.2 |
 | 14.3 | Include the relationship manifest and import instructions so the export is usable without this app | Not started | **The manifest is the deliverable** — CSV loses types, null-vs-empty and every relationship, so this is a correctness task, not documentation |
 | 14.4 | Gate who can trigger an export; audit-log every run | Not started | Every export is a bulk disclosure of one tenant's business data. Pairs with 2.9/11.10 |
@@ -642,7 +617,7 @@ distinct from both the bulk admin CSV export and the tenant-wide export (ADR-009
 | 15.3 | Gate it to the requesting user's own data, or an admin acting on a subject's behalf | Not started | |
 | 15.4 | Audit-log every personal-data export | Not started | Pairs with 11.10 |
 | 15.5 | Leave the per-entity bulk CSV exports unchanged as an admin/operational feature | Not started | ADR-009 — explicitly not the compliance mechanism |
-| 15.6 | Update [project_requirements.md](docs/project_requirements.md) "Data subject rights" — Portability from `Open` to implemented when this ships | Not started | |
+| 15.6 | Update [project_requirements.md](docs/project_requirements.md) "Data subject rights" — mark Portability implemented when this ships | Not started | ADR-009 already records the direction; this closes the gap between decided and built |
 
 ---
 
@@ -663,7 +638,7 @@ total infrastructure from ~$6 to ~$21/mo against zero revenue.
 | 16.3 | Define and enforce the data scope shared with the service | **Settled in principle** | ADR-036: the extract carries **product, date, cost, price, margin, tenant — and no personal data**, and Databricks never reaches PostgreSQL. Enforced by what the extract job writes (16.9), not by a read-role grant that could widen later |
 | 16.4 | Put a DPA in place with the analytics provider before any real data flows | Blocked | Feeds 11.6/11.17 — Databricks Inc. *and* AWS EU (Ireland) |
 | 16.5 | Define the margin-alert rules and how alerts reach users | Not started | Email path is 7.21's configuration |
-| 16.6 | Surface the analytics dashboard in the app | Not started | Polling, not push — push would reopen 9.4 |
+| 16.6 | Surface the analytics dashboard in the app | Not started | Polling, not push — push would reopen ADR-036’s WSGI decision |
 | 16.7 | Ensure everything the service reads or writes is tenant-scoped | Not started | ADR-008 |
 | 16.8 | Provision the Databricks workspace — **Serverless Jobs, AWS, EU (Ireland) `eu-west-1`** — and record the **measured** DBU + cloud cost of one real run before any production spend | Not started | ADR-036. The DBU rate is deliberately absent from the ADR: serverless pricing is region- and tier-dependent and changes |
 | 16.9 | Build the nightly extract job: a management command writing a **personal-data-free** costing extract to a dedicated R2 prefix | Not started | ADR-036/ADR-005. This job **is** the data-scope enforcement for 16.3. Reuses 4.19's batch costing |
@@ -688,10 +663,10 @@ make the trace path whole.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 17.1 | Model goods receipts as `GoodsReceipt` (supplier, receipt date, doc ref) + `GoodsReceiptLine` (material, supplier lot, quantity, unit, best-before, price paid), distinct from the `RawMaterial` catalogue row | **Unblocked** | ADR-033 (9.21 ✅). Header + lines because a delivery note is one record with many lines. Price fields use ADR-018's shape — same definition as 3.10. **A lot is an event, not an attribute** |
+| 17.1 | Model goods receipts as `GoodsReceipt` (supplier, receipt date, doc ref) + `GoodsReceiptLine` (material, supplier lot, quantity, unit, best-before, price paid), distinct from the `RawMaterial` catalogue row | **Unblocked** | ADR-033. Header + lines because a delivery note is one record with many lines. Price fields use ADR-018's shape — same definition as 3.10. **A lot is an event, not an attribute** |
 | 17.2 | Model production runs: `ProductionRun` → `Consumption` (FK to a `GoodsReceiptLine`, quantity consumed in canonical units) → output `Batch`, with `OutboundRecord` off `Batch` | **Unblocked** | ADR-033. `Consumption.quantity_consumed` is load-bearing beyond traceability — the single field keeping on-hand derivable later without a schema change (17.14) |
 | 17.3 | Assign an internal lot code to each produced batch, format decided rather than improvised | **Unblocked** | **`YYYYMMDD-NNN`**, resetting daily, unique on `(bakery, lot_code)` — ADR-033. Implementation is 17.13 |
-| 17.4 | Model outbound records at the granularity the regulator expects | Blocked | Granularity `Open` — 10.8. Direct-to-consumer sales are treated differently from wholesale |
+| 17.4 | Model outbound records at the granularity the regulator expects | Blocked | Blocked on [roadmap.md](docs/roadmap.md) 10.8 — direct-to-consumer sales are treated differently from wholesale |
 | 17.5 | Make traceability records append-only: no hard delete, no silent retroactive edit — corrections are new records with an audit trail | Not started | The strongest integrity requirement in the schema — stronger than ADR-019's soft delete. Pairs with 2.9, 11.10 |
 | 17.6 | Prevent hard-deletion of any `Supplier` or `RawMaterial` referenced by a traceability record | Not started | Turns 3.13/3.22's soft delete from a judgment call into a requirement |
 | 17.7 | Build the trace query: given any lot, return one step back and one step forward, through multi-level recipes | Not started | The actual deliverable — everything above is scaffolding. The same traversal as 4.16's costing recursion, in the opposite direction, over the one `RecipeLine` table |
@@ -744,8 +719,8 @@ manual pass over every screen. Accepted deliberately; 19.1 is what makes it defe
 | 19.2 | Rewrite `requirements.txt`: Django 5.2 LTS, `psycopg[binary]` 3, current `whitenoise`/`django-environ`, `gunicorn`; remove `asgiref`, `sqlparse`, `pytz`, `environ`, `dj-database-url`, `django-mathfilters` **and `Pillow`** | Not started | ADR-025 amended by ADR-029 — **seven** removals, not six. Re-save as UTF-8 in the same pass, closing 1.4. 19.12 then converts this into the `requirements/` split |
 | 19.3 | Change the `Dockerfile` base image to `python:3.13-slim`; delete `runtime.txt` rather than updating it | Not started | ADR-025, ADR-015 rule 1 — the Dockerfile becomes the single source of the Python version. Overlaps 7.9. Do in one pass with 19.16 |
 | 19.4 | Upgrade Django 3.2 → 5.2; get `manage.py check` and `makemigrations --check --dry-run` clean | Not started | The core of the epic. Expect fallout in `control/views.py`, `bakery/urls.py` and settings. Do 19.14 in the same commit |
-| 19.5 | Remove `mathfilters` from `INSTALLED_APPS` and the two templates that load it (`control/templates/base_recipe.html`, `products.html`), moving their arithmetic into the view | Not started | ADR-025 closes 9.7. A down payment on 4.1/5.x — the values move again when the service layer lands |
-| 19.6 | Switch the driver to `psycopg` 3; confirm connection, migrations and `DATABASE_URL` parsing still work | Not started | 9.5. `env.db()` must still produce a working config (ADR-015 rule 2) |
+| 19.5 | Remove `mathfilters` from `INSTALLED_APPS` and the two templates that load it (`control/templates/base_recipe.html`, `products.html`), moving their arithmetic into the view | Not started | ADR-025. A down payment on 4.1/5.x — the values move again when the service layer lands |
+| 19.6 | Switch the driver to `psycopg` 3; confirm connection, migrations and `DATABASE_URL` parsing still work | Not started | ADR-025. `env.db()` must still produce a working config (ADR-015 rule 2) |
 | 19.7 | Confirm `zoneinfo` handling after the `pytz` removal | Not started | ADR-025 — `USE_TZ = True` and `TIME_ZONE = 'UTC'` are already explicit, so Django 5.0's default flip is a non-event. Verify, record, move on |
 | 19.8 | Manual verification pass over every screen — dashboard, raw materials, suppliers, base recipes, products, settings/export, login | Not started | **The only functional check that exists** until Epic 6. Write down what was exercised, so 6.8 starts from that list |
 | 19.9 | Update the Epic 1 CI workflow to run on Python 3.13 | Not started | 1.11, ADR-011. An edit if Epic 1 landed first; otherwise 1.11 is written against 3.13 |
@@ -762,46 +737,45 @@ manual pass over every screen. Accepted deliberately; 19.1 is what makes it defe
 
 ## Decision → task coverage
 
-Every `Accepted`/`Decided` entry in `docs/` maps to at least one task. Add a row when a new ADR
-lands, in the same session.
+Every `Accepted` ADR maps to at least one task. Add a row when a new ADR lands, in the same session.
+Tasks only — the reasoning is in [decisions.md](docs/decisions.md), and `10.x`/`11.x` references that
+are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 
-| Decision | Tasks implementing it |
+| ADR | Tasks |
 |---|---|
-| ADR-002 — Spark/Databricks insights service (**Accepted**; scoped by ADR-036) | 9.20 ✅, 16.1 ✅, 16.2–16.13 |
-| ADR-003 — Hosting narrowed to Railway/Render/DigitalOcean | 12.1 ✅ |
-| ADR-004 — Deploy via the custom Dockerfile, not a buildpack | 1.11, 7.6, 12.3 |
-| ADR-005 — Media in S3-compatible object storage (Cloudflare R2) | 2.5, 2.13, 3.18, 4.9, 5.11, 13.1–13.11, 16.9 |
-| ADR-006 — Multi-tenant SaaS | 2.8, 3.1–3.4, 11.5, 11.7 |
-| ADR-007 — App and database always separate services | 3.39, 7.7, 12.2 |
-| ADR-008 — Shared DB with row-level tenant isolation + tenant export | 3.2, 3.3, 4.6, 6.9, 14.1–14.6, 16.7, 17.8, 18.6 |
-| ADR-009 — Dedicated GDPR personal-data export | 15.1–15.6 |
-| ADR-010 — `main` integration / `production` deploy, tagged releases | 1.8, 1.9, 1.10, 6.13, 7.12, 7.15, 8.8, 12.4 |
-| ADR-011 — Minimal CI in Epic 1, full pipeline in Epic 6 | 1.11, 1.13, 6.12, 19.9 |
-| ADR-013 — Railway (Hobby, EU West) | 12.1 ✅, 12.2, 12.3, 12.6–12.9, 11.14, 11.15 |
-| ADR-014 — Local Docker dev/test, no hosted staging, release-PR preview | 1.12, 6.15, 12.4, 12.5, 12.10, 19.10 |
-| ADR-015 — Host portability as a standing constraint | 1.5, 3.44–3.49, 3.70, 7.6, 7.7, 7.9–7.11, 7.13, 7.17, 7.18, 8.9, 12.11 |
-| ADR-016 — one free pilot bakery, no deadline, flat per-bakery pricing later | 10.6 ✅, 10.7 ✅, 10.10, 10.11, plus a **negative** constraint on 3.1 (no plan/tier fields) and 2.8/3.4 (no plan gating) |
-| ADR-017 — batch/lot traceability in scope, as its own epic | 9.21 ✅, 10.8, 10.9, 17.1–17.14, and the forced soft-delete in 3.13/3.22 |
-| ADR-018 — costing & money semantics | 3.10, 3.11, 3.15, 3.16, 3.26 (units), 3.34 ✅, 3.50–3.54, 5.16, 6.16, 6.17, 10.13, 17.12, plus deleting the inline `float()` costing in 4.1 |
-| ADR-019 — soft delete, per-tenant supplier uniqueness, admin as superuser-only support tooling | 2.15, 3.6, 3.22, 3.55, 3.56, 6.18 |
-| ADR-020 — three per-tenant roles on a membership record | 2.8, 2.16, 3.4, 3.57, 3.58, 6.19, 10.14, 14.6 |
-| ADR-021 — non-functional targets | 5.12–5.17, 7.20, 10.15, 10.18 |
-| ADR-022 — receipts drive cost; lines accept a material or a base recipe | 3.59–3.62, 4.16, 4.17, 5.20, 6.20, 6.21, 17.1, 18.3 |
-| ADR-023 — dashboard overview; settings as tenant self-administration | 4.18, 5.18, 5.19, 9.22 ✅, 10.16, 10.17, 14.6, and replacing the broken user-delete view (6.7) |
-| ADR-024 — MoSCoW pass (10.3 ✅) | 5.9, 5.21 + 3.63, **Epic 18**, Epic 13 narrowed (13.10), 17.14, 10.10 mostly resolved, 11.3 off the critical path |
-| ADR-025 — Django 5.2 LTS on Python 3.13, dependency set rebuilt | 9.1 ✅, 9.2 ✅, 9.5 ✅, 9.6 ✅, 9.7 ✅, **Epic 19** (19.1–19.9, 19.12, 19.13), 1.4 absorbed into 19.2, `runtime.txt` removal shared with 7.9 |
-| ADR-026 — PostgreSQL 17 pinned everywhere | 9.3 ✅, 19.10, 19.11, and the version constraint on 3.44–3.48 |
-| ADR-027 — adopt the capabilities the upgrade unlocks (amends ADR-019) | 2.17, 2.18, 3.58, 3.64–3.69, 5.22, 5.23, 7.19, 7.20, 13.11, 19.14, 19.15; **reshapes** 2.6/2.7, **reduces** 5.10/5.12 |
-| ADR-028 — backend architecture | 9.9 ✅, 9.10 ✅, 9.11 ✅, 9.12 ✅, 9.22 ✅; new 2.19–2.23, 4.19, 4.20, 5.24, 7.21, 7.22, 10.18, 11.16; **rescopes** 1.5 and 4.1, **unblocks** 4.5 and 5.19, **cancels** 4.15, **supersedes** 2.10 by 4.5 + 2.23 |
-| ADR-029 — `uv pip compile` over a three-file split; the `.in` file is the register | 9.8 ✅, 19.12, 19.16, 19.17, the extra `Pillow` removal in 19.2 and its return in 13.1, and the vendored-asset extension in 5.25 |
-| ADR-030 — frontend: `base.html` + partials, Bootstrap 5.3, HTMX, no SPA, no build step, `djlint` | 9.13 ✅ and the template half of 9.17; unblocks 5.4, 5.6, 5.7, 5.8; **rescopes** 5.6; sharpens 5.1–5.3, 5.5; new 5.25; 6.11 |
-| ADR-031 — operations: coverage-gated CI, git-watch deploys with pre-deploy migrate, Sentry EU, UptimeRobot, two-track backups, no PITR | 9.14 ✅, 9.15 ✅, 9.16 ✅; new 3.70–3.72, 6.22, 7.23, 12.11; **unblocks** 3.38, 3.40, 6.12, 7.2, 7.5, 7.15, 11.13; **rescopes** 6.14, 3.48, 12.9; Sentry added to 11.6 |
-| ADR-032 — one shared `RecipeLine`; categories as a tenant-scoped lookup | 9.18 ✅; **unblocks** 3.19 and the categories half of 3.26; new 3.73, 3.74; 18.3; **corrects** 3.42 and 4.14 |
-| ADR-033 — traceability entities, `YYYYMMDD-NNN` lot codes, stock derivable but not surfaced | 9.21 ✅; **unblocks** 17.1–17.3; new 17.13, 17.14; confirms 17.12; **negative** constraint on 3.10/3.14 |
-| ADR-034 — `ruff` for lint *and* format; `pytest-django` as the runner | 9.17 ✅; **unblocks** 6.10, 6.11; new 6.23, 6.24; feeds 6.12, 6.22, 19.12 |
-| ADR-035 — tenant export as a CSV bundle + JSON manifest in a ZIP | 9.19 ✅; **unblocks** 14.1; new 14.6; sharpens 14.3, 14.4 |
-| ADR-036 — Databricks Serverless (AWS EU Ireland), R2 extract, nightly, ~$15/mo ceiling; gunicorn/WSGI stands | 9.20 ✅, 9.4 ✅, 16.1 ✅; **unblocks** 7.14, 16.2, 16.3; new 16.8–16.13, 11.17; **rescopes** 16.2 |
-| [project_requirements.md](docs/project_requirements.md) — Ireland-first market, then wider EU | 11.8, 11.14, 12.8 |
+| 002 / 036 — Spark on Databricks Serverless, R2 extract, gunicorn stands | 7.14, 16.1–16.13, 11.17 |
+| 003 / 013 — Hosting narrowed, then Railway (Hobby, EU West) | 12.1 ✅, 12.2, 12.3, 12.6–12.9 |
+| 004 — Deploy via the custom Dockerfile | 1.11, 7.6, 12.3 |
+| 005 — Media in Cloudflare R2 | 2.5, 2.13, 3.18, 4.9, 5.11, 13.1–13.11, 16.9 |
+| 006 — Multi-tenant SaaS | 2.8, 3.1–3.4, 11.5 |
+| 007 — App and database always separate | 3.39, 7.7, 12.2 |
+| 008 — Shared DB, row-level isolation + tenant export | 3.2, 3.3, 4.6, 6.9, 14.1–14.6, 16.7, 17.8, 18.6 |
+| 009 — Dedicated GDPR personal-data export | 15.1–15.6 |
+| 010 — `main` integration / `production` deploy, tagged releases | 1.8, 1.9, 1.10, 6.13, 7.12, 7.15, 8.8, 12.4 |
+| 011 — Minimal CI in Epic 1, full pipeline in Epic 6 | 1.11, 1.13, 6.12, 19.9 |
+| 014 — Local Docker dev/test, release-PR preview | 1.12, 6.15, 12.4, 12.5, 12.10, 19.10 |
+| 015 — Host portability | 1.5, 3.44–3.49, 3.70, 7.6, 7.7, 7.9–7.11, 7.13, 7.17, 7.18, 8.9, 12.11 |
+| 016 — One free pilot, no deadline, flat pricing later | **Negative** constraints only: no plan/tier fields on 3.1, no plan gating in 2.8/3.4 |
+| 017 — Traceability in scope as its own epic | 17.1–17.14, plus the forced soft delete in 3.13/3.22 |
+| 018 — Costing & money semantics | 3.10, 3.11, 3.15, 3.16, 3.26, 3.34 ✅, 3.50–3.54, 5.16, 6.16, 6.17, 17.12, and deleting the inline `float()` costing in 4.1 |
+| 019 — Soft delete, per-tenant supplier uniqueness, admin as support tooling | 2.15, 3.6, 3.22, 3.55, 3.56, 6.18 |
+| 020 — Three per-tenant roles on a membership record | 2.8, 2.16, 3.4, 3.57, 3.58, 6.19, 14.6 |
+| 021 — Non-functional targets | 5.12–5.17, 7.20 |
+| 022 — Receipts drive cost; lines accept a material or a base recipe | 3.59–3.62, 4.16, 4.17, 5.20, 6.20, 6.21, 17.1, 18.3 |
+| 023 — Dashboard overview; settings as self-administration | 4.18, 5.18, 5.19, 14.6, and replacing the broken user-delete view (6.7) |
+| 024 — MoSCoW pass | 5.9, 5.21 + 3.63, Epic 18, 13.10, 17.14 |
+| 025 — Django 5.2 LTS on Python 3.13 | 19.1–19.9, 19.12, 19.13; 1.4 absorbed into 19.2; `runtime.txt` removal shared with 7.9 |
+| 026 — PostgreSQL 17 pinned everywhere | 19.10, 19.11, and the version constraint on 3.44–3.48 |
+| 027 — Adopt the capabilities the upgrade unlocks | 2.17, 2.18, 3.58, 3.64–3.69, 5.22, 5.23, 7.19, 7.20, 13.11, 19.14, 19.15; **reshapes** 2.6/2.7, **reduces** 5.10/5.12 |
+| 028 — Backend architecture | 2.19–2.23, 4.19, 4.20, 5.24, 7.21, 7.22, 11.16; **rescopes** 1.5 and 4.1, **cancels** 4.15, **supersedes** 2.10 by 4.5 + 2.23 |
+| 029 — `uv pip compile`; the `.in` file is the register | 19.12, 19.16, 19.17, the `Pillow` removal in 19.2 and its return in 13.1, and 5.25 |
+| 030 — Frontend: partials, Bootstrap 5.3, HTMX, no build step | 5.1–5.8, 5.25, 6.11 |
+| 031 — Operations: coverage-gated CI, git-watch deploys, Sentry EU, two backup tracks | 3.38, 3.40, 3.70–3.72, 6.12, 6.14, 6.22, 7.2, 7.5, 7.15, 7.23, 11.13, 12.9, 12.11 |
+| 032 — One shared `RecipeLine`; tenant-scoped categories | 3.19, 3.26, 3.73, 3.74, 18.3; **corrects** 3.42 and 4.14 |
+| 033 — Traceability entities and lot codes | 17.1–17.3, 17.12–17.14; **negative** constraint on 3.10/3.14 |
+| 034 — `ruff` for lint *and* format; `pytest-django` | 6.10, 6.11, 6.23, 6.24; feeds 6.12, 6.22, 19.12 |
+| 035 — Tenant export as a CSV bundle + JSON manifest | 14.1, 14.3, 14.4, 14.6 |
+| [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |
 

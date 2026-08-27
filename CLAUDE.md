@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bakery is a Django web app (originally an MSc capstone prototype) that lets a bakery track raw materials, suppliers, and products, and computes per-product cost/margin from recipe ingredient data. It is currently being hardened from prototype to production quality — see `PRODUCTION_UPDATE_PLAN.md`, the authoritative **task backlog**: every phase/workstream is an Epic (numbered 1–19, mapping 1:1 to the branch rows in `docs/roadmap.md`) holding numbered, individually-tracked tasks (`3.12` = Epic 3, task 12). Treat that file as the source of truth for planned work; don't re-derive priorities from scratch. Reference task IDs in plans, commits, and PRs. A task marked `Blocked` is blocked on an `Open` decision in `docs/` — make and log the decision first, don't implement it (see ADR-012).
+Bakery is a Django web app (originally an MSc capstone prototype) that lets a bakery track raw materials, suppliers, and products, and computes per-product cost/margin from recipe ingredient data. It is currently being hardened from prototype to production quality — see `PRODUCTION_UPDATE_PLAN.md`, the authoritative **task backlog**: every phase/workstream is an Epic (numbered 1–19, each with its own branch) holding numbered, individually-tracked tasks (`3.12` = Epic 3, task 12). Treat that file as the source of truth for planned work; don't re-derive priorities from scratch. Reference task IDs in plans, commits, and PRs. A task marked `Blocked` is blocked on an open decision in `docs/roadmap.md` — make and log the ADR first, don't implement it (see ADR-012).
 
 This is also a broader redesign in progress — new features, GDPR compliance, and a possible tech
 stack change are still being decided, not just the engineering hardening in
@@ -12,33 +12,39 @@ stack change are still being decided, not just the engineering hardening in
 
 ## Planning & documentation (`docs/`)
 
-Four living documents track decisions that aren't in the code yet. Read the relevant one(s)
-before proposing anything in that area — don't re-derive a requirement or stack choice from
-scratch if it's already marked `Open` or `Decided` there:
+Four documents, **one job each**. Read the relevant one before proposing anything in that area —
+and read its **index/table of contents first**, then only the section you need, rather than loading
+the whole file:
 
-- `docs/project_requirements.md` — **Part 1**: what the app should do (personas, per-area
-  functional requirements, feature backlog, non-functional requirements). **Part 2**: data
-  protection (GDPR) — personal data inventory, legal basis, data subject rights, retention,
-  breach process, DPIA. Data-inventory work is a discovery task, not a coding task: the inventory
-  must exist before consent/deletion/audit-log code is written against it. Separate from
-  engineering quality work (that's `PRODUCTION_UPDATE_PLAN.md`).
-- `docs/tech_stack.md` — what it's built with: current vs. decided, per layer (runtime,
-  dependencies, backend, frontend, infra, quality tooling), plus the third-party **processors,
-  their DPA status and the data-residency/transfer position**, which live with the vendors.
-- `docs/decisions.md` — append-only ADR log. Every real decision (stack, architecture, data
-  model, process — including the branch strategy in ADR-001) gets logged here with context and
-  alternatives considered, not just stated in chat. Never delete an entry; supersede it instead.
-- `docs/roadmap.md` — the phase/branch/epic tracker: one row per epic in the backlog, with its
-  branch name, status, and scope summary, plus the suggested execution order and the first-release
-  milestone. Check this before starting work to confirm which epic/branch a task belongs to, and
-  update its status as work moves (`Not started` → `Planned` → `In progress` → `In review` →
-  `Done`). Epic-level status lives here; task-level status lives in the backlog.
+- `docs/project_requirements.md` — **what the app should do, at a broad level.** Part 1: product
+  (go-to-market, regulatory scope, roles, per-area requirements, feature backlog, non-functional
+  targets). Part 2: data protection (GDPR) — controller/processor model, personal data inventory,
+  subject rights, retention, breach process, DPIA. Details belong in the other docs; the inventory
+  must exist before consent/deletion/audit-log code is written against it.
+- `docs/tech_stack.md` — **what it's built with, decided facts only.** Current vs. decided per
+  layer (runtime, dependencies, backend, data model, frontend, infra, quality tooling), plus the
+  third-party **processors and the data-residency position**, which live with the vendors. Outcomes
+  in a line; the reasoning is in the ADR named beside each row and is never repeated here.
+- `docs/decisions.md` — **append-only ADR log; its only job is to stop settled questions being
+  re-opened.** Opens with an index table (number, title, status, one-line decision) — read that,
+  then fetch only the entries you need. Each entry is Decision · Rejected · Traps; **Rejected is the
+  load-bearing part.** Never delete an entry; supersede it, and move any surviving clause into the
+  superseding ADR.
+- `docs/roadmap.md` — **the open-decisions register, and nothing else.** Every question still
+  awaiting a judgment, with stable IDs (`10.x` product/requirements, `11.x` data protection, `9.x`
+  stack) that `Blocked` backlog tasks reference. It holds no tasks, no status tracking and no
+  sequencing.
 
-Rows/sections marked `Open` in these docs are not settled — don't write code as if they were
-decided. When a decision is actually made (in conversation or otherwise), update the relevant doc,
-add an ADR to `docs/decisions.md`, **and** turn that decision into task(s) inside the right epic in
-`PRODUCTION_UPDATE_PLAN.md` (plus a row in its "Decision → task coverage" table) — all in the same
-session. Planning and undecided material belongs in `docs/`; the backlog holds only work.
+**There are no `Open` rows anywhere else.** If a question appears in `tech_stack.md`,
+`project_requirements.md` or `decisions.md`, that's a bug — move it to `roadmap.md`. Epic and task
+status, sequencing, the execution order and the release milestone all live in
+`PRODUCTION_UPDATE_PLAN.md`.
+
+When a decision is actually made (in conversation or otherwise): add an ADR to `docs/decisions.md`
+(and its index row), update the relevant state doc, **delete the question from `roadmap.md`**, and
+turn the decision into task(s) in the right epic in `PRODUCTION_UPDATE_PLAN.md` plus a row in its
+"Decision → task coverage" table — all in the same session. The flow is one-directional:
+**open question → ADR → tasks.**
 
 ### Workflow this repo follows
 
