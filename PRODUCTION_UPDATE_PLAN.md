@@ -1,6 +1,6 @@
 # Bakery Production Backlog
 
-The **task backlog** — 305 tasks across 19 epics. Every phase, discovery workstream and feature is an
+The **task backlog** — 308 tasks across 19 epics. Every phase, discovery workstream and feature is an
 **Epic**; every epic holds numbered tasks that can be picked up, tracked and closed. This file owns
 **epic and task status and sequencing**.
 
@@ -21,14 +21,17 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 - **Task IDs are stable** (`3.12` = Epic 3, task 12). Reference them in commits, PRs and plans. Never
   renumber — append new tasks at the end of their section.
 - **Task status:** `Not started` → `In progress` → `Done`, or `Blocked` (Notes says what on).
-  **Epic status** is the table below: `Not started` → `Planned` (plan agreed, branch not opened) →
-  `In progress` → `In review` (PR open) → `Done` (merged to `main`).
+  A task is `Done` when its own PR is merged to `main` ([ADR-037](docs/decisions.md)).
+  **Epic status** is the table below: `Not started` → `Planned` (plan agreed, no task branch opened)
+  → `In progress` → `In review` (its last task PRs are open) → `Done` (all its tasks merged to `main`).
 - **A `Blocked` task must not be implemented.** Its blocker is an open decision in
   [roadmap.md](docs/roadmap.md); make and log the ADR first.
-- **Epic = branch**, named per [ADR-010](docs/decisions.md): `phase-N-<slug>` for hardening phases,
-  `feature-` / `gdpr-` / `stack-<slug>` otherwise. Every branch targets `main`; promoting `main` →
-  `production` with a release tag is a separate step. A phase needs an approved plan before moving
-  past `Not started`.
+- **Task = branch**, named per [ADR-037](docs/decisions.md): `<epic-branch>-<task-id>`, e.g.
+  `phase-1-repo-cleanup-1.1`. The epic name is still `phase-N-<slug>` for hardening phases,
+  `feature-` / `gdpr-` / `stack-<slug>` otherwise — it now *prefixes* the task branch rather than
+  being one. **An epic groups and sequences; it does not branch.** Every branch targets `main`;
+  promoting `main` → `production` with a release tag is a separate step. A task needs an approved
+  plan before moving past `Not started`. `/next-task` executes one ([ADR-038](docs/decisions.md)).
 - **New work starts as a task here**, not as a paragraph. If it needs a decision first, add the
   question to [roadmap.md](docs/roadmap.md) instead.
 - **Notes cite the governing ADR and the trap worth knowing — not the argument.** The reasoning is in
@@ -38,7 +41,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 
 | Epic | Name | Branch | Status | Tasks | Blocked by |
 |---|---|---|---|---|---|
-| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | Not started | 13 | — |
+| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | Not started | 16 | — |
 | [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | Not started | 23 | Epic 1 |
 | [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
@@ -76,6 +79,14 @@ ADR-024's MoSCoW pass.
 8. Epic 6 — test suite and the full CI gate.
 9. Epic 12 → Epic 7 — provision the host, then observability and deployment hardening.
 10. Epic 8 — documentation and runbooks, once what they document is stable.
+
+**Two Epic 6 tasks run early, straight after 1.11: [6.23](#epic-6--testing--quality-gates)** (`pytest`
++ `pytest-django` + `pytest-cov`) **and [6.10](#epic-6--testing--quality-gates)** (`ruff`). Both are
+already decided by [ADR-034](docs/decisions.md) and 6.10 is already `Unblocked`; they sit in Epic 6
+only by grouping. Until they land there is no way for a task to ship with a test, and
+[ADR-038](docs/decisions.md)'s loop requires exactly that. **Their IDs do not change and they remain
+Epic 6 tasks** — this is sequencing, not renumbering. **6.22's coverage gate is explicitly *not*
+pulled forward**: switching it on before the tests exist blocks the PRs that write them.
 
 **Epic 17 is the exception to "features last"** — traceability is a Must ([ADR-017](docs/decisions.md))
 and its data model had to be settled before Epic 3's schema work, or Epic 3 gets redesigned twice.
@@ -130,6 +141,9 @@ ship safely through a PR.
 | 1.11 | Minimal GitHub Actions workflow on every PR against `main`/`production`: `manage.py check`, `makemigrations --check --dry-run`, `docker build`, basic lint | Not started | ADR-011. No test run (none exist) and no deploy step (no host yet) — verification only; extended by 6.12 |
 | 1.12 | Script that refreshes and launches the local dev environment in one command — pull `main`, rebuild containers, run migrations | Not started | ADR-014. Run **manually**; GitHub cannot trigger a local machine. Missing the migration step is the usual cause of a confusing local failure |
 | 1.13 | Add `collectstatic --noinput` to CI, so a referenced-but-missing static asset fails the PR, not the deploy | Not started | Extends 1.11; load-bearing at 5.3, where `ManifestStaticFilesStorage` turns a missing file into a render-time `ValueError`. ADR-027 |
+| 1.14 | Agent workflow scaffolding: `.claude/settings.json` permissions, the five task subagents, and the `/next-task` skill | Not started | ADR-038. Procedure and pointers only — **no architectural facts under `.claude/`**. The subagents exist to keep the backlog and ADR log out of main context, not to parallelize |
+| 1.15 | Guard hooks: block direct pushes to `main`/`production`, block a drive-by rename of the prototype identifiers, block a commit that leaves this file's task status stale | Not started | ADR-038. Local only, so they are a fast failure and never the real enforcement — that stays 1.9 and 1.11. The rename guard exists because `categorie` alone is 137 sites across 58 files (1.7) |
+| 1.16 | PR template carrying the task ID and the verification checklist | Not started | ADR-037. One PR per task makes the task ID the thing a reviewer needs first |
 
 ---
 
@@ -775,6 +789,8 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 033 — Traceability entities and lot codes | 17.1–17.3, 17.12–17.14; **negative** constraint on 3.10/3.14 |
 | 034 — `ruff` for lint *and* format; `pytest-django` | 6.10, 6.11, 6.23, 6.24; feeds 6.12, 6.22, 19.12 |
 | 035 — Tenant export as a CSV bundle + JSON manifest | 14.1, 14.3, 14.4, 14.6 |
+| 037 — One task = one feature = one PR | 1.16, and the branch naming enforced by 1.9 and 1.15 |
+| 038 — Agent-assisted task loop | 1.14, 1.15 |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |
