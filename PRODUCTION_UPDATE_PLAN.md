@@ -1,6 +1,6 @@
 # Bakery Production Backlog
 
-The **task backlog** — 308 tasks across 19 epics. Every phase, discovery workstream and feature is an
+The **task backlog** — 310 tasks across 19 epics. Every phase, discovery workstream and feature is an
 **Epic**; every epic holds numbered tasks that can be picked up, tracked and closed. This file owns
 **epic and task status and sequencing**.
 
@@ -41,12 +41,12 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 
 | Epic | Name | Branch | Status | Tasks | Blocked by |
 |---|---|---|---|---|---|
-| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | Not started | 16 | — |
+| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | Not started | 17 | — |
 | [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | Not started | 23 | Epic 1 |
 | [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
 | [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | Not started | 25 | Epics 3, 19 |
-| [6](#epic-6--testing--quality-gates) | Testing & quality gates | `phase-6-testing-ci` | Not started | 24 | Epics 1–5 |
+| [6](#epic-6--testing--quality-gates) | Testing & quality gates | `phase-6-testing-ci` | Not started | 25 | Epics 1–5 |
 | [7](#epic-7--observability--operations) | Observability & operations | `phase-7-observability` | Not started | 23 | Epic 12 |
 | [8](#epic-8--documentation--team-readiness) | Documentation & team readiness | `phase-8-docs` | Not started | 9 | Epics 1–7 |
 | 9 | Tech stack decisions | `stack-decisions` | **Done** 2026-08-26 | — | Closed by ADR-025 → ADR-036 |
@@ -101,7 +101,7 @@ Risk reduction over feature expansion. Shippable when these are done:
 - Settings split by environment (1.5)
 - Authentication and authorization enforced in views (2.6, 2.7, 2.17)
 - Credential-free login auditing in place (2.23)
-- Known functional defects fixed, including the user-delete flow (6.7)
+- Known functional defects fixed, including the user-delete flow (6.7) and the two 500-ing bulk CSV exports (1.17)
 - Repository artifacts cleaned up (1.1, 1.2)
 - Basic automated tests for core flows (6.8)
 - Deployment configuration normalized (7.7, 7.8, 7.9)
@@ -124,9 +124,9 @@ ship safely through a PR.
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 1.1 | Remove generated and local-only artifacts from version control (`__pycache__/`, `bakery/staticfiles/`, `.idea/`, `.venv/`, OS/editor temp files) | Not started | |
-| 1.2 | Expand `.gitignore` to cover Python, Django, environment, build and IDE artifacts | Not started | |
+| 1.2 | Expand `.gitignore` to cover Python, Django, environment, build and IDE artifacts | Not started | **Include `~$*`** — a Word owner file (`~$quirements.txt`) reached `main` in PR #2 and was removed by hand; without the pattern it returns whenever a tracked file is opened in Office |
 | 1.3 | Keep only source assets in `bakery/static/`; confirm nothing depends on the committed `staticfiles/` output | Not started | **Prerequisite for 5.3** — a committed stale manifest is the classic "worked locally, 500 in production". ADR-027 |
-| 1.4 | Re-save `requirements.txt` as UTF-8 (currently UTF-16LE) | Not started | Blocks tooling that reads it. Absorbed into 19.2 if Epic 19 lands first |
+| 1.4 | Re-save `requirements.txt` as UTF-8 (was UTF-16LE) | **Done** 2026-09-10 | Landed incidentally in PR #2, not via its own PR — the file was edited in Word, which re-encoded it. Side benefit: the file now produces a readable text diff instead of `Bin … bytes`. 19.2 still rewrites its *contents* |
 | 1.5 | Split settings into `settings/base.py` + `local.py` + `test.py`; retire the Heroku module | Not started | ADR-028: **three** modules, not four — `base.py` *is* production. `manage.py` and the `Dockerfile` both default to `base`. Pairs with 2.1, 2.19; deletes `settings/heroku.py` (7.9) and `runtime.txt` |
 | 1.6 | Remove dead code, duplicate assets and unused views/forms (e.g. `control/forms.py: Raw_Material_Form`, wired into nothing) | Not started | |
 | 1.7 | Rename prototype identifiers: `categorie`→`category`, `recipe_yeld`→`recipe_yield`, `Base_recipes`→`BaseRecipe`, `Bs_Ingredients`→`BaseRecipeIngredient`, `Recipe_Ingredients`→`ProductIngredient` | Not started | Transitional migrations + compatibility layers, never a big-bang rename; sequence with Epic 3 |
@@ -144,6 +144,12 @@ ship safely through a PR.
 | 1.14 | Agent workflow scaffolding: `.claude/settings.json` permissions, the five task subagents, and the `/next-task` skill | Not started | ADR-038. Procedure and pointers only — **no architectural facts under `.claude/`**. The subagents exist to keep the backlog and ADR log out of main context, not to parallelize |
 | 1.15 | Guard hooks: block direct pushes to `main`/`production`, block a drive-by rename of the prototype identifiers, block a commit that leaves this file's task status stale | Not started | ADR-038. Local only, so they are a fast failure and never the real enforcement — that stays 1.9 and 1.11. The rename guard exists because `categorie` alone is 137 sites across 58 files (1.7) |
 | 1.16 | PR template carrying the task ID and the verification checklist | Not started | ADR-037. One PR per task makes the task ID the thing a reviewer needs first |
+
+### Known defects
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| 1.17 | Restore the two broken bulk CSV exports — `export_base_recipes` and `export_products` both `values_list` a dead `'ingredients'` field | Not started | **Broken since April 2021**, found by a manual smoke pass 2026-09-08. `Base_recipes` never had the field; `Product.ingredients` was removed by `0011_remove_product_ingredients`. Both raise `FieldError` → HTTP 500; the suppliers and raw-materials exports are fine. **Drop the column** rather than flattening the to-many — relationships belong in Epic 14's manifest (ADR-035), not a cell in a per-entity CSV. Filed here rather than behind 5.19 (the 6.7 precedent) because it needs no redesign. Regression test is 6.25; repairs the premise 15.5 rests on |
 
 ---
 
@@ -447,6 +453,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 6.19 | Test the three-role capability matrix: Read-only cannot write, Staff cannot manage users or pricing, Owner cannot reach another tenant | Not started | Covers 2.8, 2.16. Extends 6.4 |
 | 6.20 | Test recursive costing: costing through a base recipe returns the right figure, and a self-referencing or transitively cyclic recipe is **rejected** rather than looping | Not started | Covers 3.59, 4.16. The cycle case hangs a request if missed |
 | 6.21 | Test cost provenance: receipt-derived and estimated figures are distinguishable, and a back-dated receipt updates current cost correctly by receipt date | Not started | Covers 3.61, 3.62, 4.17 |
+| 6.25 | Regression test: each of the four bulk CSV exports returns 200 with its expected header row | Not started | Covers 1.17. Extends 6.5, which on its own would have been written against the same assumption 15.5 made — that these exports work. Two of the four did not |
 | 6.22 | Add coverage measurement to CI, then enable `--fail-under=70` as a required check | Not started | ADR-031. **Enable the gate last** — switching it on first blocks the PRs that write the tests. Measure and report from the start so the number is visible while it climbs. Repo-wide, one number |
 
 ### Tooling
@@ -630,7 +637,7 @@ distinct from both the bulk admin CSV export and the tenant-wide export (ADR-009
 | 15.2 | Build the subject-scoped export as its own view/service | Not started | May reuse ADR-035's bundle shape scoped to one subject — this task's call, not a stack decision |
 | 15.3 | Gate it to the requesting user's own data, or an admin acting on a subject's behalf | Not started | |
 | 15.4 | Audit-log every personal-data export | Not started | Pairs with 11.10 |
-| 15.5 | Leave the per-entity bulk CSV exports unchanged as an admin/operational feature | Not started | ADR-009 — explicitly not the compliance mechanism |
+| 15.5 | Leave the per-entity bulk CSV exports unchanged as an admin/operational feature | Not started | ADR-009 — explicitly not the compliance mechanism. **"Unchanged" presumes working:** base recipes and products currently 500 (1.17), so this task inherits the *fixed* exports rather than today's |
 | 15.6 | Update [project_requirements.md](docs/project_requirements.md) "Data subject rights" — mark Portability implemented when this ships | Not started | ADR-009 already records the direction; this closes the gap between decided and built |
 
 ---
@@ -798,7 +805,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 ## Highest-risk items
 
 The reasons for the current epic ordering. Each is already a task — this table exists so the risk
-isn't lost among 352 of them.
+isn't lost among 310 of them.
 
 | Risk | Fixed by |
 |---|---|
@@ -811,7 +818,7 @@ isn't lost among 352 of them.
 | Backups that have never been restored — the restore path runs for the first time on the day it matters, over records food law requires to be kept | 3.70, 3.48, 3.72 |
 | Switching templates to `{% static %}` activates manifest storage for the first time, turning any missing asset into a render-time 500 | 1.3 before 5.3, plus 1.13 |
 | Generated files committed to the repository | 1.1, 1.2 |
-| Known functional defects (e.g. user delete removes the wrong model) | 6.7, with the actual fix in 5.19 |
+| Known functional defects — user delete removes the wrong model; two of the four bulk CSV exports 500 on a field deleted in 2021 | 6.7, with the actual fix in 5.19; 1.17 for the exports, with its regression test in 6.25 |
 | No automated quality gate before merge or deploy | 1.11, 6.12, 6.13 |
 | Inconsistent runtime configuration across Docker, Heroku and local | 1.5, 7.7, 7.8, 7.9, 19.10 |
 | A half-built traceability feature that *looks* like a compliance record to a real food business operator | 17.7, 17.10, plus 10.8 before Epic 17 starts |
