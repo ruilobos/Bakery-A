@@ -1,3 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
 .venv/
-/.vscode/
+venv/
+env/
+
+# NOTE: bakery/staticfiles/ is collectstatic output and is still tracked.
+# Untracking it is task 1.3, which must first confirm nothing depends on the
+# committed output (31 templates hardcode /static/; the Dockerfile runs
+# collectstatic at build). Adding the pattern here now would do nothing while
+# the files remain tracked, so it is deliberately left out until 1.3.
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Office lock files - a Word owner file (~$quirements.txt) reached main in PR #2
+~$*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project
 /web_pages/
