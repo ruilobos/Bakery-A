@@ -48,13 +48,30 @@ turn the decision into task(s) in the right epic in `PRODUCTION_UPDATE_PLAN.md` 
 
 ### Workflow this repo follows
 
-Per ADR-010 in `docs/decisions.md` (supersedes ADR-001): `main` is the integration/dev-test
+Per ADR-010 (supersedes ADR-001), as amended by ADR-037: `main` is the integration/dev-test
 branch, not what's deployed to real users — a separate `production` branch holds what's live.
-Each phase or feature gets its own branch (e.g. `phase-1-repo-cleanup`, `gdpr-data-inventory`)
-opened as a PR against `main`, planned in Plan Mode before implementation starts, and merged
-before the next phase branch begins. Promote validated work from `main` to `production` via its
-own PR, tagged as a GitHub Release on merge. Don't start broad, undiscussed work across multiple
-phases/areas in one session — confirm which phase/branch a task belongs to first.
+
+**One task is one feature is one PR** (ADR-037). Each backlog task gets its own branch named
+`<epic-branch>-<task-id>` (e.g. `phase-1-repo-cleanup-1.1`), branched from an updated `main`,
+planned in Plan Mode before implementation starts, and squash-merged before the next begins.
+**An epic groups and sequences tasks; it is not a branch.** No stacking, no direct commits.
+Promote validated work from `main` to `production` via its own PR, tagged as a GitHub Release on
+merge. Don't start broad, undiscussed work across multiple phases/areas in one session — confirm
+which task a change belongs to first.
+
+**`/next-task` is the sanctioned way to execute a task** (ADR-038): it selects the next actionable
+task (refusing anything `Blocked`), reads only the ADRs and requirement sections that task's Notes
+cite, plans, branches, implements with tests, reviews the diff against both `docs/decisions.md` and
+`docs/project_requirements.md`, runs the verification gates, updates the task's status, commits and
+opens the PR — then stops. It never merges and never promotes.
+
+### The `.claude/` execution layer
+
+`docs/` says *what and why*; `PRODUCTION_UPDATE_PLAN.md` says *what's left*; `.claude/` says *how a
+task gets done* — the `/next-task` skill, its subagents, and the guard hooks. **It holds procedure
+and pointers only.** If a file under `.claude/` ever explains *why* something is built a certain
+way, that's a bug in the same way an `Open` row outside `roadmap.md` is: it cites ADR-018, it never
+restates it.
 
 ## Commands
 
