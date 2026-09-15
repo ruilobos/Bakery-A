@@ -79,7 +79,7 @@ There is no test suite, linter, or CI configured yet (each app's `tests.py` is a
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)
-pip install -r requirements.txt   # NOTE: requirements.txt is UTF-16LE encoded — re-save as UTF-8 if your pip/tooling chokes on it
+pip install -r requirements.txt   # UTF-8 since task 1.4; keep it out of Word, which re-encodes it
 
 # Run dev server (uses bakery/settings/base.py, hardcoded DEBUG=True + dev secrets)
 python manage.py runserver
