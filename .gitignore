@@ -21,11 +21,8 @@ db.sqlite3-journal
 venv/
 env/
 
-# NOTE: bakery/staticfiles/ is collectstatic output and is still tracked.
-# Untracking it is task 1.3, which must first confirm nothing depends on the
-# committed output (31 templates hardcode /static/; the Dockerfile runs
-# collectstatic at build). Adding the pattern here now would do nothing while
-# the files remain tracked, so it is deliberately left out until 1.3.
+# collectstatic output - regenerated at image build, never committed
+bakery/staticfiles/
 
 # IDE / editors
 .idea/
