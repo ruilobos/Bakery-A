@@ -4,6 +4,9 @@ FROM python:3.9-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+# The image runs production settings (ADR-028). Stated explicitly rather than
+# inherited from manage.py's default, so the deployed module is visible here.
+ENV DJANGO_SETTINGS_MODULE bakery.settings.base
 
 # Set work directory
 WORKDIR /code
