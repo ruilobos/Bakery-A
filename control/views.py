@@ -1,15 +1,11 @@
-from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, HttpResponseRedirect
+from django.shortcuts import render
+from django.http import HttpResponse
 from .models import RawMaterial, Supplier, Base_recipes, Recipe_Ingredients, Product, Bs_Ingredients
 from django.views.generic.list import ListView
-from django.views.generic import DetailView
-from django.urls import reverse
-import datetime
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 import csv
 from django.contrib.auth import get_user_model
-from django.contrib.admin.views.decorators import staff_member_required
 from django.template.defaulttags import register
 
 
