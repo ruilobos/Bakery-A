@@ -17,8 +17,14 @@ The flow is one-directional: **question here → decided → [ADR](decisions.md)
 - **Work that just needs doing is not a decision** — that belongs in the backlog. The test: is the
   answer a judgment nobody has made, or a clear path nobody has walked?
 
-**No open stack questions (`9.x`).** Epic 9 closed 2026-08-26 with ADR-025 → ADR-036. A new stack
-question is added here first and answered with an ADR — never in passing.
+Epic 9 closed 2026-08-26 with ADR-025 → ADR-036. A new stack question is added here first and
+answered with an ADR — never in passing; `9.22` below was opened that way on 2026-09-17.
+
+## Stack (`9.x`)
+
+| # | Question | Why it needs deciding |
+|---|---|---|
+| 9.22 | How does a fail-loud `settings/base.py` coexist with `collectstatic` running at Docker image build time? | **Blocks 2.19 and 7.10, and constrains 1.5.** [ADR-028](decisions.md) makes `base.py` production with **no default at all** for `SECRET_KEY`/`ALLOWED_HOSTS`/`DEBUG`, so a missing variable raises `ImproperlyConfigured` at boot — that is 2.19. But `Dockerfile:20` runs `collectstatic --noinput` at build, and 7.10 requires that build **not** to need `DATABASE_URL`/`SECRET_KEY`; a real image build has no secrets. The two are directly opposed and **no ADR settles it** — ADR-028 states only the fail-loud half and never mentions build time; ADR-031 lists `collectstatic` as a CI gate step without saying which settings module it runs under; ADR-004 and ADR-015 are silent. Candidate answers, none chosen: build-time placeholder env vars baked into the `Dockerfile`; a fourth build-only settings module (**which ADR-028's "no `production.py`" reasoning argues against**); or moving `collectstatic` out of the image build into a release step (touches 7.10 and ADR-015 rule 1). **The answer binds all three tasks at once**, which is why it is one question rather than three. Surfaced 2026-09-17 while planning 1.5 |
 
 ## Product & requirements (`10.x`)
 
