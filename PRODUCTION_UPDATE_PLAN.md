@@ -166,7 +166,7 @@ ship safely through a PR.
 | 2.3 | Environment-specific `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and cookie settings | Not started | |
 | 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | Not started | |
 | 2.5 | Hold object-storage (R2) access keys as environment variables — never hardcoded | Not started | ADR-005; pairs with 13.3 |
-| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Not started | ADR-028. Retires today's inversion: `base.py` ships a real `SECRET_KEY`/`DEBUG = True` and `heroku.py:11` defaults `DEBUG` to `True` in the *production* module. Pairs with 1.5, 2.1 |
+| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 9.22** — raising on unset breaks `collectstatic` at image build, which 7.10 requires to keep working; no ADR settles the two. After 1.5 this is "delete the fallbacks", not "write a validator": `django-environ` already raises `ImproperlyConfigured` for a var with no default. ADR-028. Retires today's inversion: `base.py` ships a real `SECRET_KEY`/`DEBUG = True` and `heroku.py:11` defaults `DEBUG` to `True` in the *production* module. Pairs with 1.5, 2.1 |
 
 ### Authentication and authorization
 
@@ -498,7 +498,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 7.7 | Fix `docker-compose.yaml` so it defines all required services correctly, app and DB separate | Not started | ADR-007; drop the external `bakery_simple` network assumption. Overlaps 19.10 |
 | 7.8 | Separate the local compose definition from the production deployment definition | Not started | |
 | 7.9 | Remove legacy Heroku assumptions (`settings/heroku.py`, `runtime.txt`, `Procfile`) | Not started | Pairs with 1.5 + Epic 12 |
-| 7.10 | Add a static asset build step to the release process | Not started | `collectstatic` currently runs at image build time. After 1.5, ensure it does **not** require `DATABASE_URL`/`SECRET_KEY` at build — a settings module that raises on missing env vars would break the image build |
+| 7.10 | Add a static asset build step to the release process | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 9.22** — the same question from the other side. `collectstatic` currently runs at image build time and must **not** require `DATABASE_URL`/`SECRET_KEY` there, which is directly opposed to 2.19's raise-on-unset; no ADR settles it. 1.5 left fallbacks in place precisely so the build keeps working until 9.22 is answered |
 | 7.11 | Add a migration release step and **remove `migrate` from the container start command** in both the `Dockerfile` `CMD` and `docker-compose.yaml` | Not started | ADR-015 rule 4. Migrating on boot makes every replica race and ties the schema change to container start. **Pairs with 12.11** — do both in one pass or migrations run twice |
 | 7.12 | Write and test the rollback procedure, using 1.10's release tags | Not started | |
 | 7.13 | Document every environment variable per environment as a committed `.env.example` (names and example values only — never real secrets) | Not started | ADR-015 rule 8 — this file is the migration checklist; if it lives only in a host's dashboard, moving host becomes archaeology |
