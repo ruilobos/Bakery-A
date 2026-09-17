@@ -81,8 +81,11 @@ There is no test suite, linter, or CI configured yet (each app's `tests.py` is a
 # Environment (repo already has a .venv; recreate with your own Python if needed)
 pip install -r requirements.txt   # UTF-8 since task 1.4; keep it out of Word, which re-encodes it
 
-# Run dev server (uses bakery/settings/base.py, hardcoded DEBUG=True + dev secrets)
-python manage.py runserver
+# Run dev server. manage.py defaults to bakery.settings.base, which IS production
+# (ADR-028) and runs DEBUG=False — so local work must ask for the local module:
+DJANGO_SETTINGS_MODULE=bakery.settings.local python manage.py runserver   # bash
+$env:DJANGO_SETTINGS_MODULE="bakery.settings.local"; python manage.py runserver  # PowerShell
+# Task 1.12 replaces this with a one-command launcher.
 
 # Migrations
 python manage.py makemigrations
@@ -106,8 +109,17 @@ Database is PostgreSQL. Local/base settings hardcode `postgres`/`simple` credent
 
 ### Settings split
 
-- `bakery/settings/base.py` — the settings module actually used by `manage.py` and local/Docker runs. Contains hardcoded `SECRET_KEY`, hardcoded DB credentials, hardcoded `ALLOWED_HOSTS`, and `DEBUG = True`. There is no `local.py`/`test.py` yet — everything not on Heroku runs on these dev defaults.
-- `bakery/settings/heroku.py` — production overrides, imports `from bakery.settings.base import *` then overrides `DEBUG`, `SECRET_KEY`, `ALLOWED_HOSTS`, and `DATABASES` from environment variables via `django-environ`. Nothing currently sets `DJANGO_SETTINGS_MODULE` to this file in-repo (Heroku config presumably sets it externally) — verify before assuming it's live.
+Three modules per ADR-028, **no `production.py`** — `base.py` *is* production, and the overlays opt
+*into* unsafe or convenient behaviour so the accident lands on the safe side.
+
+- `bakery/settings/base.py` — production, and the default for `manage.py`, `wsgi.py`, `asgi.py` and the `Dockerfile`. Every environment-sensitive value (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `DATABASE_URL`) is read from the environment via `django-environ`. **`DEBUG` defaults to `False` here.**
+- `bakery/settings/local.py` — development: `DEBUG = True` and a local host list. Must be requested explicitly via `DJANGO_SETTINGS_MODULE`.
+- `bakery/settings/test.py` — minimal: `DEBUG = False`, fast password hasher, plain static storage. Task 6.23 owns extending it when `pytest` lands.
+
+**The values are still in the repo as `default=` fallbacks**, so nothing yet fails when a variable is
+unset. Task **2.1** removes the secret fallbacks; **2.19** removes them entirely so a missing
+variable raises `ImproperlyConfigured` — 2.19 is `Blocked` on roadmap question **9.22**, because a
+raising module would break `collectstatic` at image build.
 
 ### App layout
 
