@@ -41,7 +41,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 
 | Epic | Name | Branch | Status | Tasks | Blocked by |
 |---|---|---|---|---|---|
-| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | In progress | 17 | — |
+| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | In progress | 19 | — |
 | [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | Not started | 23 | Epic 1 |
 | [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
@@ -144,6 +144,8 @@ ship safely through a PR.
 | 1.14 | Agent workflow scaffolding: `.claude/settings.json` permissions, the five task subagents, and the `/next-task` skill | **Done** 2026-09-15 | ADR-038. Procedure and pointers only — **no architectural facts under `.claude/`**. The subagents exist to keep the backlog and ADR log out of main context, not to parallelize. **The five are one per planning document** — `backlog`, `decisions`, `requirements`, `tech-stack`, `roadmap` — each read-only (`Read, Grep, Glob`) and each returning the cited excerpt, never the file; recorded here because ADR-038 never enumerated them. `settings.json` carries an `allow` list only: `git push`, `gh pr merge` and `git reset --hard` are deliberately absent so they prompt, which is what keeps ADR-038's third gate real. Blocking pushes outright is 1.15 |
 | 1.15 | Guard hooks: block direct pushes to `main`/`production`, block a drive-by rename of the prototype identifiers, block a commit that leaves this file's task status stale | Not started | ADR-038. Local only, so they are a fast failure and never the real enforcement — that stays 1.9 and 1.11. **The guard's purpose changed with ADR-039**, which rescoped 1.7 to two identifiers: the other three — `categorie`, `Bs_Ingredients`, `Recipe_Ingredients` — are now *deliberately* left misspelled until 3.73 and 3.74 delete them, so the guard is what stops a well-meant drive-by "fix". The old justification ("137 sites across 58 files") was a miscount — `categorie` is a substring of `categories`, so every `products_categories`/`rw_categories` URL name and nav link matched; the field is **~22 sites in 6 files**. The guard is still worth building: it is cheap, and the scale was never the reason |
 | 1.16 | PR template carrying the task ID and the verification checklist | Not started | ADR-037. One PR per task makes the task ID the thing a reviewer needs first |
+| 1.18 | Add the `codecheck` subagent — owns the working tree and git history, never `docs/` — and the `/next-task` premise gate that calls it before planning; add `Bash(git grep:*)` to the permission allow list | Not started | ADR-040. The gate re-derives four claim types: a number, a "superseded by task N", a constraint, and the task's purpose. **Before planning, not before implementing** — a premise checked after the branch exists has already cost what it was meant to save. `codecheck` returns the **command** with every measurement, matches identifiers on **word boundaries** (`categorie` matches `categories`) and separates model / field / view-class / URL-name / template-variable hits, which are the two rules that caught ADR-039's errors. `settings.json` allows `Bash(grep:*)` but not `git grep`, so the measuring agent would prompt on every call |
+| 1.19 | Have the `decisions` and `backlog` agents flag claims about the code as unverified, and add CLAUDE.md's "docs state intent; the code states fact" rule | Not started | ADR-040. **Neither agent gains code access** — that would dissolve the isolation ADR-038 bought; they mark numbers and file counts *stated when written, never re-measured* and hand off to `codecheck`. Also amends `decisions`' "do not reconstruct one from the code" so the dead end becomes a handoff: an unsettled question is only a blocker if its premise holds. Depends on 1.18 for the agent to hand off to |
 
 ### Known defects
 
@@ -799,6 +801,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 037 — One task = one feature = one PR | 1.16, and the branch naming enforced by 1.9 and 1.15 |
 | 038 — Agent-assisted task loop | 1.14, 1.15 |
 | 039 — Rename only the identifiers Epic 3 leaves behind | **rescopes** 1.7 to two renames and unblocks it; **corrects** the site count in 1.15 |
+| 040 — The loop verifies its premises against the code | 1.18, 1.19; **amends** 038's loop definition |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |
