@@ -48,14 +48,31 @@ Fetch **only** the referenced material, via the subagent that owns each file:
 They exist to keep the planning docs out of this session's context (ADR-038). Do not read a doc
 directly when a subagent owns it.
 
-## 4 · Plan — **human gate 1**
+## 4 · Verify the task's premises — **before planning**
+
+The Notes and the ADRs record what was *believed* when they were written. Before planning against
+them, re-derive the four kinds of claim that decide scope. Ask **`codecheck`**; it reports the
+code, never the docs ([ADR-040](../../../docs/decisions.md)).
+
+| Claim | What to verify |
+|---|---|
+| **A number** — "137 sites", "16 CSS files", "60 files" | Re-measure it, and report the command. A scope-driving number that cannot be reproduced is a defect in the doc, not a constraint on you |
+| **"Superseded by / absorbed into task N"** | Confirm N actually produces the end state. **A task that still spells the old name does not rename it.** Search for the *target* state, not the current one — if the target appears nowhere, no task delivers it |
+| **A constraint** — "never X", "must use Y" | It must cite an ADR **and** name the condition it guards. Then confirm that condition exists **in this repo today** — a host, live traffic, a second tenant, a deployed branch. A constraint guarding a situation that does not exist is not binding |
+| **The task's purpose** | Confirm the outcome is still something `project_requirements.md` or an ADR wants. A task can be accurate, unblocked and pointless |
+
+A failed premise **stops the loop and gets reported** — the same gate as `Blocked` and as a Notes
+cell citing no ADR. The repair is an ADR and a corrected doc, on its own PR; it is never a licence
+to widen this task, and never something to quietly work around.
+
+## 5 · Plan — **human gate 1**
 
 Enter **Plan Mode** and get the plan approved before writing anything.
 
 **1.5 and 1.7 must always route through plan mode** — they are refactors, not mechanical edits.
-See ADR-038's traps for the scale of 1.7.
+ADR-039 rescoped 1.7 and corrected the site count ADR-038's traps still quote.
 
-## 5 · Branch
+## 6 · Branch
 
 ```bash
 git switch -c <epic-branch>-<task-id>     # e.g. phase-1-repo-cleanup-1.1
@@ -64,7 +81,7 @@ git switch -c <epic-branch>-<task-id>     # e.g. phase-1-repo-cleanup-1.1
 The epic branch name comes from the *Backlog at a glance* table. **An epic groups and sequences;
 it is not a branch.**
 
-## 6 · Implement, with its tests
+## 7 · Implement, with its tests
 
 Write the task **and its tests** together. Follow the surrounding code's conventions.
 
@@ -72,7 +89,7 @@ Do not fix unrelated things you notice on the way. The prototype's naming and ty
 enumerated in CLAUDE.md and owned by task 1.7, which migrates them deliberately — a drive-by
 rename is a defect here, not a courtesy. File anything else you find as a new task instead.
 
-## 7 · Review the diff
+## 8 · Review the diff
 
 Read `git diff` against **both**:
 
@@ -82,7 +99,7 @@ Read `git diff` against **both**:
 Use the `decisions` and `requirements` subagents. Re-introducing a rejected option is the single
 failure the ADR log exists to prevent.
 
-## 8 · Run the verification gates
+## 9 · Run the verification gates
 
 Today's gates:
 
@@ -96,7 +113,7 @@ Plus whatever the task itself can be proven by — run the thing, don't assume i
 **Task 1.11 owns the CI gate list and 6.23 the test runner.** When those land, they are the
 source of truth; this file follows them rather than competing with them.
 
-## 9 · Update the task's status
+## 10 · Update the task's status
 
 In `PRODUCTION_UPDATE_PLAN.md`, set the task's status and record what was done in its Notes.
 A task is `Done` when its own PR merges. If part of it was deferred, say `In progress` and name
@@ -105,7 +122,7 @@ honest status.
 
 Keep the *Backlog at a glance* counts consistent with the rows.
 
-## 10 · Commit — **human gate 2**
+## 11 · Commit — **human gate 2**
 
 Reference the task ID. Say what changed, and why, including anything deliberately left out.
 
@@ -117,7 +134,7 @@ Reference the task ID. Say what changed, and why, including anything deliberatel
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
 
-## 11 · Open the PR
+## 12 · Open the PR
 
 ```bash
 git push -u origin <branch>
@@ -126,7 +143,7 @@ gh pr create --base main --title "<task-id>: <summary>" --body "..."
 
 The body carries the task ID, what changed, what was deferred, and how it was verified.
 
-## 12 · Stop — **human gate 3**
+## 13 · Stop — **human gate 3**
 
 **Do not merge. Do not promote to `production`.** Report the PR URL and stop.
 
