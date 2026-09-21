@@ -46,6 +46,21 @@ turn the decision into task(s) in the right epic in `PRODUCTION_UPDATE_PLAN.md` 
 "Decision → task coverage" table — all in the same session. The flow is one-directional:
 **open question → ADR → tasks.**
 
+### Docs state intent; the code states fact
+
+These documents are authoritative for **what to do, why, and in what order**. They are *not*
+authoritative for **what the code currently contains** — every such claim was measured once, by
+hand, and has been drifting since.
+
+So before a number, a supersession or a technical constraint is allowed to set a task's scope,
+**re-derive it from the code** via the `codecheck` subagent (ADR-040). Three have already been
+wrong: a site count that matched a substring (`categorie` inside `categories`), a task believed
+to absorb a rename it never performs, and a migration constraint guarding a deployment that does
+not exist.
+
+A claim that fails is a **defect to repair in the doc** — its own ADR and its own PR. It is never
+something to quietly work around, and never a reason to widen the task in hand.
+
 ### Workflow this repo follows
 
 Per ADR-010 (supersedes ADR-001), as amended by ADR-037: `main` is the integration/dev-test
