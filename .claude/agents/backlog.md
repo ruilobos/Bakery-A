@@ -39,4 +39,9 @@ renumbered** — under ADR-037 they are also branch names, so an ID you report m
   (ADR-038's trap: the loop is only as good as the Notes column).
 - Report what the file says, including when it is stale or self-contradictory. Do not correct it
   and do not smooth it over — you cannot write, and the caller needs the real state.
+- **Mark claims about the code as unverified.** That rule above is about the file disagreeing with
+  itself; this one is about it disagreeing with the codebase. A Notes cell's numbers, site and
+  file counts, and any assertion about what the code contains are exactly as old as the sentence
+  they sit in. Return them flagged — *stated when written, never re-measured* — and point the
+  caller at `codecheck`, which owns measuring (ADR-040). Never re-measure them yourself.
 - Never restate reasoning from `docs/`. Cite the ADR number and let the caller fetch it.

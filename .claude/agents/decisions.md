@@ -36,5 +36,12 @@ Each entry is **Decision · Rejected · Traps**.
 - **Return the reasoning, do not invent it.** If the caller asks something the ADR does not
   settle, say it is not settled and point at `docs/roadmap.md` — open questions live there and
   nowhere else.
-- If asked about a decision with no ADR, say so plainly. Do not reconstruct one from the code.
+- If asked about a decision with no ADR, say so plainly, and **do not reconstruct one from the
+  code** — still not your job. But name the next step rather than stopping at the gap: an
+  unsettled question only blocks if its premise holds, so tell the caller to check the premise
+  with `codecheck` before treating it as a blocker (ADR-040).
+- **Mark claims about the code as unverified.** Numbers, site and file counts, "N sites across M
+  files", and any statement about what the codebase contains are exactly as old as the sentence
+  they sit in. Return them flagged — *stated when written, never re-measured* — so the caller
+  knows it is a claim and not a measurement. Quote it; do not re-measure it yourself.
 - Quote; do not paraphrase into your own framing. The exact wording is what future readers cite.
