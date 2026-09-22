@@ -151,13 +151,13 @@ Supplier (PK = name, not a surrogate key)
    ↓ FK
 RawMaterial (price, quantity, unit, categorie)
    ↓ FK (via through-style models)
-Bs_Ingredients  → belongs to Base_recipes   (base recipe costing)
+Bs_Ingredients  → belongs to BaseRecipe     (base recipe costing)
 Recipe_Ingredients → belongs to Product     (sellable product costing)
 ```
 
-`Base_recipes` and `Product` are separate, parallel concepts (a "base recipe" like a dough/batter vs. a sellable `Product`), each with its own ingredient-line model (`Bs_Ingredients` / `Recipe_Ingredients`) rather than a shared polymorphic ingredient line. Cost/margin math (`cost`, `net_price`, `margin_percent`, `margin_value`) is defined as `@property` methods on these models **and separately re-implemented inline** inside `control/views.py` (`Dashboard`, `Base_recipe`, `Product_List` all loop over querysets and recompute cost/margin by hand using `float()` instead of reusing the model properties or `Decimal`). When touching costing/margin logic, expect to update both places until this is consolidated into a service layer (planned in `PRODUCTION_UPDATE_PLAN.md` Phase 4).
+`BaseRecipe` and `Product` are separate, parallel concepts (a "base recipe" like a dough/batter vs. a sellable `Product`), each with its own ingredient-line model (`Bs_Ingredients` / `Recipe_Ingredients`) rather than a shared polymorphic ingredient line. Cost/margin math (`cost`, `net_price`, `margin_percent`, `margin_value`) is defined as `@property` methods on these models **and separately re-implemented inline** inside `control/views.py` (`Dashboard`, `Base_recipe`, `Product_List` all loop over querysets and recompute cost/margin by hand using `float()` instead of reusing the model properties or `Decimal`). When touching costing/margin logic, expect to update both places until this is consolidated into a service layer (planned in `PRODUCTION_UPDATE_PLAN.md` Phase 4).
 
-Known naming/data quirks carried from the prototype (also listed in the update plan, don't "fix" incidentally as a drive-by — they're tracked for a deliberate migration): `categorie` (not `category`), `recipe_yeld` (not `recipe_yield`), `Supplier.phone` typed as `IntegerField`, `RawMaterial.quantity` typed as `CharField` instead of numeric, `Supplier.name` used as primary key.
+Known naming/data quirks carried from the prototype (also listed in the update plan, don't "fix" incidentally as a drive-by — they're tracked for a deliberate migration): `categorie` (not `category`), `Bs_Ingredients` / `Recipe_Ingredients` as parallel line models, `Supplier.phone` typed as `IntegerField`, `RawMaterial.quantity` typed as `CharField` instead of numeric, `Supplier.name` used as primary key. **`Base_recipes` and `recipe_yeld` were renamed by task 1.7** (ADR-039); the remaining three naming quirks are deliberate until 3.73 and 3.74 delete those columns and tables outright — renaming them would be edits to something being dropped.
 
 ### Views and templates
 

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import RawMaterial, Supplier, Base_recipes, Recipe_Ingredients, Product, Bs_Ingredients
+from .models import RawMaterial, Supplier, BaseRecipe, Recipe_Ingredients, Product, Bs_Ingredients
 
 
 # Display the information from the RawMaterial Model in Django Admin.
@@ -20,11 +20,11 @@ admin.site.register(Supplier, SupplierAdmin)
 
 # Display the information from the Base_Recipe Model in Django Admin.
 class Base_Recipe_Admin(admin.ModelAdmin):
-    list_display = ('name', 'recipe_yeld', 'yield_unit')
+    list_display = ('name', 'recipe_yield', 'yield_unit')
     list_filter = ['name']
     search_fields = ['name']
 
-admin.site.register(Base_recipes, Base_Recipe_Admin)
+admin.site.register(BaseRecipe, Base_Recipe_Admin)
 
 
 # Display the information from the Bs_Ingredients Model in Django Admin.
@@ -45,7 +45,7 @@ admin.site.register(Recipe_Ingredients, Recipe_IngredientsAdmin)
 
 # Display the information from the Product Model in Django Admin.
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'recipe_yeld', 'yield_unit', 'price', 'vat')
+    list_display = ('name', 'recipe_yield', 'yield_unit', 'price', 'vat')
     search_fields = ['name']
 
 admin.site.register(Product, ProductAdmin)
