@@ -1,15 +1,11 @@
-from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, HttpResponseRedirect
-from .models import RawMaterial, Supplier, Base_recipes, Recipe_Ingredients, Product, Bs_Ingredients
+from django.shortcuts import render
+from django.http import HttpResponse
+from .models import RawMaterial, Supplier, BaseRecipe, Recipe_Ingredients, Product, Bs_Ingredients
 from django.views.generic.list import ListView
-from django.views.generic import DetailView
-from django.urls import reverse
-import datetime
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 import csv
 from django.contrib.auth import get_user_model
-from django.contrib.admin.views.decorators import staff_member_required
 from django.template.defaulttags import register
 
 
@@ -57,7 +53,7 @@ class Dashboard(ListView):
         for product in price_list:
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
-                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
+                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
             unit_cost[product] = "{:.2f}".format(float(cost))
 
         # Calculate Net Price
@@ -86,7 +82,7 @@ class Dashboard(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 net_price = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
-                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
+                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
             margin = (net_price - cost)
             margin_percent[product] = "{:.2f}".format((margin/net_price)*100)
         
@@ -194,7 +190,7 @@ class Supplier_Delete(DeleteView):
 
 # List all Base Recipes (Inicial Page)
 class Base_recipesList(ListView):
-    model = Base_recipes
+    model = BaseRecipe
     template_name = 'base_recipes.html'
     context_object_name = 'base_recipes'
 
@@ -208,14 +204,14 @@ class Base_recipe(ListView):
     def get_queryset(self, **kwargs):
         try:
             queryset = Bs_Ingredients.objects.filter(id__icontains=self.kwargs['pk'])
-        except Base_recipes.DoesNotExist:
+        except BaseRecipe.DoesNotExist:
             queryset = None
             return queryset
     
     def get_context_data(self, **kwargs):
         context =  super(Base_recipe, self).get_context_data(**kwargs)
         queryset = Bs_Ingredients.objects.filter(base_recipe__id__icontains=self.kwargs['pk'])
-        queryset2 = Base_recipes.objects.get(id__icontains=self.kwargs['pk'])
+        queryset2 = BaseRecipe.objects.get(id__icontains=self.kwargs['pk'])
         
         # Calculate Recipe Cost
         price_list = []
@@ -242,7 +238,7 @@ class Base_recipe(ListView):
         for product in price_list:
             cost = 0
             for ingredient in Bs_Ingredients.objects.filter(base_recipe__name__icontains=product):
-                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.base_recipe.recipe_yeld))
+                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.base_recipe.recipe_yield))
             unit_cost[product] = "{:.2f}".format(float(cost))
 
 
@@ -257,7 +253,7 @@ class Base_recipe(ListView):
 
 # Create a new Base Recipe
 class Base_recipes_Create(CreateView):
-    model = Base_recipes
+    model = BaseRecipe
     fields = '__all__'
     template_name = 'new_base_recipe.html'
     context_object_name = 'base_recipe'
@@ -266,14 +262,14 @@ class Base_recipes_Create(CreateView):
 
 # Update a Base Recipe
 class Base_recipes_Update(UpdateView):
-    model = Base_recipes
+    model = BaseRecipe
     fields = '__all__'
     template_name = 'edit_base_recipe.html'
         
 
 # Delete a Base Recipe
 class Base_recipes_Delete(DeleteView):
-    model = Base_recipes
+    model = BaseRecipe
     template_name = 'delete_base_recipe.html'
     success_url = reverse_lazy('control:base_recipes')
 
@@ -381,7 +377,7 @@ class Product_List(ListView):
         for product in price_list:
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
-                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
+                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
             unit_cost[product] = "{:.2f}".format(float(cost))
 
         # Calculate Net Price
@@ -410,7 +406,7 @@ class Product_List(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 net_price = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
-                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
+                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
             margin_value[product] = "{:.2f}".format((net_price - cost))
 
         # Calculate Margin percent
@@ -425,7 +421,7 @@ class Product_List(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 net_price = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
-                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yeld))
+                cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
             margin = (net_price - cost)
             margin_percent[product] = "{:.2f}".format((margin/net_price)*100)
         
@@ -513,9 +509,9 @@ def export_base_recipes(request):
     response['Content-Disposition'] = 'attachment; filename="base_recipes.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(['name', 'ingredients', 'recipe_yeld', 'yield_unit'])
+    writer.writerow(['name', 'ingredients', 'recipe_yield', 'yield_unit'])
 
-    base_recipes = Base_recipes.objects.all().values_list('name', 'ingredients', 'recipe_yeld', 'yield_unit')
+    base_recipes = BaseRecipe.objects.all().values_list('name', 'ingredients', 'recipe_yield', 'yield_unit')
     for base_recipe in base_recipes:
         writer.writerow(base_recipe)
     return response
@@ -527,9 +523,9 @@ def export_products(request):
     response['Content-Disposition'] = 'attachment; filename="products.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(['name', 'categorie', 'ingredients', 'recipe_yeld', 'yield_unit', 'price', 'vat'])
+    writer.writerow(['name', 'categorie', 'ingredients', 'recipe_yield', 'yield_unit', 'price', 'vat'])
 
-    products = Product.objects.all().values_list('name', 'categorie', 'ingredients', 'recipe_yeld', 'yield_unit', 'price', 'vat')
+    products = Product.objects.all().values_list('name', 'categorie', 'ingredients', 'recipe_yield', 'yield_unit', 'price', 'vat')
     for product in products:
         writer.writerow(product)
     return response

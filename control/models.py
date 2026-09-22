@@ -67,16 +67,16 @@ class Supplier(models.Model):
 
 
 #-------------------------------------#
-# Create Base_recipes DB
+# Create BaseRecipe DB
 #-------------------------------------#
-class Base_recipes(models.Model):
+class BaseRecipe(models.Model):
     UNIT_CHOICES = (
         ('KG', 'kg'),
         ('L', 'l'),
         ('UNIT', 'unit'),
     )
     name = models.CharField("Base Recipe Name", max_length=100)
-    recipe_yeld = models.IntegerField("Recipe Yield") 
+    recipe_yield = models.IntegerField("Recipe Yield")
     yield_unit = models.CharField("Yield Unit", max_length=5, choices=UNIT_CHOICES)
 
     def __str__(self):
@@ -112,7 +112,7 @@ class Bs_Ingredients(models.Model):
         ('UNIT', 'unit'),
     )
     ingredient = models.ForeignKey("RawMaterial", on_delete=models.SET_NULL, null=True)
-    base_recipe = models.ForeignKey("Base_recipes", on_delete=models.SET_NULL, null=True)
+    base_recipe = models.ForeignKey("BaseRecipe", on_delete=models.SET_NULL, null=True)
     quantity = models.DecimalField("Quantity", max_digits=5, decimal_places=3)
     unit = models.CharField("Unit", max_length=5, choices=UNIT_CHOICES)
 
@@ -184,7 +184,7 @@ class Recipe_Ingredients(models.Model):
         cost_recipe = 0
         for iten in self.ingredients.all():
             cost_recipe += (iten.quantity * iten.ingredient.price)
-        unit_cost = cost_recipe/self.recipe_yeld
+        unit_cost = cost_recipe/self.recipe_yield
         margin_value = (self.price-(self.price*self.vat))-unit_cost
         net_price = self.price-(self.price*self.vat)
         margin = margin_value/net_price
@@ -197,7 +197,7 @@ class Recipe_Ingredients(models.Model):
         cost_recipe = 0
         for iten in self.ingredients.all():
             cost_recipe += (iten.quantity * iten.ingredient.price)
-        unit_cost = cost_recipe/self.recipe_yeld
+        unit_cost = cost_recipe/self.recipe_yield
         margin_value = "{:.2f}".format((self.price-(self.price*self.vat))-unit_cost)
         return margin_value
 
@@ -231,7 +231,7 @@ class Product(models.Model):
     )
     name = models.CharField("Product Name", max_length=100)
     categorie = models.CharField("Category", max_length=30, choices=CATEGORY_CHOICES)
-    recipe_yeld = models.DecimalField("Recipe Yield", max_digits=6, decimal_places=2) 
+    recipe_yield = models.DecimalField("Recipe Yield", max_digits=6, decimal_places=2)
     yield_unit = models.CharField("Yield Unit", max_length=5, choices=UNIT_CHOICES)
     price = models.DecimalField("Selling Price (€)", max_digits=6, decimal_places=2)
     vat = models.DecimalField("VAT (%)", max_digits=6, decimal_places=2)
