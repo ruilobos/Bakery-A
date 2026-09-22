@@ -135,7 +135,7 @@ ship safely through a PR.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 1.8 | Create the `production` branch as the deploy branch, with `main` as integration/dev-test | Not started | ADR-010 |
+| 1.8 | Create the `production` branch as the deploy branch, with `main` as integration/dev-test | **In progress** | ADR-010, ADR-041. **"Create" was wrong: the branch already exists** — `origin/production` at `96faf98`, *"Update README.md"*, **2021-06-30** — so this is an **adopt**, not a create. The premise gate measured it a **strict ancestor of `main`**, 40 behind with **zero commits of its own** (`git rev-list --left-right --count origin/main...origin/production` → `40  0`), which is what makes advancing it a plain fast-forward: no history discarded, **no force-push**, and the protection already on the branch holds. **The baseline merge is deliberately untagged** — ADR-041. ADR-010 says every merge to `production` is tagged semver and published as a Release, but 1.10 has yet to define that step, `.github/` does not exist and there is no host, so a `v0.1.0` would assert something is live when nothing is. Tagging starts at the first genuine promotion. **Two PRs, and the order and merge method both matter:** the docs PR squash-merges to `main` first, then the `main` → `production` PR is merged with **"Create a merge commit", never squash** — squashing would stop `production` being a descendant of `main` and break every later fast-forward. Status stays `In progress` until that second PR merges. **Found on the way and filed, not fixed: 1.9's deliverable is already configured on GitHub** — PR-only, `enforce_admins`, no force-pushes, no deletions, 0 approvals, no status checks, on *both* branches — while its row still reads `Not started`; correcting it is its own PR. The README is still the 2021 prototype text and documents no branch model; also left alone |
 | 1.9 | Branch protection on `main` and `production`: PR-only, no direct pushes, no force-pushes (0 required approvals while solo) | Not started | ADR-010 |
 | 1.10 | Define the release step: every merge to `production` is tagged semver and published as a GitHub Release with auto-generated notes | Not started | ADR-010 |
 | 1.11 | Minimal GitHub Actions workflow on every PR against `main`/`production`: `manage.py check`, `makemigrations --check --dry-run`, `docker build`, basic lint | Not started | ADR-011. No test run (none exist) and no deploy step (no host yet) — verification only; extended by 6.12 |
@@ -803,6 +803,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 038 — Agent-assisted task loop | 1.14, 1.15 |
 | 039 — Rename only the identifiers Epic 3 leaves behind | **rescopes** 1.7 to two renames and unblocks it; **corrects** the site count in 1.15 |
 | 040 — The loop verifies its premises against the code | 1.18, 1.19; **amends** 038's loop definition |
+| 041 — The initial adoption of `production` is a baseline, not a release | 1.8; **amends** 010's tagging clause for one merge, and defers tagging to 1.10 |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |
