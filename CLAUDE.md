@@ -70,9 +70,11 @@ branch, not what's deployed to real users — a separate `production` branch hol
 `<epic-branch>-<task-id>` (e.g. `phase-1-repo-cleanup-1.1`), branched from an updated `main`,
 planned in Plan Mode before implementation starts, and squash-merged before the next begins.
 **An epic groups and sequences tasks; it is not a branch.** No stacking, no direct commits.
-Promote validated work from `main` to `production` via its own PR, tagged as a GitHub Release on
-merge. Don't start broad, undiscussed work across multiple phases/areas in one session — confirm
-which task a change belongs to first.
+Promote validated work from `main` to `production` via its own release PR, titled `Release vX.Y.Z`
+(ADR-042) and merged with a merge commit, never squashed (ADR-041); on merge,
+`.github/workflows/release.yml` tags it and publishes the GitHub Release. Don't start broad,
+undiscussed work across multiple phases/areas in one session — confirm which task a change belongs
+to first.
 
 **`/next-task` is the sanctioned way to execute a task** (ADR-038): it selects the next actionable
 task (refusing anything `Blocked`), reads only the ADRs and requirement sections that task's Notes
@@ -90,7 +92,7 @@ restates it.
 
 ## Commands
 
-There is no test suite, linter, or CI configured yet (each app's `tests.py` is an empty stub). The commands below are what the current tooling supports.
+There is no app test suite, linter, or CI configured yet (each app's `tests.py` is an empty stub). The only tests are `scripts/test_release_version.py`, and the only workflow, `.github/workflows/release.yml`, tags releases rather than running CI. The commands below are what the current tooling supports.
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)
