@@ -92,7 +92,7 @@ restates it.
 
 ## Commands
 
-There is no app test suite, linter, or CI configured yet (each app's `tests.py` is an empty stub). The only tests are `scripts/test_release_version.py`, and the only workflow, `.github/workflows/release.yml`, tags releases rather than running CI. The commands below are what the current tooling supports.
+There is no app test suite or linter configuration yet (each app's `tests.py` is an empty stub). The only tests are `scripts/test_release_version.py`. Two workflows: `.github/workflows/ci.yml` runs task 1.11's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)
@@ -112,6 +112,9 @@ python manage.py migrate
 python manage.py test                    # all apps
 python manage.py test control            # single app
 python manage.py test control.tests.SomeTestCase.test_method   # single test
+
+# CI's lint step (1.11), until 6.10 adds ruff's configuration
+pipx run --spec ruff==0.16.9 ruff check --target-version py39 --select E9,F63,F7,F82 .
 
 # Static files (required before Docker/Heroku deploy — whitenoise serves from bakery/staticfiles)
 python manage.py collectstatic --noinput

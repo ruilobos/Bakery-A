@@ -1,0 +1,89 @@
+# Minimal CI — task 1.11 (ADR-011).
+#
+# Every PR into `main` or `production` gets the Django system check, a check for
+# missing migrations, a basic lint and a `docker build` of the deploy image
+# (ADR-004). Each job is its own check, advisory until 6.13 makes them required.
+#
+# No test run and no deploy step: 6.12 extends this workflow with the test suite
+# rather than replacing it, and there is no host yet. When there is, deploys will
+# come from Railway watching `production` (ADR-031), never from CI.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, production]
+
+# A new push to the PR supersedes the run still in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# The repository default hands workflows a write token; each job asks for only
+# what it uses instead.
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  django:
+    name: Django checks
+    # 3.9 matches the Dockerfile's base image, and setup-python has no 3.9 build
+    # past Ubuntu 24.04. 19.9 moves both to 3.13.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      DJANGO_SETTINGS_MODULE: bakery.settings.test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: System check
+        run: python manage.py check
+
+      - name: No missing migrations
+        # There is no database here, so Django warns that it cannot check the
+        # migration history. That check needs applied migrations to mean anything.
+        run: python manage.py makemigrations --check --dry-run
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Syntax errors and undefined names
+        # The basic pass ADR-011 asks for, in the linter ADR-034 chose. 6.10's
+        # [tool.ruff] configuration replaces these flags with the full rule set.
+        run: pipx run --spec ruff==0.16.9 ruff check --target-version py39 --select E9,F63,F7,F82 --output-format github .
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the deploy image
+        run: docker build --tag bakery:ci .
