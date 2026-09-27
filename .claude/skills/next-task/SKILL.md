@@ -101,17 +101,14 @@ failure the ADR log exists to prevent.
 
 ## 9 · Run the verification gates
 
-Today's gates:
-
-```bash
-python manage.py check
-python manage.py makemigrations --check --dry-run
-```
+The gates are the jobs in [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml)
+(task 1.11). Run the same commands locally before committing. The PR's own run is the one that
+counts.
 
 Plus whatever the task itself can be proven by — run the thing, don't assume it.
 
-**Task 1.11 owns the CI gate list and 6.23 the test runner.** When those land, they are the
-source of truth; this file follows them rather than competing with them.
+**`ci.yml` owns the gate list, and 6.23 the test runner.** This file follows them rather than
+competing with them.
 
 ## 10 · Update the task's status
 
