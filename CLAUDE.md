@@ -120,7 +120,7 @@ pipx run --spec ruff==0.16.9 ruff check --target-version py39 --select E9,F63,F7
 python manage.py collectstatic --noinput
 
 # Docker
-docker-compose up   # uses docker-compose.yaml; expects an external `bakery_simple` network and DATABASE_URL env
+docker compose up --build   # app on :8000 + postgres:17. The web image is production (DEBUG=False), so rebuild after changes
 ```
 
 Database is PostgreSQL. Local/base settings hardcode `postgres`/`simple` credentials; there is no separate local/test settings module — `manage.py` always loads `bakery.settings.base` via `DJANGO_SETTINGS_MODULE`.

@@ -21,7 +21,7 @@ deliberately not repeated here.
 |---|---|---|---|
 | Python | 3.8 (`runtime.txt`), Dockerfile 3.9-slim — **both EOL** | **3.13** — spans Django 5.2 and 6.2. `python:3.13-slim` is the single source; `runtime.txt` deleted | [025](decisions.md) |
 | Django | 3.2 — **EOL since April 2024** | **5.2 LTS, direct from 3.2** (no 4.2 stop), supported to April 2028. Next hop 6.2 LTS, H2 2027 | [025](decisions.md) |
-| Database | PostgreSQL, unpinned; no Postgres service in `docker-compose.yaml` | **PostgreSQL 17**, pinned identically local and production. Majors must match | [026](decisions.md) |
+| Database | PostgreSQL; `postgres:17` in `docker-compose.yaml` (19.10); the home-server production database unpinned (Railway's pin is 19.11) | **PostgreSQL 17**, pinned identically local and production. Majors must match | [026](decisions.md) |
 | DB topology | Separate Postgres container from the app | **Always separate services** — never bundled in one image | [007](decisions.md) |
 | Multi-tenancy | None — single-bakery schema | **Shared database, row-level tenant isolation** via a `Bakery` FK on every business table | [006](decisions.md)/[008](decisions.md) |
 | WSGI/ASGI server | gunicorn 20.1.0 (WSGI) | **gunicorn, WSGI, sync workers**, latest pinned at lock time (7.14) | [036](decisions.md) |
@@ -117,9 +117,9 @@ Current column measured 2026-08-16.
 | Topic | Current | Decision | ADR |
 |---|---|---|---|
 | Hosting | Self-hosted home server, Docker via Portainer; Postgres in a separate container | **Railway, Hobby plan, EU West (Amsterdam)** — ~$6/mo, billed on actual per-second usage | [013](decisions.md) |
-| Dev/test environment | developer's machine, ad hoc | **Local `docker-compose`** — same Dockerfile as production, app and DB separate. **No persistent hosted staging** | [014](decisions.md) |
+| Dev/test environment | `docker compose up --build` (19.10); one-command launcher pending (1.12) | **Local `docker-compose`** — same Dockerfile as production, app and DB separate. **No persistent hosted staging** | [014](decisions.md) |
 | Release preview | none | A **Railway PR environment on the `main` → `production` PR only**, open a day or two, <$1/mo. Local Docker covers feature branches; what it cannot cover is whether merged code runs on Railway (12.5) | [014](decisions.md) |
-| Containerization | `Dockerfile` + `docker-compose.yaml` (expects an external `bakery_simple` network) | **Custom Dockerfile** as the deploy artifact, never the platform buildpack | [004](decisions.md) |
+| Containerization | `Dockerfile`; `docker-compose.yaml` builds `web` from it beside `postgres:17` (19.10) | **Custom Dockerfile** as the deploy artifact, never the platform buildpack | [004](decisions.md) |
 | Static storage | whitenoise | whitenoise unchanged, but configured through `STORAGES`' `"staticfiles"` key — `STATICFILES_STORAGE` was **removed in Django 5.1** and removed settings are *ignored, not rejected*, so compression and cache-busting fail silently (19.14) | [027](decisions.md) |
 | Media storage | `MEDIA_ROOT` points at a broken leftover path nothing uses | **Cloudflare R2** via `django-storages` on `STORAGES`' `"default"` key — zero egress, 10 GB free tier, provider-agnostic. **Product photos only this round**; an `ImageField` on `Product`, credentials from env (2.5), type/size validated in a real `ModelForm` (4.9, 13.7, 13.11) | [005](decisions.md) |
 | CI/CD | `ci.yml` on every PR into `main`/`production` (1.11): `check`, migrations check, ruff basic pass, `docker build`; advisory until 6.13 | **GitHub Actions extending the Epic 1 workflow, behind a 70% repo-wide coverage floor.** Merge gate: test suite, `ruff` + `djlint`, the migration/`collectstatic`/`docker build` checks from 1.11/1.13, `pip-audit` against the hashed lock, Dependabot raising dependency PRs. **No SAST or image scanning** this release | [031](decisions.md) |
