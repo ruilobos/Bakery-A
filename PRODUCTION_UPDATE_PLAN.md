@@ -1,6 +1,6 @@
 # Bakery Production Backlog
 
-The **task backlog** — 314 tasks across 19 epics. Every phase, discovery workstream and feature is an
+The **task backlog** — 315 tasks across 19 epics. Every phase, discovery workstream and feature is an
 **Epic**; every epic holds numbered tasks that can be picked up, tracked and closed. This file owns
 **epic and task status and sequencing**.
 
@@ -52,7 +52,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 | 9 | Tech stack decisions | `stack-decisions` | **Done** 2026-08-26 | — | Closed by ADR-025 → ADR-036 |
 | 10 | Requirements discovery | `requirements-discovery` | In progress | — | Its questions live in [roadmap.md](docs/roadmap.md) `10.x` |
 | [11](#epic-11--gdpr-data-inventory--policy) | GDPR data inventory & policy | `gdpr-data-inventory` | Not started | 10 | Judgments live in [roadmap.md](docs/roadmap.md) `11.x` |
-| [12](#epic-12--hosting-migration) | Hosting migration | `stack-hosting-migration` | Not started | 11 | — |
+| [12](#epic-12--hosting-migration) | Hosting migration | `stack-hosting-migration` | Not started | 12 | — |
 | [13](#epic-13--media-storage-for-user-uploads) | Media storage for user uploads | `feature-media-storage` | Not started | 11 | Epics 3, 19 |
 | [14](#epic-14--tenant-full-data-export) | Tenant full data export | `feature-tenant-data-export` | Not started | 6 | Epic 3 |
 | [15](#epic-15--gdpr-personal-data-export) | GDPR personal-data export | `feature-gdpr-data-export` | Not started | 6 | Epic 11 |
@@ -512,7 +512,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 7.12 | Write and test the rollback procedure, using 1.10's release tags | Not started | |
 | 7.13 | Document every environment variable per environment as a committed `.env.example` (names and example values only — never real secrets) | Not started | ADR-015 rule 8 — this file is the migration checklist; if it lives only in a host's dashboard, moving host becomes archaeology |
 | 7.14 | Run the app under Gunicorn in production | **Unblocked** | **gunicorn, WSGI, sync workers**, latest pinned at lock time — ADR-036. Binds `$PORT` per 7.17. Revisit only if the insights dashboard needs SSE/WebSocket push |
-| 7.15 | Automate deploys: Railway git-watch on `production` only | Not started | ADR-010, narrowed by ADR-014, settled by ADR-031. Platform-native git-watch, **not** a GitHub Actions deploy job — that would need a long-lived Railway token in CI and a release script to maintain. Migrations are 12.11 |
+| 7.15 | Automate deploys: Railway git-watch on `production` only | Not started | ADR-010, narrowed by ADR-014, settled by ADR-031. Platform-native git-watch, **not** a GitHub Actions deploy job — that would need a long-lived Railway token in CI and a release script to maintain. Migrations are 12.11. **Runs after 12.12**, which decides whether the watch paths live in a committed `railway.json` or the dashboard (roadmap 9.24). The branch itself (`production`) is not among the file's documented fields, so it may stay a dashboard setting either way |
 | 7.16 | Keep serving static assets via whitenoise; confirm it still fits once object storage is in play | Not started | Decided "no change" — a verification task |
 | 7.17 | Bind Gunicorn to `$PORT` with a local fallback (`--bind 0.0.0.0:${PORT:-8000}`) instead of the hardcoded `:8000` | Not started | ADR-015 rule 3. Railway, Render, Fly, DigitalOcean, Clever Cloud and Heroku all inject the port they expect |
 | 7.18 | Confirm no persistent state is written to the app container's local disk | Not started | ADR-015 rule 7. Pairs with 2.13 and Epic 13 |
@@ -579,15 +579,16 @@ Move the Django app and PostgreSQL off the self-hosted home server onto **Railwa
 |---|---|---|---|
 | 12.1 | Pick the host among the three candidates, re-confirming pricing and the cost of a second environment; log it as an ADR | **Done** | Railway (Hobby), 2026-08-03 — ADR-013. Staging cost is what drove ADR-014 |
 | 12.2 | Provision app compute and managed PostgreSQL as separate services | Not started | ADR-007. Pin Postgres to **17** here (19.11) |
-| 12.3 | Configure the deployment to build from the repo's `Dockerfile`, not Railpack | Not started | ADR-004; pairs with 7.6 |
+| 12.3 | Configure the deployment to build from the repo's `Dockerfile`, not Railpack | Not started | ADR-004; pairs with 7.6. **Runs after 12.12**, which decides whether the builder setting lives in a committed `railway.json` or the dashboard (roadmap 9.24) |
 | 12.4 | Single Railway environment tracking `production`; do **not** provision persistent hosted staging | Not started | ADR-014 amends ADR-010 — the `main` tier runs locally |
-| 12.5 | Enable a Railway PR environment on the `main` → `production` release PR only | Not started | ADR-014. No plan-tier gate; <$1/mo at a few releases a month |
+| 12.5 | Enable a Railway PR environment on the `main` → `production` release PR only | Not started | ADR-014. No plan-tier gate; <$1/mo at a few releases a month. **Runs after 12.12**: config-as-code has its own `pr` override block, so where the PR environment's settings live is roadmap 9.24 |
 | 12.6 | Migrate production data off the home server, with a verified restore on the new host | Not started | A **cross-major** restore (home-server version → 17) — exactly what 3.46/3.47's traps are about. Do not decommission the old host until verified |
 | 12.7 | Execute the DPA with Railway and add it as a subprocessor | Not started | Feeds 11.6/11.15. Railway is a US company — the EU region covers storage location, not processor access |
 | 12.8 | Set the region to **EU West (Amsterdam)** *before* creating any service | Not started | ADR-013. **Railway's default is US West** — the personal data lives in the database, so a default-region Postgres puts it in California. Volumes follow their service's region, and EU-West Metal supports volumes on Hobby (since 2025-03-14), so this is purely sequencing. Moving a volume later forces a migration **with downtime**. Confirm on both services after provisioning |
 | 12.9 | Configure Railway's automated backup schedules — for fast same-host rollback, **not** the portable backup | Not started | ADR-013/ADR-031 — **off by default**. Enable all three (daily/weekly/monthly); no PITR. Copy-on-write volume snapshots are **not restorable on another host** — 3.44/3.70 covers that |
 | 12.10 | Provide migrations + seed data for the release-PR environment, which comes up empty | Not started | ADR-014 — PR environments clone services and config but not volume data, so without this the preview is an unusable login page. Pairs with 3.37/10.10 |
-| 12.11 | Set `manage.py migrate` as Railway's **pre-deploy command**, so it completes before the new version takes traffic | Not started | ADR-031. What makes platform-native git-watch sufficient and satisfies ADR-015 rule 4 without a release script. **Pairs with 7.11** — `migrate &&` must come out of the `Dockerfile` `CMD` in the same pass (the compose copy went with 19.10, ADR-044), or migrations run twice and every replica races |
+| 12.11 | Set `manage.py migrate` as Railway's **pre-deploy command**, so it completes before the new version takes traffic | Not started | ADR-031. What makes platform-native git-watch sufficient and satisfies ADR-015 rule 4 without a release script. **Pairs with 7.11** — `migrate &&` must come out of the `Dockerfile` `CMD` in the same pass (the compose copy went with 19.10, ADR-044), or migrations run twice and every replica races. **Runs after 12.12**, which decides whether the pre-deploy command lives in a committed `railway.json` or the dashboard (roadmap 9.24) |
+| 12.12 | Decide where Railway's service settings live — a committed config-as-code file or the dashboard — by investigating both against this project and comparable ones; log the ADR; then establish the chosen home and hand each setting to its task | Not started | ADR-013, ADR-015, ADR-031, ADR-004, ADR-014. **Answers [roadmap.md](docs/roadmap.md) 9.24**, as 12.1 answered the hosting question: `Not started`, not `Blocked`, because making the decision is the task. **Runs after 12.2 and 12.8** (the project must exist to prove anything) **and before 12.3, 12.5, 12.11 and 7.15**. **1 · Investigate** (findings go in the plan, each with its source and date): (i) re-verify Railway's config-as-code on the day: its fields, the `environments` and `pr` overrides, code-over-dashboard precedence, and what stays dashboard-only; (ii) benchmark comparable projects: at least three public Django-on-Railway repos or templates, the equivalent mechanism on ADR-013's fallback hosts (Render's `render.yaml` Blueprint, DigitalOcean's App Spec), and the wider convention (Fly's `fly.toml`, Heroku's `app.json`); (iii) score the options against this project: the cost of a host move (ADR-015, 8.9), review in a PR and visible drift (ADR-037), a single start command (ADR-004), no Railway token in CI (ADR-031), release-PR-only previews (ADR-014), a public repository (ADR-042's Traps) and one developer's upkeep. **2 · Decide:** the recommendation is the plan, and its approval is the decision. Log the ADR with the losing option under Rejected, delete 9.24, add a "Deploy configuration" row to `tech_stack.md` and a coverage row. **3 · Act**, by outcome. *A committed file:* add it with its `$schema`, **no `startCommand`** (the `Dockerfile` `CMD` stays the only start command) and no variables or secrets; validate it against Railway's schema in CI (extending 1.11's workflow); and prove on the Railway project that deployments read it. *The dashboard:* start a Railway settings register in the deploy runbook (8.3), listing every setting, its value and its owning task, and make 8.9's host move restore from it. *Either way:* rewrite the Notes of 12.3, 12.5, 12.11 and 7.15 to say where each one's setting goes, so every setting keeps one owner and this task sets none of theirs. Variables stay in Railway plus 7.13's `.env.example`, and the region stays 12.8's. **Trap:** code overrides the dashboard, so under a committed file a dashboard edit is silently ignored, and the runbook must say so |
 
 ---
 
@@ -774,7 +775,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | ADR | Tasks |
 |---|---|
 | 002 / 036 — Spark on Databricks Serverless, R2 extract, gunicorn stands | 7.14, 16.1–16.13, 11.17 |
-| 003 / 013 — Hosting narrowed, then Railway (Hobby, EU West) | 12.1 ✅, 12.2, 12.3, 12.6–12.9 |
+| 003 / 013 — Hosting narrowed, then Railway (Hobby, EU West) | 12.1 ✅, 12.2, 12.3, 12.6–12.9, 12.12 |
 | 004 — Deploy via the custom Dockerfile | 1.11, 7.6, 12.3, 19.10 (compose builds from it) |
 | 005 — Media in Cloudflare R2 | 2.5, 2.13, 3.18, 4.9, 5.11, 13.1–13.11, 16.9 |
 | 006 — Multi-tenant SaaS | 2.8, 3.1–3.4, 11.5 |
@@ -784,7 +785,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 010 — `main` integration / `production` deploy, tagged releases | 1.8, 1.9, 1.10, 6.13, 7.12, 7.15, 8.8, 12.4 |
 | 011 — Minimal CI in Epic 1, full pipeline in Epic 6 | 1.11, 1.13, 1.21 (amended by 044), 6.12, 19.9 |
 | 014 — Local Docker dev/test, release-PR preview | 1.12, 6.15, 8.1, 12.4, 12.5, 12.10, 19.10 |
-| 015 — Host portability | 1.5, 2.1, 3.44–3.49, 3.70, 7.6, 7.7, 7.9–7.11, 7.13, 7.17, 7.18, 8.9, 12.11 |
+| 015 — Host portability | 1.5, 2.1, 3.44–3.49, 3.70, 7.6, 7.7, 7.9–7.11, 7.13, 7.17, 7.18, 8.9, 12.11, 12.12 |
 | 016 — One free pilot, no deadline, flat pricing later | **Negative** constraints only: no plan/tier fields on 3.1, no plan gating in 2.8/3.4 |
 | 017 — Traceability in scope as its own epic | 17.1–17.14, plus the forced soft delete in 3.13/3.22 |
 | 018 — Costing & money semantics | 3.10, 3.11, 3.15, 3.16, 3.26, 3.34 ✅, 3.50–3.54, 5.16, 6.16, 6.17, 17.12, and deleting the inline `float()` costing in 4.1 |
@@ -800,7 +801,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 028 — Backend architecture | 2.1, 2.19–2.23, 4.19, 4.20, 5.24, 7.21, 7.22, 11.16; **rescopes** 1.5 and 4.1, **cancels** 4.15, **supersedes** 2.10 by 4.5 + 2.23 |
 | 029 — `uv pip compile`; the `.in` file is the register | 19.12, 19.16, 19.17, the `Pillow` removal in 19.2 and its return in 13.1, and 5.25 |
 | 030 — Frontend: partials, Bootstrap 5.3, HTMX, no build step | 5.1–5.8, 5.25, 6.11 |
-| 031 — Operations: coverage-gated CI, git-watch deploys, Sentry EU, two backup tracks | 3.38, 3.40, 3.70–3.72, 6.12, 6.14, 6.22, 7.2, 7.5, 7.15, 7.23, 11.13, 12.9, 12.11 |
+| 031 — Operations: coverage-gated CI, git-watch deploys, Sentry EU, two backup tracks | 3.38, 3.40, 3.70–3.72, 6.12, 6.14, 6.22, 7.2, 7.5, 7.15, 7.23, 11.13, 12.9, 12.11, 12.12 |
 | 032 — One shared `RecipeLine`; tenant-scoped categories | 3.19, 3.26, 3.73, 3.74, 18.3; **corrects** 3.42 and 4.14 |
 | 033 — Traceability entities and lot codes | 17.1–17.3, 17.12–17.14; **negative** constraint on 3.10/3.14 |
 | 034 — `ruff` for lint *and* format; `pytest-django` | 6.10, 6.11, 6.23, 6.24; feeds 6.12, 6.22, 19.12 |
