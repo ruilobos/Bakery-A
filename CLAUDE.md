@@ -127,7 +127,7 @@ python manage.py collectstatic --noinput
 docker compose up --build   # app on :8000 + postgres:17. The web image is production (DEBUG=False), so rebuild after changes
 ```
 
-Database is PostgreSQL. Local/base settings hardcode `postgres`/`simple` credentials; there is no separate local/test settings module — `manage.py` always loads `bakery.settings.base` via `DJANGO_SETTINGS_MODULE`.
+Database is PostgreSQL 17, locally the compose `postgres` service. `base.py` falls back to the `postgres`/`simple` dev credentials when `DATABASE_URL` is unset (2.1 removes that), and `manage.py` defaults to `bakery.settings.base`, so host-side `runserver` names `bakery.settings.local` and CI names `bakery.settings.test`. The launcher's containers run `base.py` itself: the `web` image is the production image (ADR-043).
 
 ## Architecture
 
