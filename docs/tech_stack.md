@@ -117,7 +117,7 @@ Current column measured 2026-08-16.
 | Topic | Current | Decision | ADR |
 |---|---|---|---|
 | Hosting | Self-hosted home server, Docker via Portainer; Postgres in a separate container | **Railway, Hobby plan, EU West (Amsterdam)** — ~$6/mo, billed on actual per-second usage | [013](decisions.md) |
-| Dev/test environment | `docker compose up --build` (19.10); one-command launcher pending (1.12) | **Local `docker-compose`** — same Dockerfile as production, app and DB separate. **No persistent hosted staging** | [014](decisions.md) |
+| Dev/test environment | `docker-compose.yaml` (19.10), refreshed and launched by `python scripts/launch_local.py`: pull `main`, rebuild, migrate, `up` (1.12) | **Local `docker-compose`** — same Dockerfile as production, app and DB separate. **No persistent hosted staging** | [014](decisions.md) |
 | Release preview | none | A **Railway PR environment on the `main` → `production` PR only**, open a day or two, <$1/mo. Local Docker covers feature branches; what it cannot cover is whether merged code runs on Railway (12.5) | [014](decisions.md) |
 | Containerization | `Dockerfile`; `docker-compose.yaml` builds `web` from it beside `postgres:17` (19.10) | **Custom Dockerfile** as the deploy artifact, never the platform buildpack | [004](decisions.md) |
 | Static storage | whitenoise | whitenoise unchanged, but configured through `STORAGES`' `"staticfiles"` key — `STATICFILES_STORAGE` was **removed in Django 5.1** and removed settings are *ignored, not rejected*, so compression and cache-busting fail silently (19.14) | [027](decisions.md) |

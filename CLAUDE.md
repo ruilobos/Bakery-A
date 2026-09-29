@@ -92,17 +92,21 @@ restates it.
 
 ## Commands
 
-There is no app test suite or linter configuration yet (each app's `tests.py` is an empty stub). The only tests are `scripts/test_release_version.py`. Two workflows: `.github/workflows/ci.yml` runs task 1.11's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
+There is no app test suite or linter configuration yet (each app's `tests.py` is an empty stub). The only tests are the `scripts/` tooling's (`test_release_version.py`, `test_launch_local.py`), run with `python -m unittest discover -s scripts -t .`; CI does not run them yet. Two workflows: `.github/workflows/ci.yml` runs task 1.11's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)
 pip install -r requirements.txt   # UTF-8 since task 1.4; keep it out of Word, which re-encodes it
 
-# Run dev server. manage.py defaults to bakery.settings.base, which IS production
-# (ADR-028) and runs DEBUG=False — so local work must ask for the local module:
+# Local environment (ADR-014, task 1.12): pull main, rebuild, migrate, then launch on :8000
+# beside postgres:17. The web image is production (DEBUG=False), so relaunch to see a change.
+python scripts/launch_local.py              # --no-pull launches the checkout as it is, e.g. a feature branch
+
+# Quick host-side dev server against that postgres (needs a hosts entry `127.0.0.1 postgres`, or
+# DATABASE_URL pointing at localhost). manage.py defaults to bakery.settings.base, which IS
+# production (ADR-028) and runs DEBUG=False — so ask for the local module:
 DJANGO_SETTINGS_MODULE=bakery.settings.local python manage.py runserver   # bash
 $env:DJANGO_SETTINGS_MODULE="bakery.settings.local"; python manage.py runserver  # PowerShell
-# Task 1.12 replaces this with a one-command launcher.
 
 # Migrations
 python manage.py makemigrations
