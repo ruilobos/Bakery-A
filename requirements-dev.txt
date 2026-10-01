@@ -1,0 +1,9 @@
+# Dev tooling: tests and checks. The Dockerfile never installs this file, so
+# none of it reaches the image. Interim until 19.12 folds it into
+# requirements/dev.in and deletes it (ADR-046). Pins are the newest releases
+# compatible with the installed Django 3.2 / Python 3.9; 19.12 re-pins them.
+-r requirements.txt
+
+pytest==8.4.2         # test runner (6.23, ADR-034); 9.x needs Python 3.10
+pytest-django==4.8.0  # Django integration (6.23, ADR-034); last release supporting Django 3.2
+pytest-cov==7.1.0     # coverage plugin (6.23, ADR-034); measures for 6.22's floor (ADR-031)

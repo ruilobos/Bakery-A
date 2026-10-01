@@ -92,11 +92,12 @@ restates it.
 
 ## Commands
 
-There is no app test suite or linter configuration yet (each app's `tests.py` is an empty stub). The only tests are the `scripts/` tooling's (`test_release_version.py`, `test_launch_local.py`), run with `python -m unittest discover -s scripts -t .`, which CI runs as its `Tooling tests` check (1.21). Two workflows: `.github/workflows/ci.yml` runs tasks 1.11's and 1.21's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
+There is no linter configuration yet, and the app suite is two smoke tests in `core/tests.py`. The runner is `pytest` (6.23, ADR-034), configured in `pyproject.toml` and installed from `requirements-dev.txt`; it also collects the `scripts/` tooling's `unittest` tests, which CI runs on their own as its `Tooling tests` check, `python -m unittest discover -s scripts -t .` (1.21). CI runs no `pytest` yet (6.12, 6.24). Two workflows: `.github/workflows/ci.yml` runs tasks 1.11's and 1.21's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)
 pip install -r requirements.txt   # UTF-8 since task 1.4; keep it out of Word, which re-encodes it
+pip install -r requirements-dev.txt   # pytest and other dev tooling; never in the image (ADR-046)
 
 # Local environment (ADR-014, task 1.12): pull main, rebuild, migrate, then launch on :8000
 # beside postgres:17. The web image is production (DEBUG=False), so relaunch to see a change.
@@ -127,7 +128,7 @@ python manage.py collectstatic --noinput
 docker compose up --build   # app on :8000 + postgres:17. The web image is production (DEBUG=False), so rebuild after changes
 ```
 
-Database is PostgreSQL 17, locally the compose `postgres` service. `base.py` falls back to the `postgres`/`simple` dev credentials when `DATABASE_URL` is unset (2.1 removes that), and `manage.py` defaults to `bakery.settings.base`, so host-side `runserver` names `bakery.settings.local` and CI names `bakery.settings.test`. The launcher's containers run `base.py` itself: the `web` image is the production image (ADR-043).
+Database is PostgreSQL 17, locally the compose `postgres` service. `base.py` falls back to the `postgres`/`simple` dev credentials when `DATABASE_URL` is unset (2.1 removes that), and `manage.py` defaults to `bakery.settings.base`, so host-side `runserver` names `bakery.settings.local` and CI names `bakery.settings.test`, as `pytest` does from `pyproject.toml`; its `django_db` tests need that `postgres` running. The launcher's containers run `base.py` itself: the `web` image is the production image (ADR-043).
 
 ## Architecture
 
@@ -138,7 +139,7 @@ Three modules per ADR-028, **no `production.py`** — `base.py` *is* production,
 
 - `bakery/settings/base.py` — production, and the default for `manage.py`, `wsgi.py`, `asgi.py` and the `Dockerfile`. Every environment-sensitive value (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `DATABASE_URL`) is read from the environment via `django-environ`. **`DEBUG` defaults to `False` here.**
 - `bakery/settings/local.py` — development: `DEBUG = True` and a local host list. Must be requested explicitly via `DJANGO_SETTINGS_MODULE`.
-- `bakery/settings/test.py` — minimal: `DEBUG = False`, fast password hasher, plain static storage. Task 6.23 owns extending it when `pytest` lands.
+- `bakery/settings/test.py` — minimal: `DEBUG = False`, fast password hasher, plain static storage. `pytest` runs under it (6.23), which needed nothing added; extend it when a test does.
 
 **The values are still in the repo as `default=` fallbacks**, so nothing yet fails when a variable is
 unset. Task **2.1** removes the secret fallbacks; **2.19** removes them entirely so a missing
