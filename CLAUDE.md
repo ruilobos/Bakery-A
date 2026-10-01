@@ -92,7 +92,7 @@ restates it.
 
 ## Commands
 
-There is no app test suite or linter configuration yet (each app's `tests.py` is an empty stub). The only tests are the `scripts/` tooling's (`test_release_version.py`, `test_launch_local.py`), run with `python -m unittest discover -s scripts -t .`; CI does not run them yet. Two workflows: `.github/workflows/ci.yml` runs task 1.11's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
+There is no app test suite or linter configuration yet (each app's `tests.py` is an empty stub). The only tests are the `scripts/` tooling's (`test_release_version.py`, `test_launch_local.py`), run with `python -m unittest discover -s scripts -t .`, which CI runs as its `Tooling tests` check (1.21). Two workflows: `.github/workflows/ci.yml` runs tasks 1.11's and 1.21's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)

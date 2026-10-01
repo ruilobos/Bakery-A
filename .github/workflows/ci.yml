@@ -1,12 +1,13 @@
-# Minimal CI — task 1.11 (ADR-011).
+# Minimal CI — tasks 1.11 and 1.21 (ADR-011, as amended by ADR-044).
 #
 # Every PR into `main` or `production` gets the Django system check, a check for
-# missing migrations, a basic lint and a `docker build` of the deploy image
-# (ADR-004). Each job is its own check, advisory until 6.13 makes them required.
+# missing migrations, a basic lint, a `docker build` of the deploy image
+# (ADR-004) and the `scripts/` tooling tests. Each job is its own check, advisory
+# until 6.13 makes them required.
 #
-# No test run and no deploy step: 6.12 extends this workflow with the test suite
-# rather than replacing it, and there is no host yet. When there is, deploys will
-# come from Railway watching `production` (ADR-031), never from CI.
+# No app test run and no deploy step: 6.12 extends this workflow with the test
+# suite rather than replacing it, and there is no host yet. When there is, deploys
+# will come from Railway watching `production` (ADR-031), never from CI.
 
 name: CI
 
@@ -87,3 +88,21 @@ jobs:
 
       - name: Build the deploy image
         run: docker build --tag bakery:ci .
+
+  tooling:
+    name: Tooling tests
+    # Standard library only, so no setup-python and no install: the runner's own
+    # python3, the one release.yml runs release_version.py with. On 3.12+ a run
+    # that collects no tests fails, so this check cannot go quietly green.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: scripts/ tests
+        # When 6.23 swaps the runner, scripts/ must stay collected (ADR-044).
+        run: python3 -m unittest discover -s scripts -t .
