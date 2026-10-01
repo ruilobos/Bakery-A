@@ -29,7 +29,7 @@ supersede it, or note the amendment on its Status line.
 | [008](#adr-008-shared-multi-tenant-database-with-a-tenant-scoped-full-export) | Shared DB + tenant export | Accepted (format in 035) | One database, row-level tenant isolation at the query layer |
 | [009](#adr-009-a-dedicated-gdpr-personal-data-export) | GDPR personal-data export | Accepted | A second, subject-scoped export beside the bulk CSVs |
 | [010](#adr-010-main-as-integration-production-as-the-deploy-branch) | Branch model | Accepted (supersedes 001; amended by 014, 037, 041; tagging mechanism in 042) | `main` integrates, `production` deploys, releases tagged |
-| [011](#adr-011-minimal-ci-in-epic-1-epic-6-extends-it) | CI in two steps | Accepted (shape in 031; Epic-1 checks amended by 044) | Minimal CI in Epic 1; Epic 6 extends rather than replaces |
+| [011](#adr-011-minimal-ci-in-epic-1-epic-6-extends-it) | CI in two steps | Accepted (shape in 031; Epic-1 checks amended by 044, 045) | Minimal CI in Epic 1; Epic 6 extends rather than replaces |
 | [012](#adr-012-the-plan-becomes-a-task-backlog) | Plan → task backlog | Accepted | Epics of numbered, stable-ID tasks; undecided material outside it |
 | [013](#adr-013-railway-hobby-plan-as-the-hosting-platform) | Railway (Hobby) | Accepted | ~$6/mo, EU West (Amsterdam), app + Postgres as two services |
 | [014](#adr-014-local-docker-compose-is-the-devtest-environment) | Local dev/test only | Accepted (amends 010) | No persistent hosted staging; a PR environment on the release PR only |
@@ -48,7 +48,7 @@ supersede it, or note the amendment on its Status line.
 | [027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks) | Adopt unlocked capabilities | Accepted (amends 019) | Twelve Django 5.2 / PG 17 features adopted instead of hand-built |
 | [028](#adr-028-backend-architecture) | Backend architecture | Accepted | Three settings modules, batch-first services, no API, no cache, Brevo |
 | [029](#adr-029-dependency-management) | Dependency management | Accepted (amends 025) | `uv pip compile` over `requirements/{base,dev,prod}.in` |
-| [030](#adr-030-frontend) | Frontend | Accepted | Shared `base.html`, Bootstrap 5.3, HTMX, **no Node build step** |
+| [030](#adr-030-frontend) | Frontend | Accepted (Traps count corrected by 045) | Shared `base.html`, Bootstrap 5.3, HTMX, **no Node build step** |
 | [031](#adr-031-operations) | Operations | Accepted | Coverage-gated CI, git-watch deploys, Sentry EU, UptimeRobot, two backup tracks |
 | [032](#adr-032-one-shared-recipeline-and-categories-as-a-lookup-table) | `RecipeLine` + categories | Accepted | One line table with `CHECK`-enforced XORs; one tenant-scoped `Category` |
 | [033](#adr-033-traceability-entities) | Traceability entities | Accepted | Receipt headers with lines; runs → batches; `YYYYMMDD-NNN` lot codes |
@@ -63,6 +63,7 @@ supersede it, or note the amendment on its Status line.
 | [042](#adr-042-a-workflow-tags-every-merge-to-production-versioned-by-the-release-prs-title) | Release tagging | Accepted | `release.yml` tags every merge to `production`; the version is the `Release vX.Y.Z` title, a successor of the last tag; `0.y.z` until the pilot |
 | [043](#adr-043-the-compose-fix-runs-before-the-local-launcher) | Compose fix before the launcher | Accepted (Traps corrected by 044) | 19.10 runs before 1.12, builds `web` from the `Dockerfile` and absorbs 7.7 |
 | [044](#adr-044-close-out-the-local-environment-work-78-absorbed-tooling-tests-in-ci-now) | Local-environment close-out | Accepted (amends 011, corrects 043) | 7.8 absorbed into 19.10; `scripts/` tests run in CI from Epic 1 (1.21); boot `migrate` is the `Dockerfile` `CMD` alone |
+| [045](#adr-045-113-becomes-a-static-reference-check-collectstatic-already-runs-in-ci) | 1.13 rescoped | Accepted (amends 011, corrects 030) | CI's `Docker build` already runs `collectstatic`; 1.13 checks that every template static reference resolves, before 5.3 |
 
 ---
 
@@ -135,7 +136,7 @@ survive and now live in ADR-010; nothing else here is in force.
 
 ## ADR-011: Minimal CI in Epic 1; Epic 6 extends it
 
-- **2026-07-21 · Accepted** — full pipeline shape fixed by [031](#adr-031-operations). **Epic-1 check list amended by [044](#adr-044-close-out-the-local-environment-work-78-absorbed-tooling-tests-in-ci-now):** the standard-library `scripts/` tests run from Epic 1 (1.21); the app suite stays Epic 6's.
+- **2026-07-21 · Accepted** — full pipeline shape fixed by [031](#adr-031-operations). **Epic-1 check list amended by [044](#adr-044-close-out-the-local-environment-work-78-absorbed-tooling-tests-in-ci-now):** the standard-library `scripts/` tests run from Epic 1 (1.21); the app suite stays Epic 6's. **Amended again by [045](#adr-045-113-becomes-a-static-reference-check-collectstatic-already-runs-in-ci):** a static-reference check (1.13).
 - **Decision:** Two touchpoints. **Epic 1** gets `manage.py check`, a migrations check, `docker build` validation and a basic lint pass on every PR. **Epic 6 extends that workflow rather than replacing it.** Deploy automation waits for an actual host.
 - **Rejected:** **Moving all of Epic 6 forward** — it needs a test suite that doesn't exist and a host that isn't picked. **Leaving CI entirely in Epic 6** — five epics of PRs merging on manual review alone, once branch protection is live.
 
@@ -325,7 +326,7 @@ survive and now live in ADR-010; nothing else here is in force.
 
 ## ADR-030: Frontend
 
-- **2026-08-16 · Accepted** — **rejects `tech_stack.md`'s own Vite candidate.** Decided against a frontend that was **measured**, not assumed (2026-08-16): 32 templates, 4,277 lines, **zero `{% extends %}`, zero `{% include %}`, zero `{% static %}`**, Bootstrap **5.0.0** vendored, **7 custom JS files all 0 bytes**, no Node tooling. **The interactivity layer is not thin, it is absent** — which is what moves this decision.
+- **2026-08-16 · Accepted** — **rejects `tech_stack.md`'s own Vite candidate.** Decided against a frontend that was **measured**, not assumed (2026-08-16): 32 templates, 4,277 lines, **zero `{% extends %}`, zero `{% include %}`, zero `{% static %}`**, Bootstrap **5.0.0** vendored, **7 custom JS files all 0 bytes**, no Node tooling. **The interactivity layer is not thin, it is absent** — which is what moves this decision. **Traps count corrected by [045](#adr-045-113-becomes-a-static-reference-check-collectstatic-already-runs-in-ci):** all 32 templates hardcode static paths, not 23.
 - **Decision:**
   1. **Shared `base.html` plus `{% include %}` partials.** No competing option was in play; the measurement is the argument. `django-template-partials` **not** adopted — a dependency for ~4 fragments.
   2. **Stay on Bootstrap, 5.0.0 → 5.3.x.** Same major, so classes stay largely valid: an upgrade, not a restyle.
@@ -454,7 +455,14 @@ survive and now live in ADR-010; nothing else here is in force.
 - **Rejected:** **Keeping 7.8 open as a verification task** — nothing is left to separate, and a task that cannot fail is noise. **A production compose file for Railway** — a second deployment definition is the drift 004 exists to prevent; Railway builds the `Dockerfile`. **Waiting for 6.12 to run the tooling tests** — `release_version.py` decides every promotion's tag ([042](#adr-042-a-workflow-tags-every-merge-to-production-versioned-by-the-release-prs-title)), yet its tests would first run in CI several epics later. **Adopting `pytest` early to run them** — the runner switch is 6.23's, and nothing here needs it. **Editing 043's Traps in place** — the log is append-only.
 - **Traps:** **When 6.23 swaps the runner, `scripts/` must stay collected** — if `testpaths` is set, it includes `scripts`. Otherwise 1.21's check disappears silently while CI stays green.
 
-## ADR-045: &lt;next decision goes here&gt;
+## ADR-045: 1.13 becomes a static-reference check: `collectstatic` already runs in CI
+
+- **2026-10-01 · Accepted** — scope and sequencing only, from 1.13's premise check. **Amends [011](#adr-011-minimal-ci-in-epic-1-epic-6-extends-it)'s Epic-1 check list**, as 044 did, and **corrects [030](#adr-030-frontend)'s Traps count**. Changes no rule of [027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks), which 1.13's Notes cited but which mentions neither 1.13 nor `collectstatic`
+- **Decision:** Three clauses. **(1) The `collectstatic` step 1.13 would add already runs.** 1.11's `Docker build` builds the deploy image, whose `Dockerfile` runs `collectstatic --noinput` under `base.py`'s `CompressedManifestStaticFilesStorage`, so a failing `collectstatic` already fails the PR — the "existing … `collectstatic` … steps" [031](#adr-031-operations) names. Measured 2026-10-01 on a scratch copy: a CSS `url()` to a missing file fails it (exit 1); a template `{% static %}` to a missing file passes it (exit 0), because `collectstatic` never reads templates, and surfaces only at render as `ValueError: Missing staticfiles manifest entry`. **(2) 1.13 is rescoped to that gap:** a check in the Epic 1 workflow that every static reference in the templates resolves through the staticfiles finders — today's hardcoded paths, and `{% static %}` tags from 5.3. It needs neither the app suite nor 6.23's runner, so it is not the "moving all of Epic 6 forward" that 011 rejected; it lands **before 5.3** and gates 5.3's own PRs. How it runs is the task's plan. The ID stays, in Epic 1. **(3) Correction:** 030's Traps say whitenoise "does nothing for 23 hardcoded templates"; that counts only the `/static/` form. Measured 2026-10-01, **all 32 templates** hardcode static paths and none uses `{% static %}`.
+- **Rejected:** **1.13 as written** — a second `collectstatic` cannot fail on anything `Docker build` does not already fail on, and a task that cannot fail is noise (044). **Absorbing it into 5.3 as a `pytest` test** — the app suite reaches CI only at 6.12, after Epic 5, so 5.3's own PRs would land ungated. **Keeping it in Epic 1 as a test sequenced after 5.3** — holds Epic 1 open until Epic 5.
+- **Traps:** **A file that resolves is not a URL that resolves.** Many of today's references are relative (`../../static/…`) and reach their file only from a page two path segments deep; the check proves the file exists, not that the browser finds it — 5.3's `{% static %}` is what closes that. **Only literal paths can be checked:** a `{% static %}` whose argument is a variable passes unseen. **CI's `collectstatic` check rides on the image build and on manifest storage:** an answer to roadmap 9.22 that moves `collectstatic` out of the `Dockerfile` takes it out of CI, and a 19.14 that drops `CompressedManifestStaticFilesStorage` (027's Traps) stops it failing on a CSS `url()` to a missing file — either way CI stays green.
+
+## ADR-046: &lt;next decision goes here&gt;
 
 - **Date / Status:**
 - **Decision:**
