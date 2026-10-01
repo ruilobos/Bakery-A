@@ -47,7 +47,7 @@ supersede it, or note the amendment on its Status line.
 | [026](#adr-026-pin-postgresql-17-across-every-environment) | PostgreSQL 17 | Accepted | Pinned identically everywhere; majors must match |
 | [027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks) | Adopt unlocked capabilities | Accepted (amends 019) | Twelve Django 5.2 / PG 17 features adopted instead of hand-built |
 | [028](#adr-028-backend-architecture) | Backend architecture | Accepted | Three settings modules, batch-first services, no API, no cache, Brevo |
-| [029](#adr-029-dependency-management) | Dependency management | Accepted (amends 025) | `uv pip compile` over `requirements/{base,dev,prod}.in` |
+| [029](#adr-029-dependency-management) | Dependency management | Accepted (amends 025; bridged by 046 until 19.12) | `uv pip compile` over `requirements/{base,dev,prod}.in` |
 | [030](#adr-030-frontend) | Frontend | Accepted (Traps count corrected by 045) | Shared `base.html`, Bootstrap 5.3, HTMX, **no Node build step** |
 | [031](#adr-031-operations) | Operations | Accepted | Coverage-gated CI, git-watch deploys, Sentry EU, UptimeRobot, two backup tracks |
 | [032](#adr-032-one-shared-recipeline-and-categories-as-a-lookup-table) | `RecipeLine` + categories | Accepted | One line table with `CHECK`-enforced XORs; one tenant-scoped `Category` |
@@ -64,6 +64,7 @@ supersede it, or note the amendment on its Status line.
 | [043](#adr-043-the-compose-fix-runs-before-the-local-launcher) | Compose fix before the launcher | Accepted (Traps corrected by 044) | 19.10 runs before 1.12, builds `web` from the `Dockerfile` and absorbs 7.7 |
 | [044](#adr-044-close-out-the-local-environment-work-78-absorbed-tooling-tests-in-ci-now) | Local-environment close-out | Accepted (amends 011, corrects 043) | 7.8 absorbed into 19.10; `scripts/` tests run in CI from Epic 1 (1.21); boot `migrate` is the `Dockerfile` `CMD` alone |
 | [045](#adr-045-113-becomes-a-static-reference-check-collectstatic-already-runs-in-ci) | 1.13 rescoped | Accepted (amends 011, corrects 030) | CI's `Docker build` already runs `collectstatic`; 1.13 checks that every template static reference resolves, before 5.3 |
+| [046](#adr-046-test-tooling-waits-for-1912-in-an-interim-requirements-devtxt) | Interim dev requirements | Accepted (bridges 029 until 19.12) | Dev tooling in a root `requirements-dev.txt`, never in the image, pinned to the installed runtime; 19.12 folds it into `dev.in` |
 
 ---
 
@@ -313,7 +314,7 @@ survive and now live in ADR-010; nothing else here is in force.
 
 ## ADR-029: Dependency management
 
-- **2026-08-16 · Accepted** — **amends [025](#adr-025-runtime-baseline--django-52-lts-on-python-313)** on `Pillow`.
+- **2026-08-16 · Accepted** — **amends [025](#adr-025-runtime-baseline--django-52-lts-on-python-313)** on `Pillow`. **Bridged until 19.12 by [046](#adr-046-test-tooling-waits-for-1912-in-an-interim-requirements-devtxt):** dev tooling sits in an interim root `requirements-dev.txt` the `Dockerfile` never installs.
 - **Decision:**
   1. **`uv`, in `pip compile` mode** — hand-edited `.in` → fully-pinned `.txt` in ordinary requirements format. Deliberately **not** `uv sync`/`pyproject.toml`: the requirements format is what the `Dockerfile`, Railway and every fallback host already consume, so this adds determinism **without changing the install path anywhere.** `uv` is build tooling at a **pinned** version, never an app dependency.
   2. **Three sources, three locks** — `base.in`, `dev.in` (`-r base.in` + tooling never in the image), `prod.in` (`-r base.in` + production-only). The root file is deleted. `prod.in` starts as nothing but `-r base.in`, deliberately: the value is **a named artifact the `Dockerfile` points at** that structurally cannot pick up dev tooling.
@@ -462,7 +463,14 @@ survive and now live in ADR-010; nothing else here is in force.
 - **Rejected:** **1.13 as written** — a second `collectstatic` cannot fail on anything `Docker build` does not already fail on, and a task that cannot fail is noise (044). **Absorbing it into 5.3 as a `pytest` test** — the app suite reaches CI only at 6.12, after Epic 5, so 5.3's own PRs would land ungated. **Keeping it in Epic 1 as a test sequenced after 5.3** — holds Epic 1 open until Epic 5.
 - **Traps:** **A file that resolves is not a URL that resolves.** Many of today's references are relative (`../../static/…`) and reach their file only from a page two path segments deep; the check proves the file exists, not that the browser finds it — 5.3's `{% static %}` is what closes that. **Only literal paths can be checked:** a `{% static %}` whose argument is a variable passes unseen. **CI's `collectstatic` check rides on the image build and on manifest storage:** an answer to roadmap 9.22 that moves `collectstatic` out of the `Dockerfile` takes it out of CI, and a 19.14 that drops `CompressedManifestStaticFilesStorage` (027's Traps) stops it failing on a CSS `url()` to a missing file — either way CI stays green.
 
-## ADR-046: &lt;next decision goes here&gt;
+## ADR-046: Test tooling waits for 19.12 in an interim `requirements-dev.txt`
+
+- **2026-10-01 · Accepted** — an interim arrangement, from 6.23's premise check. **Bridges [029](#adr-029-dependency-management) until 19.12** and changes none of its end state. Its interim pins sit outside [025](#adr-025-runtime-baseline--django-52-lts-on-python-313)'s version rule, which is written for the 5.2/3.13 locks.
+- **Decision:** 6.23 runs before Epic 19, but 029's `requirements/dev.in` arrives only with 19.12, which compiles for Python 3.13 and so follows the upgrade. Until then **dev tooling lives in a root `requirements-dev.txt`**: `-r requirements.txt` plus hand-pinned packages, each line carrying 029's owner/purpose comment. **The `Dockerfile` never installs it**, so tooling stays out of the image — 029's point, held early. **Pins are the newest releases compatible with the runtime actually installed** (Django 3.2, Python 3.9): for 6.23 that is `pytest-django` 4.8.0, the last release supporting Django 3.2. Any dev tooling a task adds before 19.12 joins the same file. **19.12 folds it into `dev.in`, re-pins under 025's rule, and deletes it.**
+- **Rejected:** **Adding them to `requirements.txt`** — ships test tooling in the production image, which 029's split exists to rule out structurally. **Deferring 6.23 until after 19.12** — every task before the upgrade would ship without tests, which [038](#adr-038-agent-assisted-task-loop)'s loop requires; that is why 6.23 was pulled forward. **Pulling 19.12 forward** — compiles every lock twice, for 3.9/3.2 and again for 3.13/5.2, and drags 19.16's `Dockerfile` change ahead of the upgrade. **Pinning the 5.2/3.13 releases now** — they do not install: `pytest` 9 needs Python 3.10, and `pytest-django` 4.9 dropped Django 3.2.
+- **Traps:** **Hand pins with no hashes until 19.12** — not a re-opening of 029's rejected "skipping hashes": `--require-hashes` covers every package, including the `-r requirements.txt` the file pulls in, which has none until 19.12 hashes both. The gap is accepted for the interim only. **The file must not outlive 19.12:** a second dev-requirements source beside `dev.in` is the unregistered drift 029's rule 4 exists to prevent.
+
+## ADR-047: &lt;next decision goes here&gt;
 
 - **Date / Status:**
 - **Decision:**

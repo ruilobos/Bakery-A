@@ -44,7 +44,7 @@ only in the generated lock files**, never here.
 | `environ` 1.0 / `dj-database-url` 0.5.0 | both present | **Both removed** — a module-name collision and an unused duplicate of `env.db()` | [025](decisions.md) |
 | `sentry-sdk[django]` | none | **Added** to `base.in` | [031](decisions.md) |
 | Media storage | none | `django-storages[s3]` + `boto3` against Cloudflare R2, entering in Epic 13 | [005](decisions.md) |
-| Management | single UTF-16LE `requirements.txt` | **`uv pip compile` over `requirements/{base,dev,prod}.in` → pinned, hashed `.txt`.** Requirements-file mode, not `pyproject.toml`. `--generate-hashes` + `--require-hashes`, `--python-version 3.13`; `dev`/`prod` compiled against `-c base.txt`. `uv` is build tooling, never an app dependency (19.12, 19.16) | [029](decisions.md) |
+| Management | single hand-pinned `requirements.txt`, UTF-8 since 1.4 | **`uv pip compile` over `requirements/{base,dev,prod}.in` → pinned, hashed `.txt`.** Requirements-file mode, not `pyproject.toml`. `--generate-hashes` + `--require-hashes`, `--python-version 3.13`; `dev`/`prod` compiled against `-c base.txt`. `uv` is build tooling, never an app dependency (19.12, 19.16). **Until 19.12**, dev tooling sits in an interim root `requirements-dev.txt` the `Dockerfile` never installs, pinned to the installed runtime (6.23) | [029](decisions.md)/[046](decisions.md) |
 | Hygiene | none | **The `.in` file is the register:** every line carries a comment naming its purpose and owning task; a line without one is removed at the next recompile. Recompile on `.in` change, on a security advisory, otherwise monthly | [029](decisions.md) |
 
 **The resulting set** — six direct runtime dependencies in `base.in`: Django, `psycopg[binary]`,
