@@ -19,6 +19,7 @@ On failure it prints a GitHub Actions error annotation and exits 1.
 
 Standard library only, so the runner's own `python3` runs it with no install step.
 """
+
 import argparse
 import os
 import re
@@ -26,10 +27,10 @@ import sys
 
 # No leading zeros (semver forbids them, and `v01.0.0` would read as `v1.0.0`),
 # and [0-9] rather than \d, which also matches non-ASCII digits.
-_NUMBER = r'(0|[1-9][0-9]*)'
-_VERSION = r'v' + r'\.'.join([_NUMBER] * 3)
+_NUMBER = r"(0|[1-9][0-9]*)"
+_VERSION = r"v" + r"\.".join([_NUMBER] * 3)
 TAG = re.compile(_VERSION)
-TITLE = re.compile(r'Release ' + _VERSION)
+TITLE = re.compile(r"Release " + _VERSION)
 
 FIRST = (0, 1, 0)
 
@@ -39,7 +40,7 @@ class ReleaseError(Exception):
 
 
 def tag_name(version):
-    return 'v{}.{}.{}'.format(*version)
+    return "v{}.{}.{}".format(*version)
 
 
 def parse_tag(tag):
@@ -69,14 +70,16 @@ def next_release(title, tags):
     """
     match = TITLE.fullmatch(title.strip())
     if not match:
-        raise ReleaseError(f'Title the release PR "Release vX.Y.Z", not "{title}" (ADR-042).')
+        raise ReleaseError(
+            f'Title the release PR "Release vX.Y.Z", not "{title}" (ADR-042).'
+        )
     wanted = tuple(int(part) for part in match.groups())
 
     released = sorted(version for version in map(parse_tag, tags) if version)
     if not released:
         if wanted != FIRST:
             raise ReleaseError(
-                f'The first tag is {tag_name(FIRST)}, not {tag_name(wanted)} (ADR-042).'
+                f"The first tag is {tag_name(FIRST)}, not {tag_name(wanted)} (ADR-042)."
             )
         return tag_name(wanted), None
 
@@ -85,37 +88,39 @@ def next_release(title, tags):
     if wanted not in allowed:
         patch, minor, major = (tag_name(version) for version in allowed)
         raise ReleaseError(
-            f'{tag_name(wanted)} cannot follow {tag_name(latest)}: '
-            f'the next release is {patch}, {minor} or {major}.'
+            f"{tag_name(wanted)} cannot follow {tag_name(latest)}: "
+            f"the next release is {patch}, {minor} or {major}."
         )
     return tag_name(wanted), tag_name(latest)
 
 
 def _escape(message):
     # A workflow-command message may not carry these raw.
-    return message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    return message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 def main(argv=None, stdin=None):
-    parser = argparse.ArgumentParser(description='Choose the version a release PR publishes.')
-    parser.add_argument('--title', required=True, help="the release PR's title")
+    parser = argparse.ArgumentParser(
+        description="Choose the version a release PR publishes."
+    )
+    parser.add_argument("--title", required=True, help="the release PR's title")
     args = parser.parse_args(argv)
 
     tags = (stdin or sys.stdin).read().split()
     try:
         tag, previous = next_release(args.title, tags)
     except ReleaseError as error:
-        print(f'::error title=Release PR::{_escape(str(error))}')
+        print(f"::error title=Release PR::{_escape(str(error))}")
         return 1
 
-    outputs = f'tag={tag}\nprevious={previous or ""}\n'
+    outputs = f"tag={tag}\nprevious={previous or ''}\n"
     sys.stdout.write(outputs)
-    github_output = os.environ.get('GITHUB_OUTPUT')
+    github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
-        with open(github_output, 'a', encoding='utf-8') as handle:
+        with open(github_output, "a", encoding="utf-8") as handle:
             handle.write(outputs)
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

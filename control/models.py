@@ -2,24 +2,24 @@ from django.db import models
 from django.urls import reverse
 
 
-#-------------------------------------#
+# -------------------------------------#
 # Create RawMaterial DB.
-#-------------------------------------#
+# -------------------------------------#
 class RawMaterial(models.Model):
     UNIT_CHOICES = (
-        ('KG', 'kg'),
-        ('L', 'l'),
-        ('UNIT', 'unit'),
+        ("KG", "kg"),
+        ("L", "l"),
+        ("UNIT", "unit"),
     )
     CATEGORY_CHOICES = (
-        ('BEVERAGE', 'Beverage'),
-        ('BREAD', 'Bread'),
-        ('DAIRY & EGGS', 'Dairy & Eggs'),
-        ('DRY GOODS', 'Dry Goods'),
-        ('FISH', 'Fish'),
-        ('FRUIT & VEG', 'Fruit & Veg'),
-        ('MEAT', 'Meat'),
-        ('PACKING', 'Packing'),
+        ("BEVERAGE", "Beverage"),
+        ("BREAD", "Bread"),
+        ("DAIRY & EGGS", "Dairy & Eggs"),
+        ("DRY GOODS", "Dry Goods"),
+        ("FISH", "Fish"),
+        ("FRUIT & VEG", "Fruit & Veg"),
+        ("MEAT", "Meat"),
+        ("PACKING", "Packing"),
     )
     description = models.CharField("Description", max_length=100)
     code = models.CharField("Code", max_length=30, blank=True)
@@ -39,16 +39,16 @@ class RawMaterial(models.Model):
     class Meta:
         verbose_name = "Raw Material"
         verbose_name_plural = "Raw Materials"
-        ordering = ['description']
-    
+        ordering = ["description"]
 
-#-------------------------------------#
+
+# -------------------------------------#
 # Create Supplier DB
-#-------------------------------------#
+# -------------------------------------#
 class Supplier(models.Model):
     name = models.CharField("Supplier Name", max_length=100, primary_key=True)
-    accNumber = models.CharField("ACC Number",max_length=30, blank=True) 
-    contact = models.CharField("Contact", max_length=30, blank=True) 
+    accNumber = models.CharField("ACC Number", max_length=30, blank=True)
+    contact = models.CharField("Contact", max_length=30, blank=True)
     phone = models.IntegerField("Phone Number", blank=True)
     email = models.EmailField("Email", max_length=30, blank=True)
     comment = models.CharField("Comment", max_length=100, blank=True)
@@ -63,17 +63,17 @@ class Supplier(models.Model):
     class Meta:
         verbose_name = "Supplier"
         verbose_name_plural = "Suppliers"
-        ordering = ['name']
+        ordering = ["name"]
 
 
-#-------------------------------------#
+# -------------------------------------#
 # Create BaseRecipe DB
-#-------------------------------------#
+# -------------------------------------#
 class BaseRecipe(models.Model):
     UNIT_CHOICES = (
-        ('KG', 'kg'),
-        ('L', 'l'),
-        ('UNIT', 'unit'),
+        ("KG", "kg"),
+        ("L", "l"),
+        ("UNIT", "unit"),
     )
     name = models.CharField("Base Recipe Name", max_length=100)
     recipe_yield = models.IntegerField("Recipe Yield")
@@ -89,27 +89,27 @@ class BaseRecipe(models.Model):
     class Meta:
         verbose_name = "Base Recipe"
         verbose_name_plural = "Base Recipes"
-        ordering = ['name']
+        ordering = ["name"]
 
 
-#-------------------------------------#
+# -------------------------------------#
 # Create Bs_Ingredients DB
-#-------------------------------------#
+# -------------------------------------#
 class Bs_Ingredients(models.Model):
     CATEGORY_CHOICES = (
-        ('BEVERAGE', 'Beverage'),
-        ('BREAD', 'Bread'),
-        ('DAIRY & EGGS', 'Dairy & Eggs'),
-        ('DRY GOODS', 'Dry Goods'),
-        ('FISH', 'Fish'),
-        ('FRUIT & VEG', 'Fruit & Veg'),
-        ('MEAT', 'Meat'),
-        ('PACKING', 'Packing'),
+        ("BEVERAGE", "Beverage"),
+        ("BREAD", "Bread"),
+        ("DAIRY & EGGS", "Dairy & Eggs"),
+        ("DRY GOODS", "Dry Goods"),
+        ("FISH", "Fish"),
+        ("FRUIT & VEG", "Fruit & Veg"),
+        ("MEAT", "Meat"),
+        ("PACKING", "Packing"),
     )
     UNIT_CHOICES = (
-        ('KG', 'kg'),
-        ('L', 'l'),
-        ('UNIT', 'unit'),
+        ("KG", "kg"),
+        ("L", "l"),
+        ("UNIT", "unit"),
     )
     ingredient = models.ForeignKey("RawMaterial", on_delete=models.SET_NULL, null=True)
     base_recipe = models.ForeignKey("BaseRecipe", on_delete=models.SET_NULL, null=True)
@@ -126,33 +126,33 @@ class Bs_Ingredients(models.Model):
     # function to calculate the unit cost
     @property
     def cost(self):
-        cost = f"{self.quantity*self.ingredient.price:.2f}"
+        cost = f"{self.quantity * self.ingredient.price:.2f}"
         return cost
 
     class Meta:
         verbose_name = "Base Recipe Ingredient"
         verbose_name_plural = "Base Recipies Ingredients"
-        ordering = ['ingredient']
+        ordering = ["ingredient"]
 
 
-#-------------------------------------#
+# -------------------------------------#
 # Create Recipe_Ingredients DB
-#-------------------------------------#
+# -------------------------------------#
 class Recipe_Ingredients(models.Model):
     CATEGORY_CHOICES = (
-        ('BEVERAGE', 'Beverage'),
-        ('BREAD', 'Bread'),
-        ('DAIRY & EGGS', 'Dairy & Eggs'),
-        ('DRY GOODS', 'Dry Goods'),
-        ('FISH', 'Fish'),
-        ('FRUIT & VEG', 'Fruit & Veg'),
-        ('MEAT', 'Meat'),
-        ('PACKING', 'Packing'),
+        ("BEVERAGE", "Beverage"),
+        ("BREAD", "Bread"),
+        ("DAIRY & EGGS", "Dairy & Eggs"),
+        ("DRY GOODS", "Dry Goods"),
+        ("FISH", "Fish"),
+        ("FRUIT & VEG", "Fruit & Veg"),
+        ("MEAT", "Meat"),
+        ("PACKING", "Packing"),
     )
     UNIT_CHOICES = (
-        ('KG', 'kg'),
-        ('L', 'l'),
-        ('UNIT', 'unit'),
+        ("KG", "kg"),
+        ("L", "l"),
+        ("UNIT", "unit"),
     )
     ingredient = models.ForeignKey("RawMaterial", on_delete=models.SET_NULL, null=True)
     product = models.ForeignKey("Product", on_delete=models.SET_NULL, null=True)
@@ -169,13 +169,13 @@ class Recipe_Ingredients(models.Model):
     # function to calculate the unit cost
     @property
     def cost(self):
-        cost = f"{self.quantity*self.ingredient.price:.2f}"
+        cost = f"{self.quantity * self.ingredient.price:.2f}"
         return cost
 
     # function to calculate the net price
     @property
     def net_price(self):
-        net_price = f"{self.product.price*(1-self.product.vat):.2f}"
+        net_price = f"{self.product.price * (1 - self.product.vat):.2f}"
         return net_price
 
     # function to calculate the margin percent
@@ -183,12 +183,12 @@ class Recipe_Ingredients(models.Model):
     def margin_percent(self):
         cost_recipe = 0
         for iten in self.ingredients.all():
-            cost_recipe += (iten.quantity * iten.ingredient.price)
-        unit_cost = cost_recipe/self.recipe_yield
-        margin_value = (self.price-(self.price*self.vat))-unit_cost
-        net_price = self.price-(self.price*self.vat)
-        margin = margin_value/net_price
-        margin_percent = f"{margin*100:.2f}"  
+            cost_recipe += iten.quantity * iten.ingredient.price
+        unit_cost = cost_recipe / self.recipe_yield
+        margin_value = (self.price - (self.price * self.vat)) - unit_cost
+        net_price = self.price - (self.price * self.vat)
+        margin = margin_value / net_price
+        margin_percent = f"{margin * 100:.2f}"
         return margin_percent
 
     # function to calculate the margin value
@@ -196,38 +196,38 @@ class Recipe_Ingredients(models.Model):
     def margin_value(self):
         cost_recipe = 0
         for iten in self.ingredients.all():
-            cost_recipe += (iten.quantity * iten.ingredient.price)
-        unit_cost = cost_recipe/self.recipe_yield
-        margin_value = f"{(self.price-(self.price*self.vat))-unit_cost:.2f}"
+            cost_recipe += iten.quantity * iten.ingredient.price
+        unit_cost = cost_recipe / self.recipe_yield
+        margin_value = f"{(self.price - (self.price * self.vat)) - unit_cost:.2f}"
         return margin_value
 
     class Meta:
         verbose_name = "Recipe Ingredient"
         verbose_name_plural = "Recipe Ingredients"
-        ordering = ['ingredient']
+        ordering = ["ingredient"]
 
 
-#-------------------------------------#
+# -------------------------------------#
 # Create Product DB
-#-------------------------------------#
+# -------------------------------------#
 class Product(models.Model):
     UNIT_CHOICES = (
-        ('KG', 'kg'),
-        ('L', 'l'),
-        ('UNIT', 'unit'),
+        ("KG", "kg"),
+        ("L", "l"),
+        ("UNIT", "unit"),
     )
     CATEGORY_CHOICES = (
-        ('BEVERAGES', 'Beverages'),
-        ('CAKES', 'Cakes'),
-        ('DESSERTS', 'Desserts'),
-        ('FINANCIER & MADELEINE', 'Financier & Madeleine'),
-        ('FRENCH TOASTS', 'French Toasts'),
-        ('HOT FOODS', 'Hot Foods'),
-        ('MACARONS', 'Macarons'),
-        ('PASTRIES', 'Pastries'),
-        ('SANDWICHES', 'Sandwiches'),
-        ('SCONE, CREPE & PORRIDGE', 'Scone, Crepe & Porridge'),
-        ('SWEETS', 'Sweets'),
+        ("BEVERAGES", "Beverages"),
+        ("CAKES", "Cakes"),
+        ("DESSERTS", "Desserts"),
+        ("FINANCIER & MADELEINE", "Financier & Madeleine"),
+        ("FRENCH TOASTS", "French Toasts"),
+        ("HOT FOODS", "Hot Foods"),
+        ("MACARONS", "Macarons"),
+        ("PASTRIES", "Pastries"),
+        ("SANDWICHES", "Sandwiches"),
+        ("SCONE, CREPE & PORRIDGE", "Scone, Crepe & Porridge"),
+        ("SWEETS", "Sweets"),
     )
     name = models.CharField("Product Name", max_length=100)
     categorie = models.CharField("Category", max_length=30, choices=CATEGORY_CHOICES)
@@ -246,4 +246,4 @@ class Product(models.Model):
     class Meta:
         verbose_name = "Product"
         verbose_name_plural = "Products"
-        ordering = ['name']
+        ordering = ["name"]

@@ -6,14 +6,14 @@ from django.urls import reverse
 
 # Login function using django user modules.
 def user_login(request):
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
         user = authenticate(username=username, password=password)
         if user:
             if user.is_active:
-                login(request,user)
-                return HttpResponseRedirect(reverse('index'))
+                login(request, user)
+                return HttpResponseRedirect(reverse("index"))
             else:
                 return HttpResponse("Your account was inactive.")
         else:
@@ -21,4 +21,4 @@ def user_login(request):
             print(f"They used username: {username} and password: {password}")
             return HttpResponse("Invalid login details given")
     else:
-        return render(request, 'login.html', {})
+        return render(request, "login.html", {})
