@@ -1,8 +1,8 @@
-from django.shortcuts import render
-from django.http import HttpResponse
 from django.contrib.auth import authenticate, login
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
+from django.shortcuts import render
 from django.urls import reverse
+
 
 # Login function using django user modules.
 def user_login(request):
@@ -18,7 +18,7 @@ def user_login(request):
                 return HttpResponse("Your account was inactive.")
         else:
             print("Someone tried to login and failed.")
-            print("They used username: {} and password: {}".format(username,password))
+            print(f"They used username: {username} and password: {password}")
             return HttpResponse("Invalid login details given")
     else:
         return render(request, 'login.html', {})

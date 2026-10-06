@@ -15,9 +15,8 @@ class FirstTagTests(unittest.TestCase):
 
     def test_first_tag_cannot_be_anything_else(self):
         for title in ('Release v1.0.0', 'Release v0.0.1', 'Release v0.2.0'):
-            with self.subTest(title=title):
-                with self.assertRaisesRegex(ReleaseError, r'first tag is v0\.1\.0'):
-                    next_release(title, [])
+            with self.subTest(title=title), self.assertRaisesRegex(ReleaseError, r'first tag is v0\.1\.0'):
+                next_release(title, [])
 
     def test_tags_that_are_not_releases_leave_it_the_first(self):
         tags = ['v0.2.0-rc1', 'v01.0.0', '0.3.0', 'latest', 'v1.0']
@@ -33,9 +32,8 @@ class NextReleaseTests(unittest.TestCase):
     def test_anything_else_is_rejected(self):
         # the same version, a lower one, a skipped one, and bumps that do not reset
         for tag in ('v0.1.0', 'v0.0.9', 'v0.3.0', 'v0.2.1', 'v1.1.0', 'v2.0.0'):
-            with self.subTest(tag=tag):
-                with self.assertRaisesRegex(ReleaseError, r'cannot follow v0\.1\.0'):
-                    next_release(f'Release {tag}', ['v0.1.0'])
+            with self.subTest(tag=tag), self.assertRaisesRegex(ReleaseError, r'cannot follow v0\.1\.0'):
+                next_release(f'Release {tag}', ['v0.1.0'])
 
     def test_the_error_names_the_allowed_versions(self):
         with self.assertRaisesRegex(ReleaseError, r'v0\.1\.1, v0\.2\.0 or v1\.0\.0\.$'):
@@ -61,9 +59,8 @@ class TitleTests(unittest.TestCase):
             'Release v1٠.0.0',  # 1 then an Arabic-Indic zero: \d and int() would read 10
         )
         for title in titles:
-            with self.subTest(title=title):
-                with self.assertRaisesRegex(ReleaseError, 'Release vX.Y.Z'):
-                    next_release(title, [])
+            with self.subTest(title=title), self.assertRaisesRegex(ReleaseError, 'Release vX.Y.Z'):
+                next_release(title, [])
 
     def test_surrounding_whitespace_is_ignored(self):
         self.assertEqual(next_release('  Release v0.1.0 ', []), ('v0.1.0', None))

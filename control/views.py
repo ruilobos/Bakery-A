@@ -1,20 +1,27 @@
-from django.shortcuts import render
-from django.http import HttpResponse
-from .models import RawMaterial, Supplier, BaseRecipe, Recipe_Ingredients, Product, Bs_Ingredients
-from django.views.generic.list import ListView
-from django.views.generic.edit import CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy
 import csv
-from django.contrib.auth import get_user_model
-from django.template.defaulttags import register
 
+from django.contrib.auth import get_user_model
+from django.http import HttpResponse
+from django.shortcuts import render
+from django.template.defaulttags import register
+from django.urls import reverse_lazy
+from django.views.generic.edit import CreateView, DeleteView, UpdateView
+from django.views.generic.list import ListView
+
+from .models import (
+    BaseRecipe,
+    Bs_Ingredients,
+    Product,
+    RawMaterial,
+    Recipe_Ingredients,
+    Supplier,
+)
 
 #-------------------------------------------------#
 # Generic Functions
 #-------------------------------------------------#
 
 # Retun as a dictionary iten
-...
 @register.filter
 def get_item(dictionary, key):
     return dictionary.get(key)
@@ -38,7 +45,7 @@ class Dashboard(ListView):
             return queryset
     
     def get_context_data(self, **kwargs):
-        context =  super(Dashboard, self).get_context_data(**kwargs)
+        context =  super().get_context_data(**kwargs)
         queryset = Recipe_Ingredients.objects.all()
         queryset2 = Product.objects.all()
         
@@ -54,7 +61,7 @@ class Dashboard(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
-            unit_cost[product] = "{:.2f}".format(float(cost))
+            unit_cost[product] = f"{float(cost):.2f}"
 
         # Calculate Net Price
         price_list = []
@@ -68,7 +75,7 @@ class Dashboard(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 cost = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
-            net_value[product] = "{:.2f}".format(float(cost))
+            net_value[product] = f"{float(cost):.2f}"
 
         # Calculate Margin percent
         price_list = []
@@ -84,7 +91,7 @@ class Dashboard(ListView):
                 net_price = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
             margin = (net_price - cost)
-            margin_percent[product] = "{:.2f}".format((margin/net_price)*100)
+            margin_percent[product] = f"{(margin/net_price)*100:.2f}"
         
         context = {
             'ingre_list' : queryset,
@@ -118,7 +125,7 @@ class RawMaterialsList(ListView):
             return queryset
     
     def get_context_data(self, **kwargs):
-        context =  super(RawMaterialsList, self).get_context_data(**kwargs)
+        context =  super().get_context_data(**kwargs)
         queryset = RawMaterial.objects.filter(categorie__icontains=self.kwargs['pk'])
         queryset2 = self.kwargs['pk']
         context = {
@@ -209,7 +216,7 @@ class Base_recipe(ListView):
             return queryset
     
     def get_context_data(self, **kwargs):
-        context =  super(Base_recipe, self).get_context_data(**kwargs)
+        context =  super().get_context_data(**kwargs)
         queryset = Bs_Ingredients.objects.filter(base_recipe__id__icontains=self.kwargs['pk'])
         queryset2 = BaseRecipe.objects.get(id__icontains=self.kwargs['pk'])
         
@@ -225,7 +232,7 @@ class Base_recipe(ListView):
             cost = 0
             for ingredient in Bs_Ingredients.objects.filter(base_recipe__name__icontains=product):
                 cost += (float(ingredient.ingredient.price) * (float(ingredient.quantity)))
-            recipe_cost[product] = "{:.2f}".format(float(cost))
+            recipe_cost[product] = f"{float(cost):.2f}"
 
         # Calculate Unit Cost
         price_list = []
@@ -239,7 +246,7 @@ class Base_recipe(ListView):
             cost = 0
             for ingredient in Bs_Ingredients.objects.filter(base_recipe__name__icontains=product):
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.base_recipe.recipe_yield))
-            unit_cost[product] = "{:.2f}".format(float(cost))
+            unit_cost[product] = f"{float(cost):.2f}"
 
 
         context = {
@@ -282,7 +289,7 @@ class Br_Ingre_Create(CreateView):
 
     def form_valid(self, form):
         form.instance.base_recipe_id = self.kwargs['pk']
-        return super(Br_Ingre_Create, self).form_valid(form)
+        return super().form_valid(form)
 
 
 # Update ingredient in Base Recipe
@@ -316,7 +323,7 @@ class Pro_Ingre_Create(CreateView):
 
     def form_valid(self, form):
         form.instance.product_id = self.kwargs['pk']
-        return super(Pro_Ingre_Create, self).form_valid(form)
+        return super().form_valid(form)
    
 
 # Update a Product
@@ -347,7 +354,7 @@ class Product_List(ListView):
             return queryset
     
     def get_context_data(self, **kwargs):
-        context =  super(Product_List, self).get_context_data(**kwargs)
+        context =  super().get_context_data(**kwargs)
         queryset = Recipe_Ingredients.objects.filter(product__categorie__icontains=self.kwargs['pk'])
         queryset2 = self.kwargs['pk']
         queryset3 = Product.objects.filter(categorie__icontains=self.kwargs['pk'])
@@ -364,7 +371,7 @@ class Product_List(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 cost += (float(ingredient.ingredient.price) * (float(ingredient.quantity)))
-            recipe_cost[product] = "{:.2f}".format(float(cost))
+            recipe_cost[product] = f"{float(cost):.2f}"
 
         # Calculate Unit Cost
         price_list = []
@@ -378,7 +385,7 @@ class Product_List(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
-            unit_cost[product] = "{:.2f}".format(float(cost))
+            unit_cost[product] = f"{float(cost):.2f}"
 
         # Calculate Net Price
         price_list = []
@@ -392,7 +399,7 @@ class Product_List(ListView):
             cost = 0
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 cost = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
-            net_value[product] = "{:.2f}".format(float(cost))
+            net_value[product] = f"{float(cost):.2f}"
         
         # Calculate Margin value
         price_list = []
@@ -407,7 +414,7 @@ class Product_List(ListView):
             for ingredient in Recipe_Ingredients.objects.filter(product__name__icontains=product):
                 net_price = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
-            margin_value[product] = "{:.2f}".format((net_price - cost))
+            margin_value[product] = f"{net_price - cost:.2f}"
 
         # Calculate Margin percent
         price_list = []
@@ -423,7 +430,7 @@ class Product_List(ListView):
                 net_price = (float(ingredient.product.price)*(1-(float(ingredient.product.vat))))
                 cost += ((float(ingredient.ingredient.price) * (float(ingredient.quantity))) / float(ingredient.product.recipe_yield))
             margin = (net_price - cost)
-            margin_percent[product] = "{:.2f}".format((margin/net_price)*100)
+            margin_percent[product] = f"{(margin/net_price)*100:.2f}"
         
         context = {
             'categorie' : queryset2,

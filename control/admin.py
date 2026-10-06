@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import RawMaterial, Supplier, BaseRecipe, Recipe_Ingredients, Product, Bs_Ingredients
+
+from .models import (
+    BaseRecipe,
+    Bs_Ingredients,
+    Product,
+    RawMaterial,
+    Recipe_Ingredients,
+    Supplier,
+)
 
 
 # Display the information from the RawMaterial Model in Django Admin.

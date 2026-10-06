@@ -1,4 +1,5 @@
 from django.urls import path
+
 from control import views
 
 app_name="control"

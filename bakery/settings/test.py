@@ -8,7 +8,7 @@ needs in advance.
 
     DJANGO_SETTINGS_MODULE=bakery.settings.test python manage.py test
 """
-from bakery.settings.base import *  # noqa: F401,F403
+from bakery.settings.base import *
 
 # Tests must never depend on DEBUG-only behaviour: DEBUG changes error handling,
 # template rendering and static file serving, so a suite that passes only under

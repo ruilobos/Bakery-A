@@ -126,7 +126,7 @@ class Bs_Ingredients(models.Model):
     # function to calculate the unit cost
     @property
     def cost(self):
-        cost = "{:.2f}".format(self.quantity*self.ingredient.price)
+        cost = f"{self.quantity*self.ingredient.price:.2f}"
         return cost
 
     class Meta:
@@ -169,13 +169,13 @@ class Recipe_Ingredients(models.Model):
     # function to calculate the unit cost
     @property
     def cost(self):
-        cost = "{:.2f}".format(self.quantity*self.ingredient.price)
+        cost = f"{self.quantity*self.ingredient.price:.2f}"
         return cost
 
     # function to calculate the net price
     @property
     def net_price(self):
-        net_price = "{:.2f}".format(self.product.price*(1-self.product.vat))
+        net_price = f"{self.product.price*(1-self.product.vat):.2f}"
         return net_price
 
     # function to calculate the margin percent
@@ -188,7 +188,7 @@ class Recipe_Ingredients(models.Model):
         margin_value = (self.price-(self.price*self.vat))-unit_cost
         net_price = self.price-(self.price*self.vat)
         margin = margin_value/net_price
-        margin_percent = "{:.2f}".format(margin*100)  
+        margin_percent = f"{margin*100:.2f}"  
         return margin_percent
 
     # function to calculate the margin value
@@ -198,7 +198,7 @@ class Recipe_Ingredients(models.Model):
         for iten in self.ingredients.all():
             cost_recipe += (iten.quantity * iten.ingredient.price)
         unit_cost = cost_recipe/self.recipe_yield
-        margin_value = "{:.2f}".format((self.price-(self.price*self.vat))-unit_cost)
+        margin_value = f"{(self.price-(self.price*self.vat))-unit_cost:.2f}"
         return margin_value
 
     class Meta:

@@ -39,7 +39,7 @@ class ReleaseError(Exception):
 
 
 def tag_name(version):
-    return 'v%d.%d.%d' % version
+    return 'v{}.{}.{}'.format(*version)
 
 
 def parse_tag(tag):
