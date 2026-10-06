@@ -7,3 +7,4 @@
 pytest==8.4.2         # test runner (6.23, ADR-034); 9.x needs Python 3.10
 pytest-django==4.8.0  # Django integration (6.23, ADR-034); last release supporting Django 3.2
 pytest-cov==7.1.0     # coverage plugin (6.23, ADR-034); measures for 6.22's floor (ADR-031)
+ruff==0.16.10         # lint and format (6.10, ADR-034); CI's Lint job reads this pin
