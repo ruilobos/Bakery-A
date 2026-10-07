@@ -31,6 +31,9 @@ target-version = "py39"
 extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
+# 1.11's basic pass stays a floor whatever the default drops (ADR-011): today that
+# adds only F722, syntax errors in string annotations.
+extend-select = ["E9", "F63", "F7", "F82"]
 # RUF012 wants ClassVar on mutable class attributes, which is how Django declares
 # Meta.ordering, list_display and fields.
 extend-ignore = ["RUF012"]
