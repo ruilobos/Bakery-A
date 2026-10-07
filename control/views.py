@@ -579,10 +579,10 @@ def export_base_recipes(request):
     response["Content-Disposition"] = 'attachment; filename="base_recipes.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(["name", "ingredients", "recipe_yield", "yield_unit"])
+    writer.writerow(["name", "recipe_yield", "yield_unit"])
 
     base_recipes = BaseRecipe.objects.all().values_list(
-        "name", "ingredients", "recipe_yield", "yield_unit"
+        "name", "recipe_yield", "yield_unit"
     )
     for base_recipe in base_recipes:
         writer.writerow(base_recipe)
@@ -599,7 +599,6 @@ def export_products(request):
         [
             "name",
             "categorie",
-            "ingredients",
             "recipe_yield",
             "yield_unit",
             "price",
@@ -608,7 +607,7 @@ def export_products(request):
     )
 
     products = Product.objects.all().values_list(
-        "name", "categorie", "ingredients", "recipe_yield", "yield_unit", "price", "vat"
+        "name", "categorie", "recipe_yield", "yield_unit", "price", "vat"
     )
     for product in products:
         writer.writerow(product)
