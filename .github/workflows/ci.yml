@@ -1,9 +1,9 @@
-# Minimal CI — tasks 1.11 and 1.21 (ADR-011, as amended by ADR-044).
+# Minimal CI — tasks 1.11, 1.21 and 6.10 (ADR-011, as amended by ADR-044).
 #
 # Every PR into `main` or `production` gets the Django system check, a check for
-# missing migrations, a basic lint, a `docker build` of the deploy image
-# (ADR-004) and the `scripts/` tooling tests. Each job is its own check, advisory
-# until 6.13 makes them required.
+# missing migrations, ruff's lint and format checks, a `docker build` of the
+# deploy image (ADR-004) and the `scripts/` tooling tests. Each job is its own
+# check, advisory until 6.13 makes them required.
 #
 # No app test run and no deploy step: 6.12 extends this workflow with the test
 # suite rather than replacing it, and there is no host yet. When there is, deploys
@@ -70,10 +70,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Syntax errors and undefined names
-        # The basic pass ADR-011 asks for, in the linter ADR-034 chose. 6.10's
-        # [tool.ruff] configuration replaces these flags with the full rule set.
-        run: pipx run --spec ruff==0.16.9 ruff check --target-version py39 --select E9,F63,F7,F82 --output-format github .
+      - name: Install ruff
+        # At requirements-dev.txt's pin, so CI and local runs cannot drift apart;
+        # 6.12 replaces this with the install from the lock.
+        run: |
+          spec="$(grep -E '^ruff==' requirements-dev.txt | cut -d ' ' -f 1)"
+          pipx install "${spec:?requirements-dev.txt pins no ruff}"
+
+      # The rule set, target version and exclusions are pyproject.toml's [tool.ruff]
+      # (6.10, ADR-034).
+      - name: ruff check
+        run: ruff check --output-format github .
+
+      - name: ruff format --check
+        run: ruff format --check --output-format github .
 
   docker:
     name: Docker build
