@@ -92,7 +92,7 @@ restates it.
 
 ## Commands
 
-`ruff` lints and formats (6.10, ADR-034), configured in `pyproject.toml`'s `[tool.ruff]`, and the app suite is two smoke tests in `core/tests.py`. The runner is `pytest` (6.23, ADR-034), configured in `pyproject.toml` and installed from `requirements-dev.txt`; it also collects the `scripts/` tooling's `unittest` tests, which CI runs on their own as its `Tooling tests` check, `python -m unittest discover -s scripts -t .` (1.21). CI runs no `pytest` yet (6.12, 6.24). Two workflows: `.github/workflows/ci.yml` runs tasks 1.11's, 1.21's and 6.10's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
+`ruff` lints and formats (6.10, ADR-034), configured in `pyproject.toml`'s `[tool.ruff]`, and the app suite is two smoke tests in `core/tests.py` plus 1.17's two export tests in `control/tests.py`. The runner is `pytest` (6.23, ADR-034), configured in `pyproject.toml` and installed from `requirements-dev.txt`; it also collects the `scripts/` tooling's `unittest` tests, which CI runs on their own as its `Tooling tests` check, `python -m unittest discover -s scripts -t .` (1.21). CI runs no `pytest` yet (6.12, 6.24). Two workflows: `.github/workflows/ci.yml` runs tasks 1.11's, 1.13's, 1.21's and 6.10's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)
@@ -121,6 +121,10 @@ python manage.py test control.tests.SomeTestCase.test_method   # single test
 # Lint and format (6.10), with ruff from requirements-dev.txt; CI runs check and format --check
 ruff check .                # --fix applies the safe fixes
 ruff format .               # --check reports without rewriting
+
+# Template static references (1.13): every static path a template names must resolve
+# through the staticfiles finders. CI runs it in Django checks; collectstatic never reads templates
+python -m scripts.check_static_refs
 
 # Static files (required before Docker/Heroku deploy — whitenoise serves from bakery/staticfiles)
 python manage.py collectstatic --noinput
