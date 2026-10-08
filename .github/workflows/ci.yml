@@ -1,9 +1,11 @@
-# Minimal CI — tasks 1.11, 1.21 and 6.10 (ADR-011, as amended by ADR-044).
+# Minimal CI — tasks 1.11, 1.13, 1.21 and 6.10 (ADR-011, as amended by ADR-044
+# and ADR-045).
 #
 # Every PR into `main` or `production` gets the Django system check, a check for
-# missing migrations, ruff's lint and format checks, a `docker build` of the
-# deploy image (ADR-004) and the `scripts/` tooling tests. Each job is its own
-# check, advisory until 6.13 makes them required.
+# missing migrations, a check that template static references resolve, ruff's
+# lint and format checks, a `docker build` of the deploy image (ADR-004) and the
+# `scripts/` tooling tests. Each job is its own check, advisory until 6.13 makes
+# them required.
 #
 # No app test run and no deploy step: 6.12 extends this workflow with the test
 # suite rather than replacing it, and there is no host yet. When there is, deploys
@@ -58,6 +60,11 @@ jobs:
         # There is no database here, so Django warns that it cannot check the
         # migration history. That check needs applied migrations to mean anything.
         run: python manage.py makemigrations --check --dry-run
+
+      - name: Template static references
+        # collectstatic in Docker build never reads templates; this fails a template
+        # that names a static file the finders cannot find (1.13, ADR-045).
+        run: python -m scripts.check_static_refs
 
   lint:
     name: Lint
