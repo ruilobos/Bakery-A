@@ -177,6 +177,6 @@ Known naming/data quirks carried from the prototype (also listed in the update p
 
 ### Views and templates
 
-All `control` views live in a single `views.py` using Django generic `ListView`/`CreateView`/`UpdateView`/`DeleteView`, mostly with `fields = '__all__'` (no dedicated ModelForms except `control/forms.py: Raw_Material_Form`, which isn't actually wired into any view). Templates are per-app under `<app>/templates/`, `APP_DIRS = True`, with shared static assets in `bakery/static/` (Bootstrap, custom CSS/JS per page, no build pipeline/bundler). CSV export views (`export_suppliers`, `export_raw_materials`, etc.) build CSVs by hand with the `csv` module directly in the view.
+All `control` views live in a single `views.py` using Django generic `ListView`/`CreateView`/`UpdateView`/`DeleteView`, mostly with `fields = '__all__'` (no dedicated ModelForms anywhere; 1.6 deleted the unused `control/forms.py`). Templates are per-app under `<app>/templates/`, `APP_DIRS = True`, with shared static assets in `bakery/static/` (Bootstrap, custom CSS/JS per page, no build pipeline/bundler). CSV export views (`export_suppliers`, `export_raw_materials`, etc.) build CSVs by hand with the `csv` module directly in the view.
 
 Access control is enforced inconsistently: views don't consistently use `LoginRequiredMixin`, and staff-only intent is expressed ad hoc rather than via a real permission scheme.
