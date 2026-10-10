@@ -85,7 +85,8 @@ opens the PR — then stops. It never merges and never promotes.
 ### The `.claude/` execution layer
 
 `docs/` says *what and why*; `PRODUCTION_UPDATE_PLAN.md` says *what's left*; `.claude/` says *how a
-task gets done* — the `/next-task` skill, its subagents, and the guard hooks. **It holds procedure
+task gets done* — the `/next-task` skill, its subagents, and the guard hooks (1.15: `settings.json`
+runs `scripts/guard_hooks.py`, tested beside it). **It holds procedure
 and pointers only.** If a file under `.claude/` ever explains *why* something is built a certain
 way, that's a bug in the same way an `Open` row outside `roadmap.md` is: it cites ADR-018, it never
 restates it.
