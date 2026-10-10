@@ -34,5 +34,18 @@
       "Bash(wc:*)",
       "Bash(ls:*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/scripts/guard_hooks.py\""
+          }
+        ]
+      }
+    ]
   }
 }
