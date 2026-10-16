@@ -135,10 +135,12 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
 ```bash
 git push -u origin <branch>
-gh pr create --base main --title "<task-id>: <summary>" --body "..."
+gh pr create --base main --title "<task-id>: <summary>" --body-file <scratchpad>/pr-body.md
 ```
 
-The body carries the task ID, what changed, what was deferred, and how it was verified.
+The body fills in [`.github/pull_request_template.md`](../../../.github/pull_request_template.md)'s
+sections and checklist. Write it to the scratchpad first: `--body` and `--body-file` skip the
+template, so it never fills itself in.
 
 ## 13 · Stop — **human gate 3**
 
