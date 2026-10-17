@@ -178,29 +178,6 @@ class Recipe_Ingredients(models.Model):
         net_price = f"{self.product.price * (1 - self.product.vat):.2f}"
         return net_price
 
-    # function to calculate the margin percent
-    @property
-    def margin_percent(self):
-        cost_recipe = 0
-        for iten in self.ingredients.all():
-            cost_recipe += iten.quantity * iten.ingredient.price
-        unit_cost = cost_recipe / self.recipe_yield
-        margin_value = (self.price - (self.price * self.vat)) - unit_cost
-        net_price = self.price - (self.price * self.vat)
-        margin = margin_value / net_price
-        margin_percent = f"{margin * 100:.2f}"
-        return margin_percent
-
-    # function to calculate the margin value
-    @property
-    def margin_value(self):
-        cost_recipe = 0
-        for iten in self.ingredients.all():
-            cost_recipe += iten.quantity * iten.ingredient.price
-        unit_cost = cost_recipe / self.recipe_yield
-        margin_value = f"{(self.price - (self.price * self.vat)) - unit_cost:.2f}"
-        return margin_value
-
     class Meta:
         verbose_name = "Recipe Ingredient"
         verbose_name_plural = "Recipe Ingredients"
