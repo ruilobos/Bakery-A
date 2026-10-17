@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 from django.urls import reverse
+from pytest_django.asserts import assertContains
 
 from control.models import (
     BaseRecipe,
@@ -80,3 +81,44 @@ def test_product_export_writes_one_row_per_product(client, raw_materials):
         ["name", "categorie", "recipe_yield", "yield_unit", "price", "vat"],
         ["Cake", "CAKES", "4.00", "UNIT", "10.00", "0.23"],
     ]
+
+
+# 1.20 deleted margin_percent and margin_value, which read four attributes the
+# model never had; ADR-018 deletes that costing rather than patching it.
+
+
+def test_every_recipe_line_property_reads_fields_the_model_has():
+    line = Recipe_Ingredients(
+        ingredient=RawMaterial(price=Decimal("1.20")),
+        product=Product(price=Decimal("10.00"), vat=Decimal("0.23")),
+        quantity=Decimal("0.250"),
+    )
+    properties = [
+        name
+        for name, value in vars(Recipe_Ingredients).items()
+        if isinstance(value, property)
+    ]
+
+    assert {name: getattr(line, name) for name in properties} == {
+        "cost": "0.30",
+        "net_price": "7.70",
+    }
+
+
+def test_products_page_renders_its_recipe_lines(client, raw_materials):
+    product = Product.objects.create(
+        name="Cake",
+        categorie="CAKES",
+        recipe_yield=Decimal("4.00"),
+        yield_unit="UNIT",
+        price=Decimal("10.00"),
+        vat=Decimal("0.23"),
+    )
+    for material in raw_materials:
+        Recipe_Ingredients.objects.create(
+            ingredient=material, product=product, quantity=Decimal("0.250"), unit="KG"
+        )
+
+    response = client.get(reverse("control:products", args=["CAKES"]))
+
+    assertContains(response, "<td>0.30</td>", count=2)
