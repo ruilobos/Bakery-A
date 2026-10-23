@@ -24,10 +24,17 @@ this task needs, finish that one first or pick a different task.
 
 ## 2 · Select the task
 
-Ask the **`backlog`** subagent for the next actionable task, or for the specific ID requested.
-Take from it: the task text, its status, its branch name, and the **Notes column verbatim**.
+Ask the **`backlog`** subagent for the next task in the backlog's **Run order**, or for the
+specific ID requested. Take from it: the task text, its status, its branch name, and the **Notes
+column verbatim**.
+
+**The run order is the sequence** ([ADR-048](../../../docs/decisions.md)): take its first entry
+not `Done`. Never pick by ADR number, by the ADR just merged, or by size or risk. A task the human
+names may run out of order; say so in the plan.
 
 Refuse and stop if:
+
+- **The current step has no written run order** — writing one is a backlog PR, not part of a task.
 
 - **Status is `Blocked`** — confirm the blocker with **`roadmap`** and report it. The way
   forward is a human decision → ADR → tasks, never an implementation.
@@ -67,10 +74,8 @@ to widen this task, and never something to quietly work around.
 
 ## 5 · Plan — **human gate 1**
 
-Enter **Plan Mode** and get the plan approved before writing anything.
-
-**1.5 and 1.7 must always route through plan mode** — they are refactors, not mechanical edits.
-ADR-039 rescoped 1.7 and corrected the site count ADR-038's traps still quote.
+Enter **Plan Mode** and get the plan approved before writing anything — refactors and
+mechanical-looking edits alike.
 
 ## 6 · Branch
 
@@ -86,8 +91,9 @@ it is not a branch.**
 Write the task **and its tests** together. Follow the surrounding code's conventions.
 
 Do not fix unrelated things you notice on the way. The prototype's naming and typing quirks are
-enumerated in CLAUDE.md and owned by task 1.7, which migrates them deliberately — a drive-by
-rename is a defect here, not a courtesy. File anything else you find as a new task instead.
+enumerated in CLAUDE.md and owned by Epic 3, whose 3.73 and 3.74 delete the three misspellings
+1.7 left ([ADR-039](../../../docs/decisions.md)) — a drive-by rename is a defect here, not a
+courtesy. File anything else you find as a new task instead.
 
 ## 8 · Review the diff
 

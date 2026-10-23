@@ -21,7 +21,14 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 - **Task IDs are stable** (`3.12` = Epic 3, task 12). Reference them in commits, PRs and plans. Never
   renumber — append new tasks at the end of their section.
 - **Task status:** `Not started` → `In progress` → `Done`, or `Blocked` (Notes says what on).
-  A task is `Done` when its own PR is merged to `main` ([ADR-037](docs/decisions.md)).
+  A task is `Done` when its own PR is merged to `main` ([ADR-037](docs/decisions.md)). **`Blocked`
+  means an open [roadmap.md](docs/roadmap.md) question only**, cited by ID. A task waiting on
+  another *task* is `Not started` and sits after it in the run order. There is no `Unblocked`
+  ([ADR-048](docs/decisions.md)).
+- **Sequence is the [Run order](#run-order)**, never the ADR numbers. Within an epic it is
+  ascending task ID unless a stated dependency says otherwise; `/next-task` takes the first entry
+  not `Done` and never skips one on its own. An epic's run order is written before its first task
+  starts ([ADR-048](docs/decisions.md)).
   **Epic status** is the table below: `Not started` → `Planned` (plan agreed, no task branch opened)
   → `In progress` → `In review` (its last task PRs are open) → `Done` (all its tasks merged to `main`).
 - **A `Blocked` task must not be implemented.** Its blocker is an open decision in
@@ -41,8 +48,8 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 
 | Epic | Name | Branch | Status | Tasks | Blocked by |
 |---|---|---|---|---|---|
-| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | Done | 22 | — |
-| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | Not started | 23 | Epic 1 |
+| [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | **Done** 2026-10-22 | 22 | — |
+| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | Not started | 23 | 11.1 (for 2.9, 2.15, 2.23); Epic 19 and 3.58 for its later tasks — [Run order](#run-order) |
 | [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
 | [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | Not started | 25 | Epics 3, 19 |
@@ -59,7 +66,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 | [16](#epic-16--ai-insights--alerts-service) | AI insights & alerts service | `feature-ai-insights-service` | Not started | 13 | Epic 11 |
 | [17](#epic-17--batch--lot-traceability) | Batch & lot traceability | `feature-traceability` | Not started | 14 | Epic 3, roadmap 10.8 |
 | [18](#epic-18--allergen-data) | Allergen data | `feature-allergen-data` | Not started | 6 | Epics 3, 17, roadmap 10.12 |
-| [19](#epic-19--runtime--dependency-upgrade) | Runtime & dependency upgrade | `stack-runtime-upgrade` | In progress | 17 | Epic 2 |
+| [19](#epic-19--runtime--dependency-upgrade) | Runtime & dependency upgrade | `stack-runtime-upgrade` | In progress | 17 | Epic 2's first part — [Run order](#run-order) |
 
 ## Execution order
 
@@ -67,11 +74,12 @@ Driven by risk and dependencies — **no date pressure** (one Irish pilot, no co
 [ADR-016](docs/decisions.md)). Feature epics 13–18 slot in after their prerequisites, ordered by
 ADR-024's MoSCoW pass.
 
-1. Epic 1 — repository cleanup, branch/release setup, minimal CI.
+1. Epic 1 — repository cleanup, branch/release setup, minimal CI. **Done 2026-10-22.**
 2. **11.1, Epic 11's personal-data inventory, as soon as Epic 1 closes** — before 2.9, 2.15 and
    2.23, which log personal data against it ([ADR-047](docs/decisions.md)). The rest of Epic 11
    takes its numbered turn, each task once its prerequisites exist; it unblocks Epics 13, 15 and 16.
-3. Epic 2 — security fixes and permissions hardening.
+3. Epic 2's first part — the security fixes that need neither Epic 19 nor Epic 3. Its later
+   tasks follow their prerequisites; see the [Run order](#run-order).
 4. **Epic 19 — the runtime upgrade.** Must land **before** Epic 3, so Epic 3's migrations are written
    once, against the target version. Numbered 19 because task IDs are never renumbered.
 5. Epic 3 — database redesign, multi-tenancy, safe migrations.
@@ -100,6 +108,47 @@ and its data model had to be settled before Epic 3's schema work, or Epic 3 gets
 Supplier price comparison is likewise a Must that **depends on Epic 17**, since goods receipts are the
 data it compares.
 
+### Run order
+
+What `/next-task` takes next: **the first entry below that is not `Done`**
+([ADR-048](docs/decisions.md)). It never skips an entry on its own: a stuck one is reported, and a
+human names another task or edits this list. Within an epic the order is ascending task ID, and
+each departure says which stated dependency forces it. ADR numbers, the coverage and risk tables
+and the milestone list never order work.
+
+**Written for steps 2 and 3 only.** Each later step owes its run order, written in a backlog PR,
+before its first task starts. Until then the loop stops there, as it does at `Blocked`.
+
+| # | Task | Why here |
+|---|---|---|
+| 1 | 11.1 | Step 2, before 2.9, 2.15 and 2.23 (ADR-047) |
+| 2 | 2.1 | Its Notes' `collectstatic` trap is roadmap 9.22's question: settle 9.22 first, or 2.1's premise gate stops here |
+| 3 | 2.3 | |
+| 4 | 2.4 | |
+| 5 | 2.9 | After 11.1 |
+| 6 | 2.11 | Its Notes cite no ADR, so the loop stops here until they do (ADR-038) |
+| 7 | 2.15 | After 11.1 |
+| 8 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
+| 9 | 2.22 | After 2.23 |
+
+**Owed, with what the Notes already fix:**
+
+- **Step 4, Epic 19.** 19.1 comes first, by its own text. **ID order does not work here:** 19.2
+  drops `django-mathfilters` while `INSTALLED_APPS` still lists it, so it cannot merge before 19.5,
+  and it pins Django 5.2 and psycopg 3, so it cannot merge without 19.4 and 19.6. 19.4 puts 19.14
+  "in the same commit", and 19.3 is "one pass with 19.16", which installs from 19.12's
+  `requirements/prod.txt`. Shipping any of these as one PR needs an ADR amending ADR-037, or the
+  rows merged. 19.11 runs inside 12.2. **2.13 lands with 19.14** (its Notes), and **2.17, 2.18,
+  then 2.6** follow the upgrade (Django 5.1 and 4.1 features; 2.6 says "Do 2.17 first").
+- **Step 5, Epic 3.** Its IDs follow the order its sections were appended, so the sections added
+  for ADR-018, 019/020, 022 and 027 number their tasks after work they must precede: 3.11 needs
+  3.52, 3.4 is implemented by 3.58, 3.32 waits for 3.54, and 3.61 needs 17.1 from an epic that runs
+  later. **Epic 2's 2.20, 2.7, 2.8, 2.12, 2.16 and 2.21 join this step after 3.58:** 2.20 needs it,
+  2.7 is reshaped by 2.20, 2.8's role lives on the membership, and 2.12 checks 2.20's capability
+  codenames, since ADR-028 rejects a second permission vocabulary.
+- **Elsewhere:** **2.14** after Epic 12 provides a TLS endpoint, since end-to-end HTTPS cannot be
+  confirmed without one. **2.5** with 13.3, its pair. **2.19** stays `Blocked` on 9.22.
+
 ## Milestone: first production release scope
 
 Risk reduction over feature expansion. Shippable when these are done:
@@ -121,10 +170,16 @@ Risk reduction over feature expansion. Shippable when these are done:
 
 ## Epic 1 — Stabilize the repository
 
-**Branch:** `phase-1-repo-cleanup` · **Depends on:** —
+**Branch:** `phase-1-repo-cleanup` · **Depends on:** — · **Closed 2026-10-22**, all 22 tasks merged
 
 Get the repository, its history and its branch/CI plumbing into a state where every later epic can
 ship safely through a PR.
+
+**Close-out audit 2026-10-23** (ADR-048's PR): every deliverable verified on `main` at `868ed3f`;
+CI's checks pass locally, and on PR #40. **Two things Epic 1 built have never run:** `release.yml`'s
+`publish` and 1.22's `v*` tag rule first run at `Release v0.1.0`, a PR that roadmap 9.25 still
+blocks. `main` is 41 commits ahead of `production`. Its findings are routed into 2.1, 2.4, 2.7,
+2.12 and 9.25.
 
 ### Source control cleanup
 
@@ -167,16 +222,18 @@ ship safely through a PR.
 
 ## Epic 2 — Security & configuration hardening
 
-**Branch:** `phase-2-security-hardening` · **Depends on:** Epic 1
+**Branch:** `phase-2-security-hardening` · **Depends on:** Epic 1; 11.1 for 2.9, 2.15 and 2.23.
+**Runs in parts:** only the first part precedes Epic 19. Its other tasks need Epic 19 or 3.58, so
+the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 
 ### Configuration
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 2.1 | Move all secrets to environment variables or a secret manager; remove the hardcoded `SECRET_KEY` and database credentials from source | Not started | ADR-028, ADR-015 rules 2 and 8. **Includes `docker-compose.yaml`'s dev password**, as its comment says, which `web`'s `DATABASE_URL` repeats. **Trap:** removing the `SECRET_KEY` fallback breaks `collectstatic` at image build, the collision that blocks 2.19 and 7.10 on [roadmap.md](docs/roadmap.md) 9.22, so premise-check it before planning. **The local `DATABASE_URL` then comes from `.env`** (7.13's `.env.example`); a host-side value naming `localhost` retires the `127.0.0.1 postgres` hosts entry that host `runserver` needs today (found by 1.12, stated in CLAUDE.md). Compose's `web` must keep the service name `postgres`, so the host value and the container value cannot be one shared variable. Pairs with 2.19 |
+| 2.1 | Move all secrets to environment variables or a secret manager; remove the hardcoded `SECRET_KEY` and database credentials from source | Not started | ADR-028, ADR-015 rules 2 and 8. **Includes `docker-compose.yaml`'s dev password**, as its comment says, which `web`'s `DATABASE_URL` repeats. **Trap:** removing the `SECRET_KEY` fallback breaks `collectstatic` at image build, the collision that blocks 2.19 and 7.10 on [roadmap.md](docs/roadmap.md) 9.22, so premise-check it before planning. **The local `DATABASE_URL` then comes from `.env`** (7.13's `.env.example`); a host-side value naming `localhost` retires the `127.0.0.1 postgres` hosts entry that host `runserver` needs today (found by 1.12, stated in CLAUDE.md). Compose's `web` must keep the service name `postgres`, so the host value and the container value cannot be one shared variable. Pairs with 2.19. **Found by Epic 1's close-out (2026-10-23):** nothing but the fallback supplies `SECRET_KEY`. Compose's `web` sets only `DATABASE_URL`, and CI's `Django checks` imports `base.py` through `test.py` with only `DJANGO_SETTINGS_MODULE` set (1.11), so both need it once the fallback goes. And compose publishes `5432` and `8000` on every interface, with a password committed to this public repository: bind both to `127.0.0.1` in the same edit |
 | 2.2 | Set `DEBUG = False` everywhere outside local development | **Done** 2026-10-10 (verified; delivered by 1.5) | ADR-028. **No PR of its own**, like 1.9: 1.5's settings split delivered it, and it was verified against the code on 2026-10-10. `DEBUG` is `True` only in `local.py:21`. `base.py:44` reads `env.bool("DEBUG", default=False)`, and `base.py` is production and the default for `manage.py`, `wsgi.py`, `asgi.py` and the `Dockerfile`. `test.py:17` is `False`. Neither compose nor the `Dockerfile` sets `DEBUG`, and no env file is tracked (`git grep -n DEBUG -- ':!docs' ':!*.md'`; `git grep -n DJANGO_SETTINGS_MODULE`). A host can still set `DEBUG=true` in its environment; that is configuration, which 2.19's fail-loud settings and the host tasks own |
-| 2.3 | Environment-specific `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and cookie settings | Not started | |
-| 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | Not started | |
+| 2.3 | Environment-specific `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and cookie settings | Not started | ADR-028 rule 1 and ADR-015 rule 2: `base.py` reads them from the environment, and `local.py` and `test.py` keep their own lists. Compose's `web` runs `base.py` (ADR-043's Traps), so whatever `base.py` requires, compose must supply |
+| 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | Not started | ADR-028 rule 1: the secure values are `base.py`'s, and an overlay opts out, so the accident lands on the safe side. **Trap (Epic 1's close-out, 2026-10-23):** compose's `web` runs `base.py` over plain HTTP (ADR-043's Traps), and 1.12's launcher polls `http://localhost:8000/`. A fixed `SECURE_SSL_REDIRECT` breaks the launcher and local login, secure-only cookies break local login, and HSTS on `localhost` sticks in the browser. The local stack needs an explicit opt-out that no host ever sets |
 | 2.5 | Hold object-storage (R2) access keys as environment variables — never hardcoded | Not started | ADR-005; pairs with 13.3 |
 | 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 9.22** — raising on unset breaks `collectstatic` at image build, which 7.10 requires to keep working; no ADR settles the two. After 1.5 this is "delete the fallbacks", not "write a validator": `django-environ` already raises `ImproperlyConfigured` for a var with no default. ADR-028. Retires today's inversion: `base.py` ships a real `SECRET_KEY`/`DEBUG = True` and `heroku.py:11` defaults `DEBUG` to `True` in the *production* module. Pairs with 1.5, 2.1 |
 
@@ -185,8 +242,8 @@ ship safely through a PR.
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 2.6 | Protect all business views with `LoginRequiredMixin` | Not started | **Reshaped by 2.17** — the middleware becomes the mechanism; this becomes a belt-and-braces pass. Do 2.17 first |
-| 2.7 | Protect admin-only operations with explicit permission classes/mixins; stop relying on template-only `is_staff` checks | Not started | **Reshaped by 2.20** — these become stock Django mixins over capability codenames |
-| 2.8 | Role-based permissions for **Owner / Staff / Read-only**, scoped **per tenant** | **Unblocked** | ADR-020. Role lives on the membership record (3.58). Matrix in [project_requirements.md](docs/project_requirements.md) |
+| 2.7 | Protect admin-only operations with explicit permission classes/mixins; stop relying on template-only `is_staff` checks | Not started | **Reshaped by 2.20** — these become stock Django mixins over capability codenames. **Found by Epic 1's close-out (2026-10-23):** no `control` view requires a login, and `User_Create`/`User_Update` take `fields = "__all__"` on the User model. So anyone who can reach the app can create a user, or set an existing one's `is_superuser`, `is_staff`, groups and permissions. Nothing is hosted, so nothing is exposed yet; it goes live with the first reachable environment (roadmap 9.25). The fix is three tasks: 2.17 (login), this one (who may manage users) and 4.7/5.19 (forms without the privilege fields) |
+| 2.8 | Role-based permissions for **Owner / Staff / Read-only**, scoped **per tenant** | Not started | ADR-020. Role lives on the membership record (3.58). Matrix in [project_requirements.md](docs/project_requirements.md) |
 | 2.9 | Audit logging for user management and destructive actions | Not started | Extended by 11.10. **Sequenced after 11.1** by ADR-047: it logs personal data against that inventory |
 | 2.15 | Restrict the Django admin to superusers, keep it out of tenant-facing navigation, log its access to personal data | Not started | ADR-019 — a deliberate **cross-tenant** surface. `ModelAdmin` does **not** apply the tenant-scoped managers from 3.3/3.55. Feeds 11.10. **Sequenced after 11.1** by ADR-047: its access log records personal data against that inventory |
 | 2.16 | Express every permission check as a named capability (`can_manage_users`, `can_edit_pricing`, `can_record_receipt`), never `role == "owner"` | Not started | ADR-020. Costs nothing with three roles; keeps adding Manager a table row rather than a rewrite |
@@ -201,9 +258,9 @@ ship safely through a PR.
 |---|---|---|---|
 | 2.10 | ~~Replace the `print()` login diagnostics in `accounts/views.py` with structured logging~~ | **Superseded** by 4.5 + 2.23 | Verified 2026-08-13 (ADR-028): `accounts.urls` is never included and no template reverses `user_login`, so the password-logging `print()` is **unreachable dead code, not a live leak**. Deleted by 4.5; the real requirement is 2.23. Recorded in [project_requirements.md](docs/project_requirements.md) "Personal data inventory"/§6 |
 | 2.11 | Validate and sanitize all form input server-side | Not started | Business-rule validation is 4.8 |
-| 2.12 | Server-side authorization on every export endpoint | Not started | |
+| 2.12 | Server-side authorization on every export endpoint | Not started | ADR-020, ADR-028 rule 4: the checks use 2.20's capability codenames, since ADR-028 rejects a second permission vocabulary, so this follows 2.20; the login half arrives with 2.17. **All four bulk exports answer anonymous requests today** (found by 1.17), and `export_suppliers` carries supplier contacts, which are personal data ([project_requirements.md](docs/project_requirements.md) "Personal data inventory") |
 | 2.13 | Remove the broken leftover `MEDIA_ROOT` path (`bluebiulding/media`) | Not started | Real media handling is Epic 13; cleaned up under `STORAGES` in 19.14 |
-| 2.14 | Confirm encryption in transit (HTTPS enforced end-to-end) once the settings work lands | Not started | Art. 32 — [project_requirements.md](docs/project_requirements.md) "Security measures" |
+| 2.14 | Confirm encryption in transit (HTTPS enforced end-to-end) once the settings work lands | Not started | Art. 32 — [project_requirements.md](docs/project_requirements.md) "Security measures". **Needs a host:** end-to-end HTTPS cannot be confirmed without a TLS endpoint, which Epic 12 provides ([Run order](#run-order)) |
 | 2.22 | Brute-force protection on the login endpoint (attempt throttling with lockout/backoff) | Not started | **Gap surfaced by ADR-028** — no epic covered it. Django's auth views ship no rate limiting, and 4.5 makes this the single credential entry point for every tenant |
 | 2.23 | Structured audit events for failed and successful logins that record the attempt but **never** the submitted credentials | Not started | **Replaces 2.10.** [project_requirements.md](docs/project_requirements.md) "Security measures". Pairs with 2.22 (throttling needs the record); feeds 11.7, since login history is personal data with its own retention question. **Sequenced after 11.1** by ADR-047 |
 
@@ -232,7 +289,7 @@ ingredient line, categories and traceability entities before these migrations ge
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 3.5 | Replace supplier name as primary key with a generated numeric or UUID PK | Not started | |
-| 3.6 | Supplier name unique **per tenant**, over non-archived rows only, via a partial unique index | **Unblocked** | ADR-019. Not global — two bakeries may both buy from "Odlums". Partial, because a plain composite constraint would let an archived row block that name forever. **Sequenced after 3.2** |
+| 3.6 | Supplier name unique **per tenant**, over non-archived rows only, via a partial unique index | Not started | ADR-019. Not global — two bakeries may both buy from "Odlums". Partial, because a plain composite constraint would let an archived row block that name forever. **Sequenced after 3.2** |
 | 3.7 | Change phone from `IntegerField` to a string field | Not started | |
 | 3.8 | Add optional address, tax/business identifier, active flag, timestamps | Not started | |
 
@@ -241,8 +298,8 @@ ingredient line, categories and traceability entities before these migrations ge
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 3.9 | Change `quantity` from `CharField` to `DecimalField` | Not started | |
-| 3.10 | Price semantics: `purchase_price` + `pack_quantity` + `purchase_unit` as the invoice states them — cost per canonical unit derived at cost time, never persisted | **Unblocked** | ADR-018. Same three fields a goods-receipt line records, so 17.1 must agree. **No `lot` field, no `stock` field** (ADR-033) |
-| 3.11 | Normalized unit handling: convert any purchase unit to its canonical unit (kg / l / each) via the conversion factor | **Unblocked** | ADR-018. Depends on 3.10 and the unit table (3.52) |
+| 3.10 | Price semantics: `purchase_price` + `pack_quantity` + `purchase_unit` as the invoice states them — cost per canonical unit derived at cost time, never persisted | Not started | ADR-018. Same three fields a goods-receipt line records, so 17.1 must agree. **No `lot` field, no `stock` field** (ADR-033) |
+| 3.11 | Normalized unit handling: convert any purchase unit to its canonical unit (kg / l / each) via the conversion factor | Not started | ADR-018. Depends on 3.10 and the unit table (3.52) |
 | 3.12 | SKU/code uniqueness rules where appropriate | Not started | |
 | 3.13 | Active/inactive status instead of hard deletes where business history matters | Not started | Not a judgment call: anything referenced by a traceability record can never be hard-deleted (ADR-017) — enforced in 17.6 |
 
@@ -251,8 +308,8 @@ ingredient line, categories and traceability entities before these migrations ge
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 3.14 | Standardize yield, unit and cost fields across base recipes and products | Not started | **No `stock` field** (ADR-033) |
-| 3.15 | VAT consistency: all stored money **net (ex-VAT)**; product references a VAT rate **code**, not a percentage; VAT applied only at display/sale | **Unblocked** | ADR-018. Rate table is 3.53; which rate a product gets is a tax question (10.13) |
-| 3.16 | Version sale pricing: dated `ProductPrice` rows (product, net price, `valid_from`); current price = latest row whose `valid_from` has passed | **Unblocked** | ADR-018. **Input** price history is not built here — it comes free from receipts (17.12) |
+| 3.15 | VAT consistency: all stored money **net (ex-VAT)**; product references a VAT rate **code**, not a percentage; VAT applied only at display/sale | Not started | ADR-018. Rate table is 3.53; which rate a product gets is a tax question (10.13) |
+| 3.16 | Version sale pricing: dated `ProductPrice` rows (product, net price, `valid_from`); current price = latest row whose `valid_from` has passed | Not started | ADR-018. **Input** price history is not built here — it comes free from receipts (17.12) |
 | 3.17 | Store calculated values as derived data only, never as editable business data | Not started | Pairs with 4.1 |
 | 3.18 | Add the `Product.photo` field | Not started | Owned by 13.4 — this row exists so the schema work is sequenced with it |
 
@@ -260,7 +317,7 @@ ingredient line, categories and traceability entities before these migrations ge
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 3.19 | Build the shared `RecipeLine` model — typed parent (`parent_product` XOR `parent_base_recipe`), typed component (`component_material` XOR `component_recipe`), `quantity` + unit FK — replacing both `Bs_Ingredients` and `Recipe_Ingredients` | **Unblocked** | ADR-032. Both XORs are database `CHECK` constraints in the same migration, **not** `clean()` — `clean()` does not run on `bulk_create`, which is how an import writes these rows. Merge migration is 3.73 |
+| 3.19 | Build the shared `RecipeLine` model — typed parent (`parent_product` XOR `parent_base_recipe`), typed component (`component_material` XOR `component_recipe`), `quantity` + unit FK — replacing both `Bs_Ingredients` and `Recipe_Ingredients` | Not started | ADR-032. Both XORs are database `CHECK` constraints in the same migration, **not** `clean()` — `clean()` does not run on `bulk_create`, which is how an import writes these rows. Merge migration is 3.73 |
 | 3.20 | Uniqueness constraints preventing duplicate ingredient lines for the same parent/item/unit | Not started | |
 
 ### Database best practices
@@ -268,11 +325,11 @@ ingredient line, categories and traceability entities before these migrations ge
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 3.21 | `created_at` / `updated_at` on all core business tables | Not started | |
-| 3.22 | Soft delete / archive on `Supplier`, `RawMaterial`, `Product`, `BaseRecipe`; ingredient lines stay hard-deletable | **Unblocked** | ADR-019 — "anything referenced by a record that outlives it" |
+| 3.22 | Soft delete / archive on `Supplier`, `RawMaterial`, `Product`, `BaseRecipe`; ingredient lines stay hard-deletable | Not started | ADR-019 — "anything referenced by a record that outlives it" |
 | 3.23 | `db_index=True` or explicit indexes on common filter/join paths | Not started | |
 | 3.24 | Unique and check constraints wherever a business rule exists | Not started | |
 | 3.25 | `Decimal` consistently for money and quantities (schema and application code) | Not started | Removes the `float()` math in `control/views.py` — pairs with 4.1 |
-| 3.26 | Standardize units and categories via lookup/reference tables | **Unblocked** | Units (ADR-018) in 3.52; categories (ADR-032) in 3.74. The difference that matters: categories are tenant-editable, units are not |
+| 3.26 | Standardize units and categories via lookup/reference tables | Not started | Units (ADR-018) in 3.52; categories (ADR-032) in 3.74. The difference that matters: categories are tenant-editable, units are not |
 
 ### Migration strategy
 
@@ -293,7 +350,7 @@ ingredient line, categories and traceability entities before these migrations ge
 | 3.34 | Define the canonical costing units | **Done (decided)** | 2026-08-06 — **kilogram / litre / each**, one per dimension (ADR-018). Implementation is 3.11/3.52 |
 | 3.35 | Data validation rules for prices, VAT, yields and quantities | Not started | |
 | 3.36 | Import/export contracts and field definitions | Not started | Feeds Epics 14 and 15 |
-| 3.37 | Seed/reference data strategy for categories and units | Blocked | Depends on 3.26; pairs with 10.10 |
+| 3.37 | Seed/reference data strategy for categories and units | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 10.10.** Depends on 3.26; pairs with 10.10 |
 | 3.38 | Backup, restore and retention procedures, including a tested restore drill | Not started | **Unblocked** by ADR-031: *backup* retention is 7 daily / 4 weekly / 12 monthly — a **different clock** from GDPR *record* retention (11.4) and the food-law floor (10.9). Executed by 3.70–3.72, 3.44–3.48; written up in 8.5 |
 
 ### Database operations for production
@@ -417,15 +474,15 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 5.1 | Introduce a shared `base.html` layout | Not started | ADR-030. **31 of 32 templates carry their own full `<!DOCTYPE>` boilerplate** and there is not one `{% extends %}` in the repo — the highest-leverage task in the epic |
 | 5.2 | Replace duplicated navbar/footer/page scaffolding with blocks and partials in `<app>/templates/partials/` | Not started | The navbar is duplicated across **all 32** templates. Plain `{% include %}` — `django-template-partials` not adopted unless HTMX fragments outgrow a handful |
 | 5.3 | Replace hardcoded static paths with `{% load static %}` / `{% static %}` | Not started | **Bigger than it looks; sequence after 1.3.** Every template hardcodes `/static/...`, so manifest hashing has never done anything here. Switching activates it, and `ManifestStaticFilesStorage` **raises `ValueError` at render time** for any file missing from the manifest — a missing asset becomes a 500. With no build step, 5.3 + 19.14 + 1.13 are the whole story on asset versioning; done partially, the site silently serves stale CSS. **1.13's CI check gates this task's PRs:** every literal `{% static %}` argument must resolve through the finders, though a variable argument passes unseen (ADR-045). **Four references 404 today and are 5.3's** (found by 1.13, measured 2026-10-08). They are well-formed `../../static/` paths that resolve only from pages two segments deep, but their pages are four deep: `supplier.html:120,122` (supplier update), `delete_raw_material.html:108` and `user.html:123`. So the supplier-update page loads neither bootstrap JS nor its page JS, and the raw-material-delete and user-update pages miss their page JS (1.13 fixed their bootstrap line). `{% static %}` fixes them; 1.13's check cannot see them, because it proves a file exists, not that a relative URL reaches it |
-| 5.4 | Update the vendored Bootstrap from 5.0.0 to current 5.3.x | **Unblocked** | ADR-030. Same major, so an upgrade rather than a restyle — but verify the components in use (navbar, tables, forms, buttons) render unchanged. The vendored set also includes an RTL build and `.map` files nothing references; leave or drop as judgment, not scope |
+| 5.4 | Update the vendored Bootstrap from 5.0.0 to current 5.3.x | Not started | ADR-030. Same major, so an upgrade rather than a restyle — but verify the components in use (navbar, tables, forms, buttons) render unchanged. The vendored set also includes an RTL build and `.map` files nothing references; leave or drop as judgment, not scope |
 | 5.5 | Delete the seven empty JavaScript files and the `<script>` tags referencing them | Not started | Verified 2026-08-16: **all seven are 0 bytes** — a deletion, not a rewrite |
-| 5.6 | **Rescoped — no build step.** Consolidate the 16 CSS files (922 lines, **10 of them byte-identical duplicates in 3 groups**) into a small set on CSS custom properties, relying on whitenoise for hashing and compression | **Unblocked** | ADR-030 **rejects the Vite candidate**. Native nesting/custom properties are safe on the evergreen matrix. Revisit trigger in the ADR. **Duplication re-measured 2026-09-15** and it is wider than the "four byte-identical" first recorded: 4 × (`base_recipe`, `dashboard`, `products`, `raw_materials`), 4 × (`edit_base_recipe`, `product`, `raw_material`, `suplier`), 2 × (`products_categories`, `rw_sectors`). The 16/922 count itself is confirmed correct — it excludes the vendored Bootstrap files |
-| 5.7 | Add HTMX as the progressive-enhancement layer; settle the fragment convention (on `HX-Request`, render the partial directly) | **Unblocked** | ADR-030. **Every form and link must still work with JS disabled** — WCAG 2.2 A requires it regardless. Settle the convention *before* 5.9 is built |
-| 5.8 | Add `djlint` for template linting/formatting | **Unblocked** | ADR-030/ADR-034. A pip package in `requirements/dev.in`, no Node in dev. `stylelint`/`prettier` stay **deferred**. CI wiring is 6.11 |
-| 5.9 | Build real search/filter flows across raw materials, suppliers and products | **Unblocked** | ADR-024 rates this a **Must** — *build it*, not remove the inputs. Dead inputs that look functional are worse than none. Use 5.23 for filter-preserving pagination |
+| 5.6 | **Rescoped — no build step.** Consolidate the 16 CSS files (922 lines, **10 of them byte-identical duplicates in 3 groups**) into a small set on CSS custom properties, relying on whitenoise for hashing and compression | Not started | ADR-030 **rejects the Vite candidate**. Native nesting/custom properties are safe on the evergreen matrix. Revisit trigger in the ADR. **Duplication re-measured 2026-09-15** and it is wider than the "four byte-identical" first recorded: 4 × (`base_recipe`, `dashboard`, `products`, `raw_materials`), 4 × (`edit_base_recipe`, `product`, `raw_material`, `suplier`), 2 × (`products_categories`, `rw_sectors`). The 16/922 count itself is confirmed correct — it excludes the vendored Bootstrap files |
+| 5.7 | Add HTMX as the progressive-enhancement layer; settle the fragment convention (on `HX-Request`, render the partial directly) | Not started | ADR-030. **Every form and link must still work with JS disabled** — WCAG 2.2 A requires it regardless. Settle the convention *before* 5.9 is built |
+| 5.8 | Add `djlint` for template linting/formatting | Not started | ADR-030/ADR-034. A pip package in `requirements/dev.in`, no Node in dev. `stylelint`/`prettier` stay **deferred**. CI wiring is 6.11 |
+| 5.9 | Build real search/filter flows across raw materials, suppliers and products | Not started | ADR-024 rates this a **Must** — *build it*, not remove the inputs. Dead inputs that look functional are worse than none. Use 5.23 for filter-preserving pagination |
 | 5.10 | Improve forms, validation errors, empty states and destructive-action confirmations | Not started | **Reduced** by 5.22 |
 | 5.11 | Image upload/preview UI with an empty-state placeholder | Not started | Owned by 13.8 |
-| 5.12 | Meet **WCAG 2.2 Level A**: alt text, real `<label>` on every input, no keyboard traps, nothing conveyed by colour alone | **Unblocked** | ADR-021. Keeps the remaining distance to AA small if 10.15 fires. **Reduced** by 5.22 |
+| 5.12 | Meet **WCAG 2.2 Level A**: alt text, real `<label>` on every input, no keyboard traps, nothing conveyed by colour alone | Not started | ADR-021. Keeps the remaining distance to AA small if 10.15 fires. **Reduced** by 5.22 |
 | 5.13 | Make data tables usable on mobile and tablet — a deliberate strategy (scroll containers or card layouts), not overflow | Not started | Costing tables are inherently wide; goods receipts get recorded on a phone at the delivery door |
 | 5.14 | Record the performance budget (p95 < 500 ms pages, < 2 s dashboard, ~10 concurrent users/tenant) and verify once monitoring exists | Not started | Deliberately **not** a CI gate — Railway Hobby shares CPU. Verify via 7.20/3.43. Carve-outs in 10.18 |
 | 5.15 | Route all display text through `gettext` / `{% translate %}` during the rewrite | Not started | Ships English only, but makes expansion a locale file rather than a template audit |
@@ -473,7 +530,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 6.10 | Add and configure the agreed formatter/linter across the codebase | **Done** 2026-10-07 | ADR-034, ADR-046. **`ruff==0.16.10`**, the newest release, in the interim `requirements-dev.txt`. **`[tool.ruff]`** in the tool-only `pyproject.toml`: the pinned release's **default rule set** (about 413 rules in 0.16, not the old `E4,E7,E9,F`), with 1.11's `E9`/`F63`/`F7`/`F82` extend-selected as a floor (ADR-011) because the default leaves out `F722`, and `RUF012` ignored, because Django declares `Meta` and admin options as mutable class attributes; `target-version = "py39"`, the installed runtime, until 19.9; `extend-exclude = ["*/migrations/*"]`, as coverage omits them, since `makemigrations` writes its own import order and layout; line length and quote style left at the formatter's defaults. **CI's `Lint` job** pipx-installs ruff at the pin it reads from `requirements-dev.txt`, so there is no second copy to drift, fails when the pin is missing, then runs `ruff check` and `ruff format --check`. That replaces 1.11's flags; `CLAUDE.md`'s *Commands* and `tech_stack.md` follow. **Measured:** 95 findings across the tree, not 1.11's 98, because 6.23's deleted stubs took three. 31 of them are in migrations and 17 are `RUF012`, which leaves 47: 43 fixed by `ruff check --fix`, plus 3 `SIM117` and 1 `UP031` fixed by hand. The fixes drop the dead `# noqa: F401,F403` from the settings overlays and `django.conf.urls.url`, which Django 4.0 removes. The reformat changes 27 files. **`manage.py` became `100755`**, as `startproject` creates it: its shebang failed `EXE001` on CI's first run, a rule ruff skips on Windows, where it cannot see executable bits. **Commits, squashed on merge:** configuration, lint fixes, the mechanical `ruff format`, then the CI fix. **Proven before merge:** every reformatted file's AST is identical to its pre-format version; 32 passed against the compose Postgres, before and after; the 30 `scripts/` tests, `check` and `makemigrations --check` are clean; an unused import and an unformatted line fail both checks, and pass inside `migrations/`; **on Linux**, in a `python:3.9-slim` container fed by `git -c core.autocrlf=false archive`, which keeps git's modes and LF bytes, both checks pass and a bad string annotation fails as `F722`; a fresh 3.9 venv installs with `pip check` clean; the image builds without ruff; `ci.yml` passes actionlint and shellcheck. **Not done:** no `.git-blame-ignore-revs`, since the squash commit's SHA only exists after merge |
-| 6.11 | Wire template linting into the CI gate | **Unblocked** | **`djlint`** (ADR-030/ADR-034). The tooling work itself is 5.8 |
+| 6.11 | Wire template linting into the CI gate | Not started | **`djlint`** (ADR-030/ADR-034). The tooling work itself is 5.8 |
 | 6.23 | Adopt `pytest` + `pytest-django` + `pytest-cov`, with `[tool.pytest.ini_options]` in the tool-only `pyproject.toml` | **Done** 2026-10-01 | ADR-034, ADR-046, ADR-044, ADR-031. **`requirements-dev.txt`**, interim until 19.12 folds it into `dev.in` (ADR-046): `-r requirements.txt` plus owner-commented pins, the newest for the installed Django 3.2 / Python 3.9 — `pytest==8.4.2` (9.x needs 3.10), `pytest-django==4.8.0` (the last release supporting 3.2), `pytest-cov==7.1.0`. The `Dockerfile` never installs it; **proven** on a built image, where `import pytest` raises `ModuleNotFoundError`. **`pyproject.toml`**, `[tool.*]` only: `DJANGO_SETTINGS_MODULE = "bakery.settings.test"`, `python_files` adds `tests.py`, and `addopts = "--cov --cov-report=term-missing:skip-covered"`, so **6.22 appends only `--cov-fail-under=70`**; `[tool.coverage.run]` measures the whole repo (`source = ["."]`) minus `.venv`, migrations and test files. **No `testpaths`**, so `scripts/` stays collected with no list to keep current (ADR-044): `pytest --collect-only` lists its 30 tests beside `core`'s. **Tests:** 1.6's stub import in `core/tests.py` became two smoke tests — the cover page renders through the `client` fixture with no database, and a `django_db` test writes and reads a user, proving `pytest-django` builds the Postgres test database. The stub-only `tests.py` in `accounts/` and `control/` were deleted; `python_files` picks up any later one. `.gitignore` gains the pytest and coverage outputs. `CLAUDE.md` names `requirements-dev.txt` and the runner; its `manage.py test` block is 6.24's. **Proven before merge:** a fresh 3.9 venv installs clean (`pip check`); against the compose Postgres, 32 passed; with Postgres down the `django_db` test errors, and a wrong template name fails the client test; CI's ruff, `check`, `makemigrations --check` and `unittest` gates are clean. **Found on the way, not fixed:** coverage starts at **62%, not near zero** (738 statements; plain `pytest` with this `pyproject.toml`, against the compose Postgres) — importing the URLconf executes every view module's top level, so `control/views.py` reads 42% with no view called, and `scripts/` adds about 120 statements at 99%. That bears on ADR-031's "70% from zero", routed to 6.22's premise check. `bakery/settings/` has no `__init__.py`, so coverage never sees `local.py`. `CLAUDE.md` still describes `control/forms.py: Raw_Material_Form`, which 1.6 deleted. **Routed 2026-10-10 (ADR-047's PR):** `settings/__init__.py` → 6.22; the `CLAUDE.md` line corrected in that PR |
 | 6.24 | Update the documented test command from `manage.py test` to `pytest` in `CLAUDE.md`, the README (8.1) and CI | Not started | ADR-034. Three places, and the stale one is always the one someone follows. In CI that includes 1.21's `unittest` step, and in `CLAUDE.md` its `scripts/` command (ADR-044). **Since 6.23 the stale command is live:** `manage.py test` runs only the `scripts/` `unittest` tests (77 on 2026-10-10), reports OK, and silently skips every `pytest`-style test |
 
@@ -514,7 +571,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 7.11 | Add a migration release step and **remove `migrate` from the container start command**, the `Dockerfile` `CMD` | Not started | ADR-015 rule 4. Migrating on boot makes every replica race and ties the schema change to container start. **Pairs with 12.11** — do both in one pass or migrations run twice. Leave 1.12's launcher step alone: once these go, it is the only local `migrate` (ADR-043). **The compose copy is already gone** (ADR-044): 19.10 dropped `web`'s `command:` override, so compose runs the image's `CMD` and only the `Dockerfile` needs editing |
 | 7.12 | Write and test the rollback procedure, using 1.10's release tags | Not started | |
 | 7.13 | Document every environment variable per environment as a committed `.env.example` (names and example values only — never real secrets) | Not started | ADR-015 rule 8 — this file is the migration checklist; if it lives only in a host's dashboard, moving host becomes archaeology |
-| 7.14 | Run the app under Gunicorn in production | **Unblocked** | **gunicorn, WSGI, sync workers**, latest pinned at lock time — ADR-036. Binds `$PORT` per 7.17. Revisit only if the insights dashboard needs SSE/WebSocket push |
+| 7.14 | Run the app under Gunicorn in production | Not started | **gunicorn, WSGI, sync workers**, latest pinned at lock time — ADR-036. Binds `$PORT` per 7.17. Revisit only if the insights dashboard needs SSE/WebSocket push |
 | 7.15 | Automate deploys: Railway git-watch on `production` only | Not started | ADR-010, narrowed by ADR-014, settled by ADR-031. Platform-native git-watch, **not** a GitHub Actions deploy job — that would need a long-lived Railway token in CI and a release script to maintain. Migrations are 12.11. **Runs after 12.12**, which decides whether the watch paths live in a committed `railway.json` or the dashboard (roadmap 9.24). The branch itself (`production`) is not among the file's documented fields, so it may stay a dashboard setting either way |
 | 7.16 | Keep serving static assets via whitenoise; confirm it still fits once object storage is in play | Not started | Decided "no change" — a verification task |
 | 7.17 | Bind Gunicorn to `$PORT` with a local fallback (`--bind 0.0.0.0:${PORT:-8000}`) instead of the hardcoded `:8000` | Not started | ADR-015 rule 3. Railway, Render, Fly, DigitalOcean, Clever Cloud and Heroku all inject the port they expect |
@@ -560,7 +617,7 @@ is a prerequisite to relying on any of it.
 |---|---|---|---|
 | 11.1 | Complete the personal-data inventory | Not started | [project_requirements.md](docs/project_requirements.md) "Personal data inventory". **Blocks 15.1** — you cannot scope a subject export without knowing which fields are personal data. Feeds roadmap 11.2. **Cover copies outside the live database too** (found by 1.12; ADR-031): backup dumps (3.70, 3.72), error-tracking payloads (7.23) and local development databases. Measured 2026-09-29, the local `bakery_pgdata` volume holds 2 developer accounts and no business data; it matters the day production data is restored to a laptop |
 | 11.5 | DPA template usable per tenant, Bakery-the-product as processor | Not started | ADR-006. Applies to the free pilot too |
-| 11.6 | Execute DPAs with each third-party processor: Railway, Cloudflare R2, Brevo, Sentry (Databricks/AWS are 11.17) | Blocked | Railway resolved as host (12.1 ✅) — execute via 12.7. Sentry by design receives whatever a traceback contains, which is why 7.23's scrubbing is part of the DPA story |
+| 11.6 | Execute DPAs with each third-party processor: Railway, Cloudflare R2, Brevo, Sentry (Databricks/AWS are 11.17) | Not started | **Runs with 12.7**, a task, not a roadmap question (ADR-048: `Blocked` is for roadmap questions only). Railway resolved as host (12.1 ✅) — execute via 12.7. Sentry by design receives whatever a traceback contains, which is why 7.23's scrubbing is part of the DPA story |
 | 11.8 | Define the breach notification process (72-hour supervisory-authority deadline) | Not started | The authority (Irish DPC) and the processor→controller path are settled inputs. Feeds runbook 8.7 |
 | 11.10 | Access logging for who viewed or exported personal data | Not started | Extends 2.9. Covers both the Read-only export path and the Django admin's cross-tenant access (2.15) |
 | 11.11 | Confirm no tracking/analytics cookies exist; define the consent path if that changes | Not started | |
@@ -628,7 +685,7 @@ portability mechanism (Epic 15).
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 14.1 | Implement the export format — a ZIP of one CSV per tenant-scoped table plus a `manifest.json` (timestamp, schema version, columns, types, PK, FK map) | **Unblocked** | ADR-035. Explicitly **not** `pg_dump`, not hand-generated ANSI SQL, not `dumpdata`. Money and quantities at **full stored precision**, never 2-dp presentation rounding — an export that rounds silently loses data |
+| 14.1 | Implement the export format — a ZIP of one CSV per tenant-scoped table plus a `manifest.json` (timestamp, schema version, columns, types, PK, FK map) | Not started | ADR-035. Explicitly **not** `pg_dump`, not hand-generated ANSI SQL, not `dumpdata`. Money and quantities at **full stored precision**, never 2-dp presentation rounding — an export that rounds silently loses data |
 | 14.2 | Build the service that walks every tenant-scoped table for a given tenant | Not started | Needs 3.1/3.2 |
 | 14.3 | Include the relationship manifest and import instructions so the export is usable without this app | Not started | **The manifest is the deliverable** — CSV loses types, null-vs-empty and every relationship, so this is a correctness task, not documentation |
 | 14.4 | Gate who can trigger an export; audit-log every run | Not started | Every export is a bulk disclosure of one tenant's business data. Pairs with 2.9/11.10 |
@@ -646,7 +703,7 @@ distinct from both the bulk admin CSV export and the tenant-wide export (ADR-009
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 15.1 | Define exactly which fields across which models constitute one data subject's personal data | Blocked | Needs the completed inventory — 11.1 |
+| 15.1 | Define exactly which fields across which models constitute one data subject's personal data | Not started | **After 11.1** (ADR-048: a task waiting on a task is not `Blocked`). Needs the completed inventory — 11.1 |
 | 15.2 | Build the subject-scoped export as its own view/service | Not started | May reuse ADR-035's bundle shape scoped to one subject — this task's call, not a stack decision |
 | 15.3 | Gate it to the requesting user's own data, or an admin acting on a subject's behalf | Not started | |
 | 15.4 | Audit-log every personal-data export | Not started | Pairs with 11.10 |
@@ -670,7 +727,7 @@ total infrastructure from ~$6 to ~$21/mo against zero revenue.
 | 16.1 | Confirm the processing engine and workspace cost model before any spend | **Done** (2026-08-26) | **Spark on Databricks confirmed** — ADR-002 `Proposed` → `Accepted`, detailed by ADR-036. The *measured* cost is still owed (16.8) |
 | 16.2 | Define the payload shape of the returned insights | **Rescoped** | ADR-036: **no event triggering**. The contract is a nightly R2 extract in (16.9, 16.13) and a POST out (16.10); what remains is the payload itself |
 | 16.3 | Define and enforce the data scope shared with the service | **Settled in principle** | ADR-036: the extract carries **product, date, cost, price, margin, tenant — and no personal data**, and Databricks never reaches PostgreSQL. Enforced by what the extract job writes (16.9), not by a read-role grant that could widen later |
-| 16.4 | Put a DPA in place with the analytics provider before any real data flows | Blocked | Feeds 11.6/11.17 — Databricks Inc. *and* AWS EU (Ireland) |
+| 16.4 | Put a DPA in place with the analytics provider before any real data flows | Not started | ADR-036 settled the provider, so no roadmap question blocks it; it waits on Epic 11, as the glance table says (ADR-048). Feeds 11.6/11.17 — Databricks Inc. *and* AWS EU (Ireland) |
 | 16.5 | Define the margin-alert rules and how alerts reach users | Not started | Email path is 7.21's configuration |
 | 16.6 | Surface the analytics dashboard in the app | Not started | Polling, not push — push would reopen ADR-036’s WSGI decision |
 | 16.7 | Ensure everything the service reads or writes is tenant-scoped | Not started | ADR-008 |
@@ -697,9 +754,9 @@ make the trace path whole.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 17.1 | Model goods receipts as `GoodsReceipt` (supplier, receipt date, doc ref) + `GoodsReceiptLine` (material, supplier lot, quantity, unit, best-before, price paid), distinct from the `RawMaterial` catalogue row | **Unblocked** | ADR-033. Header + lines because a delivery note is one record with many lines. Price fields use ADR-018's shape — same definition as 3.10. **A lot is an event, not an attribute** |
-| 17.2 | Model production runs: `ProductionRun` → `Consumption` (FK to a `GoodsReceiptLine`, quantity consumed in canonical units) → output `Batch`, with `OutboundRecord` off `Batch` | **Unblocked** | ADR-033. `Consumption.quantity_consumed` is load-bearing beyond traceability — the single field keeping on-hand derivable later without a schema change (17.14) |
-| 17.3 | Assign an internal lot code to each produced batch, format decided rather than improvised | **Unblocked** | **`YYYYMMDD-NNN`**, resetting daily, unique on `(bakery, lot_code)` — ADR-033. Implementation is 17.13 |
+| 17.1 | Model goods receipts as `GoodsReceipt` (supplier, receipt date, doc ref) + `GoodsReceiptLine` (material, supplier lot, quantity, unit, best-before, price paid), distinct from the `RawMaterial` catalogue row | Not started | ADR-033. Header + lines because a delivery note is one record with many lines. Price fields use ADR-018's shape — same definition as 3.10. **A lot is an event, not an attribute** |
+| 17.2 | Model production runs: `ProductionRun` → `Consumption` (FK to a `GoodsReceiptLine`, quantity consumed in canonical units) → output `Batch`, with `OutboundRecord` off `Batch` | Not started | ADR-033. `Consumption.quantity_consumed` is load-bearing beyond traceability — the single field keeping on-hand derivable later without a schema change (17.14) |
+| 17.3 | Assign an internal lot code to each produced batch, format decided rather than improvised | Not started | **`YYYYMMDD-NNN`**, resetting daily, unique on `(bakery, lot_code)` — ADR-033. Implementation is 17.13 |
 | 17.4 | Model outbound records at the granularity the regulator expects | Blocked | Blocked on [roadmap.md](docs/roadmap.md) 10.8 — direct-to-consumer sales are treated differently from wholesale |
 | 17.5 | Make traceability records append-only: no hard delete, no silent retroactive edit — corrections are new records with an audit trail | Not started | The strongest integrity requirement in the schema — stronger than ADR-019's soft delete. Pairs with 2.9, 11.10 |
 | 17.6 | Prevent hard-deletion of any `Supplier` or `RawMaterial` referenced by a traceability record | Not started | Turns 3.13/3.22's soft delete from a judgment call into a requirement |
@@ -726,9 +783,9 @@ ADR-022's recipe recursion directly: aggregating allergens up the tree is the sa
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 18.1 | Confirm allergen scope against FSAI/FIC guidance: the 14 declarable allergens, and what a costing tool records vs. what belongs on a label | Blocked | 10.12 — same shape as 10.8 did for traceability |
-| 18.2 | Add allergen attributes to `RawMaterial`, sourced from the supplier's specification rather than guessed | Blocked | 18.1 |
+| 18.2 | Add allergen attributes to `RawMaterial`, sourced from the supplier's specification rather than guessed | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 10.12**, through 18.1 |
 | 18.3 | Aggregate allergens up the recipe tree, reusing 4.16's recursion over the shared `RecipeLine` table | Not started | ADR-022/ADR-032. Same traversal as costing — build once, use twice |
-| 18.4 | Model "may contain" / cross-contamination separately from "contains" | Blocked | 18.1. They are different claims |
+| 18.4 | Model "may contain" / cross-contamination separately from "contains" | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 10.12**, through 18.1. They are different claims |
 | 18.5 | Mark any product whose allergen data is **incomplete** as incomplete, rather than showing an empty list as if it meant "none" | Not started | **The safety-critical one.** An unknown presented as an absence is how an allergen system hurts someone. Mirrors 17.7/17.10's "partial is worse than none" |
 | 18.6 | Tenant-scope allergen data and cover it in the isolation tests | Not started | ADR-008; pairs with 6.9 |
 
@@ -736,7 +793,8 @@ ADR-022's recipe recursion directly: aggregating allergens up the tree is the sa
 
 ## Epic 19 — Runtime & dependency upgrade
 
-**Branch:** `stack-runtime-upgrade` · **Depends on:** Epic 2 · **Blocks:** Epic 3
+**Branch:** `stack-runtime-upgrade` · **Depends on:** Epic 2's first part ([Run order](#run-order))
+· **Blocks:** Epic 3, and 2.6, 2.17 and 2.18
 
 Python 3.8/3.9 + Django 3.2 (all end-of-life) → **Python 3.13 + Django 5.2 LTS** in one direct hop,
 with the dependency set rebuilt (ADR-025, ADR-026).
@@ -820,7 +878,8 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 044 — Local-environment close-out | 1.21, and its runner notes on 6.23 and 6.24; **absorbs** 7.8 into 19.10; **amends** 011's Epic-1 check list; **corrects** 043's Traps, 7.11's task text and 12.11's Notes |
 | 045 — 1.13 rescoped: `collectstatic` already runs in CI | 1.13 (rescoped to a static-reference check, before 5.3); **amends** 011's Epic-1 check list; **corrects** 030's Traps count and 1.13's ADR citation |
 | 046 — Interim dev requirements until 19.12 | 6.23 (creates `requirements-dev.txt`), 6.10 (its local `ruff` pin), 19.12 (folds it into `dev.in` and deletes it); **bridges** 029 |
-| 047 — Epic 11's slot, a correction to 041, and the repository settings the ADRs rely on | 1.22; 11.1 sequenced before 2.9, 2.15 and 2.23; **corrects** 041 |
+| 047 — Epic 11's slot, a correction to 041, and the repository settings the ADRs rely on | 1.22; 11.1 sequenced before 2.9, 2.15 and 2.23; **corrects** 041; clause (1)'s wording **corrected by** 048 |
+| 048 — Tasks run in a written run order, never in ADR order | No task of its own, like 012: the [Run order](#run-order), the `backlog` agent and `/next-task` step 2 carry it. **Splits** Epic 2 around Epics 19 and 3; **retires** `Unblocked` (21 rows → `Not started`); **un-blocks** 11.6, 15.1 and 16.4, which waited on tasks; **corrects** 047's clause (1) |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |
@@ -835,7 +894,7 @@ isn't lost among the rest of the backlog. ✅ marks a fix that has landed.
 | Running an end-of-life runtime **and** framework — Django 3.2 (EOL April 2024) on Python 3.8/3.9 (EOL Oct 2024/Oct 2025), so no security patches reach any layer | Epic 19 |
 | A framework upgrade verified only by hand, because no test suite exists yet | 19.1, 19.8, then Epic 6 |
 | Hardcoded `SECRET_KEY` and DB credentials, kept as `default=` fallbacks in `base.py`, the *production* module (`DEBUG` is fixed: 1.5 deleted `heroku.py` and defaults it to `False`) | 2.1, 2.2 ✅, 2.19 |
-| Access control enforced in templates instead of views | 2.17 (the real fix), then 2.6, 2.7, 2.20 |
+| Access control enforced in templates instead of views — measured 2026-10-23, **no `control` view requires a login**, and the user create/update views mass-assign `is_superuser` | 2.17 (the real fix), then 2.6, 2.7, 2.20; 4.7/5.19 drop the privilege fields. Exposed by the first reachable environment, which roadmap 9.25 weighs |
 | No brute-force protection on the single credential entry point for every tenant | 2.22, with 2.23 supplying the attempt record |
 | No tenant isolation in a confirmed multi-tenant product | 3.3, 3.55, 4.6, 6.9, 6.18 — plus 2.21, where a missed permission-cache invalidation is itself a cross-tenant leak |
 | Backups that have never been restored — the restore path runs for the first time on the day it matters, over records food law requires to be kept | 3.70, 3.48, 3.72 |
