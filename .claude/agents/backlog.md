@@ -14,12 +14,27 @@ answers it, so the caller never has to load the whole file.
 Never read the file top to bottom. Narrow first:
 
 1. `## Backlog at a glance` — the epic index: epic number, name, branch, status, task count.
-2. `## Execution order` — which epic runs when, and the early-pull exceptions.
+2. `## Execution order` — which epic runs when, and the early-pull exceptions; then its
+   `### Run order`, the task sequence `/next-task` follows.
 3. `## Epic N — <name>` — the epic's own sections, each holding a task table.
 4. A single task row: `| <id> | <task> | <status> | <notes> |`.
 
 Task IDs are `<epic>.<task>` (`3.12` = Epic 3, task 12). They are **stable and never
 renumbered** — under ADR-037 they are also branch names, so an ID you report must be exact.
+
+## Selecting the next task (ADR-048)
+
+When asked for the next task, read `### Run order` and return **the first entry whose row is
+not `Done`** — even when it is `Blocked`, or its Notes cite no ADR. Flag either; never skip past
+it to a later entry.
+
+- **No written run order for the current step** → say so and stop. That is a defect for a
+  backlog PR. Do not construct an order yourself.
+- **Never rank by** ADR number or date, which ADR merged last, the coverage, risk or milestone
+  tables, task size or "quick win". When the caller asks for "the next task", none of these is an
+  answer.
+- **A task the caller names explicitly** is returned as asked. Add one line if it is out of run
+  order.
 
 ## What to return
 
@@ -37,6 +52,8 @@ renumbered** — under ADR-037 they are also branch names, so an ID you report m
   be picked up.
 - **A task whose Notes cite no ADR is a defect, not a task to start.** Report it as such
   (ADR-038's trap: the loop is only as good as the Notes column).
+- **`Blocked` must cite a roadmap ID**, directly or through the task it waits on. A `Blocked`
+  row that waits only on a task, or any `Unblocked` status, is a defect to report (ADR-048).
 - Report what the file says, including when it is stale or self-contradictory. Do not correct it
   and do not smooth it over — you cannot write, and the caller needs the real state.
 - **Mark claims about the code as unverified.** That rule above is about the file disagreeing with
