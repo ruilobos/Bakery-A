@@ -72,12 +72,14 @@ planned in Plan Mode before implementation starts, and squash-merged before the 
 **An epic groups and sequences tasks; it is not a branch.** No stacking, no direct commits.
 Promote validated work from `main` to `production` via its own release PR, titled `Release vX.Y.Z`
 (ADR-042) and merged with a merge commit, never squashed (ADR-041); on merge,
-`.github/workflows/release.yml` tags it and publishes the GitHub Release. Don't start broad,
+`.github/workflows/release.yml` tags it and publishes the GitHub Release. Until 12.5, a `0.y.z`
+release PR is gated by local verification of the `main` it promotes, recorded in the PR (ADR-050). Don't start broad,
 undiscussed work across multiple phases/areas in one session — confirm which task a change belongs
 to first.
 
-**`/next-task` is the sanctioned way to execute a task** (ADR-038): it selects the next actionable
-task (refusing anything `Blocked`), reads only the ADRs and requirement sections that task's Notes
+**`/next-task` is the sanctioned way to execute a task** (ADR-038): it takes the first open entry in
+the backlog's **Run order** (ADR-048 — never the order of the ADRs, never the newest ADR's task),
+refusing anything `Blocked`, reads only the ADRs and requirement sections that task's Notes
 cite, plans, branches, implements with tests, reviews the diff against both `docs/decisions.md` and
 `docs/project_requirements.md`, runs the verification gates, updates the task's status, commits and
 opens the PR — then stops. It never merges and never promotes.
@@ -93,7 +95,7 @@ restates it.
 
 ## Commands
 
-`ruff` lints and formats (6.10, ADR-034), configured in `pyproject.toml`'s `[tool.ruff]`, and the app suite is two smoke tests in `core/tests.py` plus 1.17's two export tests in `control/tests.py`. The runner is `pytest` (6.23, ADR-034), configured in `pyproject.toml` and installed from `requirements-dev.txt`; it also collects the `scripts/` tooling's `unittest` tests, which CI runs on their own as its `Tooling tests` check, `python -m unittest discover -s scripts -t .` (1.21). CI runs no `pytest` yet (6.12, 6.24). Two workflows: `.github/workflows/ci.yml` runs tasks 1.11's, 1.13's, 1.21's and 6.10's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
+`ruff` lints and formats (6.10, ADR-034), configured in `pyproject.toml`'s `[tool.ruff]`, and the app suite is two smoke tests in `core/tests.py` plus four tests in `control/tests.py` (1.17's two export tests, 1.20's two). The runner is `pytest` (6.23, ADR-034), configured in `pyproject.toml` and installed from `requirements-dev.txt`; it also collects the `scripts/` tooling's `unittest` tests, which CI runs on their own as its `Tooling tests` check, `python -m unittest discover -s scripts -t .` (1.21). CI runs no `pytest` yet (6.12, 6.24). Two workflows: `.github/workflows/ci.yml` runs tasks 1.11's, 1.13's, 1.21's and 6.10's checks on every PR into `main`/`production`, and `.github/workflows/release.yml` tags releases. The commands below are what the current tooling supports.
 
 ```bash
 # Environment (repo already has a .venv; recreate with your own Python if needed)
@@ -149,8 +151,9 @@ Three modules per ADR-028, **no `production.py`** — `base.py` *is* production,
 
 **The values are still in the repo as `default=` fallbacks**, so nothing yet fails when a variable is
 unset. Task **2.1** removes the secret fallbacks; **2.19** removes them entirely so a missing
-variable raises `ImproperlyConfigured` — 2.19 is `Blocked` on roadmap question **9.22**, because a
-raising module would break `collectstatic` at image build.
+variable raises `ImproperlyConfigured`. `collectstatic` keeps running at image build on build-only
+placeholders set **inline on the `Dockerfile`'s `RUN` line, never `ENV`**, so the running image still
+fails loud (ADR-049). Each task adds its placeholders as it removes the fallbacks.
 
 ### App layout
 
@@ -179,4 +182,4 @@ Known naming/data quirks carried from the prototype (also listed in the update p
 
 All `control` views live in a single `views.py` using Django generic `ListView`/`CreateView`/`UpdateView`/`DeleteView`, mostly with `fields = '__all__'` (no dedicated ModelForms anywhere; 1.6 deleted the unused `control/forms.py`). Templates are per-app under `<app>/templates/`, `APP_DIRS = True`, with shared static assets in `bakery/static/` (Bootstrap, custom CSS/JS per page, no build pipeline/bundler). CSV export views (`export_suppliers`, `export_raw_materials`, etc.) build CSVs by hand with the `csv` module directly in the view.
 
-Access control is enforced inconsistently: views don't consistently use `LoginRequiredMixin`, and staff-only intent is expressed ad hoc rather than via a real permission scheme.
+Access control is not enforced in the views: no `control` view requires a login (measured 2026-10-23), staff-only intent is expressed ad hoc in templates, and `User_Create`/`User_Update` take `fields = "__all__"` on the User model, `is_superuser` included. 2.17, 2.7 and 4.7 own the fix; don't patch it as a drive-by.
