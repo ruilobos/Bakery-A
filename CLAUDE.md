@@ -72,7 +72,8 @@ planned in Plan Mode before implementation starts, and squash-merged before the 
 **An epic groups and sequences tasks; it is not a branch.** No stacking, no direct commits.
 Promote validated work from `main` to `production` via its own release PR, titled `Release vX.Y.Z`
 (ADR-042) and merged with a merge commit, never squashed (ADR-041); on merge,
-`.github/workflows/release.yml` tags it and publishes the GitHub Release. Don't start broad,
+`.github/workflows/release.yml` tags it and publishes the GitHub Release. Until 12.5, a `0.y.z`
+release PR is gated by local verification of the `main` it promotes, recorded in the PR (ADR-050). Don't start broad,
 undiscussed work across multiple phases/areas in one session — confirm which task a change belongs
 to first.
 
@@ -150,8 +151,9 @@ Three modules per ADR-028, **no `production.py`** — `base.py` *is* production,
 
 **The values are still in the repo as `default=` fallbacks**, so nothing yet fails when a variable is
 unset. Task **2.1** removes the secret fallbacks; **2.19** removes them entirely so a missing
-variable raises `ImproperlyConfigured` — 2.19 is `Blocked` on roadmap question **9.22**, because a
-raising module would break `collectstatic` at image build.
+variable raises `ImproperlyConfigured`. `collectstatic` keeps running at image build on build-only
+placeholders set **inline on the `Dockerfile`'s `RUN` line, never `ENV`**, so the running image still
+fails loud (ADR-049). Each task adds its placeholders as it removes the fallbacks.
 
 ### App layout
 

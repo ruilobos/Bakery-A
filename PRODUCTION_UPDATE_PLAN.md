@@ -1,6 +1,6 @@
 # Bakery Production Backlog
 
-The **task backlog** — 316 tasks across 19 epics. Every phase, discovery workstream and feature is an
+The **task backlog** — 317 tasks across 19 epics. Every phase, discovery workstream and feature is an
 **Epic**; every epic holds numbered tasks that can be picked up, tracked and closed. This file owns
 **epic and task status and sequencing**.
 
@@ -53,7 +53,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 | [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
 | [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | Not started | 25 | Epics 3, 19 |
-| [6](#epic-6--testing--quality-gates) | Testing & quality gates | `phase-6-testing-ci` | In progress | 25 | Epics 1–5 |
+| [6](#epic-6--testing--quality-gates) | Testing & quality gates | `phase-6-testing-ci` | In progress | 26 | Epics 1–5 |
 | [7](#epic-7--observability--operations) | Observability & operations | `phase-7-observability` | Not started | 23 | Epic 12 |
 | [8](#epic-8--documentation--team-readiness) | Documentation & team readiness | `phase-8-docs` | Not started | 9 | Epics 1–7 |
 | 9 | Tech stack decisions | `stack-decisions` | **Done** 2026-08-26 | — | Closed by ADR-025 → ADR-036 |
@@ -103,6 +103,11 @@ on before the tests exist blocks the PRs that write them.
 neither Epic 2 nor the rest of Epic 19. As with 6.23 and 6.10, **its ID did not change and it remains
 an Epic 19 task**; its branch was `stack-runtime-upgrade-19.10`.
 
+**One more Epic 6 task runs early: [6.26](#epic-6--testing--quality-gates)**, the first promotion,
+`Release v0.1.0`, right after 11.1. Until 12.5 exists, a `0.y.z` release is gated by local
+verification of the `main` it promotes ([ADR-050](docs/decisions.md)). As with 6.23 and 6.10, its ID
+does not change.
+
 **Epic 17 is the exception to "features last"** — traceability is a Must ([ADR-017](docs/decisions.md))
 and its data model had to be settled before Epic 3's schema work, or Epic 3 gets redesigned twice.
 Supplier price comparison is likewise a Must that **depends on Epic 17**, since goods receipts are the
@@ -122,14 +127,16 @@ before its first task starts. Until then the loop stops there, as it does at `Bl
 | # | Task | Why here |
 |---|---|---|
 | 1 | 11.1 | Step 2, before 2.9, 2.15 and 2.23 (ADR-047) |
-| 2 | 2.1 | Its Notes' `collectstatic` trap is roadmap 9.22's question: settle 9.22 first, or 2.1's premise gate stops here |
-| 3 | 2.3 | |
-| 4 | 2.4 | |
-| 5 | 2.9 | After 11.1 |
-| 6 | 2.11 | Its Notes cite no ADR, so the loop stops here until they do (ADR-038) |
-| 7 | 2.15 | After 11.1 |
-| 8 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
-| 9 | 2.22 | After 2.23 |
+| 2 | 6.26 | Pulled forward by ADR-050: the first promotion, `Release v0.1.0` |
+| 3 | 2.1 | Adds the build-line placeholders for `SECRET_KEY` and `DATABASE_URL` (ADR-049) |
+| 4 | 2.3 | |
+| 5 | 2.4 | |
+| 6 | 2.9 | After 11.1 |
+| 7 | 2.11 | Its Notes cite no ADR, so the loop stops here until they do (ADR-038) |
+| 8 | 2.15 | After 11.1 |
+| 9 | 2.19 | Unblocked by ADR-049; after 2.1, its pair |
+| 10 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
+| 11 | 2.22 | After 2.23 |
 
 **Owed, with what the Notes already fix:**
 
@@ -147,7 +154,7 @@ before its first task starts. Until then the loop stops there, as it does at `Bl
   2.7 is reshaped by 2.20, 2.8's role lives on the membership, and 2.12 checks 2.20's capability
   codenames, since ADR-028 rejects a second permission vocabulary.
 - **Elsewhere:** **2.14** after Epic 12 provides a TLS endpoint, since end-to-end HTTPS cannot be
-  confirmed without one. **2.5** with 13.3, its pair. **2.19** stays `Blocked` on 9.22.
+  confirmed without one. **2.5** with 13.3, its pair.
 
 ## Milestone: first production release scope
 
@@ -177,9 +184,9 @@ ship safely through a PR.
 
 **Close-out audit 2026-10-23** (ADR-048's PR): every deliverable verified on `main` at `868ed3f`;
 CI's checks pass locally, and on PR #40. **Two things Epic 1 built have never run:** `release.yml`'s
-`publish` and 1.22's `v*` tag rule first run at `Release v0.1.0`, a PR that roadmap 9.25 still
-blocks. `main` is 41 commits ahead of `production`. Its findings are routed into 2.1, 2.4, 2.7,
-2.12 and 9.25.
+`publish` and 1.22's `v*` tag rule first run at `Release v0.1.0`, which 6.26 opens under ADR-050's
+local gate. `main` is 41 commits ahead of `production`. Its findings are routed into 2.1, 2.4,
+2.7 and 2.12, and through roadmap 9.25 into ADR-050.
 
 ### Source control cleanup
 
@@ -230,19 +237,19 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 2.1 | Move all secrets to environment variables or a secret manager; remove the hardcoded `SECRET_KEY` and database credentials from source | Not started | ADR-028, ADR-015 rules 2 and 8. **Includes `docker-compose.yaml`'s dev password**, as its comment says, which `web`'s `DATABASE_URL` repeats. **Trap:** removing the `SECRET_KEY` fallback breaks `collectstatic` at image build, the collision that blocks 2.19 and 7.10 on [roadmap.md](docs/roadmap.md) 9.22, so premise-check it before planning. **The local `DATABASE_URL` then comes from `.env`** (7.13's `.env.example`); a host-side value naming `localhost` retires the `127.0.0.1 postgres` hosts entry that host `runserver` needs today (found by 1.12, stated in CLAUDE.md). Compose's `web` must keep the service name `postgres`, so the host value and the container value cannot be one shared variable. Pairs with 2.19. **Found by Epic 1's close-out (2026-10-23):** nothing but the fallback supplies `SECRET_KEY`. Compose's `web` sets only `DATABASE_URL`, and CI's `Django checks` imports `base.py` through `test.py` with only `DJANGO_SETTINGS_MODULE` set (1.11), so both need it once the fallback goes. And compose publishes `5432` and `8000` on every interface, with a password committed to this public repository: bind both to `127.0.0.1` in the same edit |
+| 2.1 | Move all secrets to environment variables or a secret manager; remove the hardcoded `SECRET_KEY` and database credentials from source | Not started | ADR-028, ADR-015 rules 2 and 8. **Includes `docker-compose.yaml`'s dev password**, as its comment says, which `web`'s `DATABASE_URL` repeats. **ADR-049:** removing the `SECRET_KEY` and database fallbacks breaks `collectstatic` at image build, so this PR adds both as build-only placeholders inline on `Dockerfile:23`'s `RUN` line, never `ENV`, and gives CI's `Django checks` job the same values. **The local `DATABASE_URL` then comes from `.env`** (7.13's `.env.example`); a host-side value naming `localhost` retires the `127.0.0.1 postgres` hosts entry that host `runserver` needs today (found by 1.12, stated in CLAUDE.md). Compose's `web` must keep the service name `postgres`, so the host value and the container value cannot be one shared variable. Pairs with 2.19. **Found by Epic 1's close-out (2026-10-23):** nothing but the fallback supplies `SECRET_KEY`. Compose's `web` sets only `DATABASE_URL`, and CI's `Django checks` imports `base.py` through `test.py` with only `DJANGO_SETTINGS_MODULE` set (1.11), so both need it once the fallback goes. And compose publishes `5432` and `8000` on every interface, with a password committed to this public repository: bind both to `127.0.0.1` in the same edit |
 | 2.2 | Set `DEBUG = False` everywhere outside local development | **Done** 2026-10-10 (verified; delivered by 1.5) | ADR-028. **No PR of its own**, like 1.9: 1.5's settings split delivered it, and it was verified against the code on 2026-10-10. `DEBUG` is `True` only in `local.py:21`. `base.py:44` reads `env.bool("DEBUG", default=False)`, and `base.py` is production and the default for `manage.py`, `wsgi.py`, `asgi.py` and the `Dockerfile`. `test.py:17` is `False`. Neither compose nor the `Dockerfile` sets `DEBUG`, and no env file is tracked (`git grep -n DEBUG -- ':!docs' ':!*.md'`; `git grep -n DJANGO_SETTINGS_MODULE`). A host can still set `DEBUG=true` in its environment; that is configuration, which 2.19's fail-loud settings and the host tasks own |
 | 2.3 | Environment-specific `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and cookie settings | Not started | ADR-028 rule 1 and ADR-015 rule 2: `base.py` reads them from the environment, and `local.py` and `test.py` keep their own lists. Compose's `web` runs `base.py` (ADR-043's Traps), so whatever `base.py` requires, compose must supply |
 | 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | Not started | ADR-028 rule 1: the secure values are `base.py`'s, and an overlay opts out, so the accident lands on the safe side. **Trap (Epic 1's close-out, 2026-10-23):** compose's `web` runs `base.py` over plain HTTP (ADR-043's Traps), and 1.12's launcher polls `http://localhost:8000/`. A fixed `SECURE_SSL_REDIRECT` breaks the launcher and local login, secure-only cookies break local login, and HSTS on `localhost` sticks in the browser. The local stack needs an explicit opt-out that no host ever sets |
 | 2.5 | Hold object-storage (R2) access keys as environment variables — never hardcoded | Not started | ADR-005; pairs with 13.3 |
-| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 9.22** — raising on unset breaks `collectstatic` at image build, which 7.10 requires to keep working; no ADR settles the two. After 1.5 this is "delete the fallbacks", not "write a validator": `django-environ` already raises `ImproperlyConfigured` for a var with no default. ADR-028. Retires today's inversion: `base.py` ships a real `SECRET_KEY`/`DEBUG = True` and `heroku.py:11` defaults `DEBUG` to `True` in the *production* module. Pairs with 1.5, 2.1 |
+| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Not started | ADR-028, ADR-049. **Unblocked 2026-10-24 by ADR-049:** `collectstatic` keeps running at image build, on placeholders set inline on its `RUN` line. This task adds `ALLOWED_HOSTS` and `DEBUG=False` there, and to CI's `Django checks` env, as it deletes their fallbacks; 2.1 adds the other two. **Absorbed 7.10**, whose static build step already exists. After 1.5 this is "delete the fallbacks", not "write a validator": `django-environ` already raises `ImproperlyConfigured` for a var with no default (measured 2026-10-24 for all four). Compose's `web` runs `base.py` (ADR-043's Traps), so it must supply both too. Pairs with 1.5, 2.1 |
 
 ### Authentication and authorization
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 2.6 | Protect all business views with `LoginRequiredMixin` | Not started | **Reshaped by 2.17** — the middleware becomes the mechanism; this becomes a belt-and-braces pass. Do 2.17 first |
-| 2.7 | Protect admin-only operations with explicit permission classes/mixins; stop relying on template-only `is_staff` checks | Not started | **Reshaped by 2.20** — these become stock Django mixins over capability codenames. **Found by Epic 1's close-out (2026-10-23):** no `control` view requires a login, and `User_Create`/`User_Update` take `fields = "__all__"` on the User model. So anyone who can reach the app can create a user, or set an existing one's `is_superuser`, `is_staff`, groups and permissions. Nothing is hosted, so nothing is exposed yet; it goes live with the first reachable environment (roadmap 9.25). The fix is three tasks: 2.17 (login), this one (who may manage users) and 4.7/5.19 (forms without the privilege fields) |
+| 2.7 | Protect admin-only operations with explicit permission classes/mixins; stop relying on template-only `is_staff` checks | Not started | **Reshaped by 2.20** — these become stock Django mixins over capability codenames. **Found by Epic 1's close-out (2026-10-23):** no `control` view requires a login, and `User_Create`/`User_Update` take `fields = "__all__"` on the User model. So anyone who can reach the app can create a user, or set an existing one's `is_superuser`, `is_staff`, groups and permissions. Nothing is hosted, so nothing is exposed yet; it goes live with the first reachable environment (Epic 12). The fix is three tasks: 2.17 (login), this one (who may manage users) and 4.7/5.19 (forms without the privilege fields) |
 | 2.8 | Role-based permissions for **Owner / Staff / Read-only**, scoped **per tenant** | Not started | ADR-020. Role lives on the membership record (3.58). Matrix in [project_requirements.md](docs/project_requirements.md) |
 | 2.9 | Audit logging for user management and destructive actions | Not started | Extended by 11.10. **Sequenced after 11.1** by ADR-047: it logs personal data against that inventory |
 | 2.15 | Restrict the Django admin to superusers, keep it out of tenant-facing navigation, log its access to personal data | Not started | ADR-019 — a deliberate **cross-tenant** surface. `ModelAdmin` does **not** apply the tenant-scoped managers from 3.3/3.55. Feeds 11.10. **Sequenced after 11.1** by ADR-047: its access log records personal data against that inventory |
@@ -542,6 +549,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 6.13 | Enable required status checks on `main` and `production`, blocking merge when checks fail | Not started | ADR-010. **This is also the deploy gate** — see 6.14. On both branches, require 1.11's `Django checks`, `Lint` and `Docker build`, and 1.21's `Tooling tests`; on `production`, also 1.10's `Validate release PR` check (ADR-042) |
 | 6.14 | Block deployments when checks fail | Not started | **Satisfied by 6.13, not a second mechanism** — ADR-031. `production` only advances by merge and Railway deploys only what lands there. The work is *verifying* that chain end to end (attempt a failing merge, confirm no deploy fires) |
 | 6.15 | Run the unit suite on every PR into `main` as the feature-branch gate | Not started | ADR-014 — the automated half of the test split; integration verification of merged `main` stays manual against `docker-compose`. Part of 6.12 |
+| 6.26 | Gate `0.y.z` releases on local verification: a release-PR body recording the commit verified, the launcher's result and the screens exercised; then open `Release v0.1.0` through it and confirm `publish` tags and releases it | Not started | ADR-050, ADR-042, ADR-041, ADR-014. **Pulled forward by ADR-050**, right after 11.1 in the run order; the ID stays in Epic 6. **Two PRs, like 1.8:** the body template squash-merges to `main` first, then `Release v0.1.0` (`main` → `production`) merges with a merge commit, never squashed (ADR-041). `--body` and `--body-file` skip GitHub's templates (1.16), so the release body is written from the template to a scratchpad file. **The first run of three Epic 1 deliverables:** `release.yml`'s `publish` (1.10), the `v*` tag ruleset (1.22), and the read-only token default under `publish`'s per-job `contents: write` (1.22). **Proven when** the merge commit carries a lightweight `v0.1.0` tag and a Release with generated notes, and the tag ruleset still lists `update` and `deletion`. **Trap (ADR-050):** the release PR's head is `main`, so if `main` moves after verification, verify again. Its job ends at 12.5, and `1.0.0` keeps the Railway gate |
 
 ---
 
@@ -567,7 +575,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 7.7 | ~~Fix `docker-compose.yaml` so it defines all required services correctly, app and DB separate~~ | **Absorbed into 19.10** | ADR-007, ADR-043. 19.10's row now carries both clauses: app and DB as separate services, and no external `bakery_simple` network |
 | 7.8 | ~~Separate the local compose definition from the production deployment definition~~ | **Absorbed into 19.10** | ADR-044, ADR-043, ADR-004. Already true: 19.10 stripped the home-server residue out of `docker-compose.yaml` (the pulled image, `restart: always`, the external network), so it is local-only, run by 1.12's launcher; production is the `Dockerfile` built by Railway (12.3), with `migrate` as its pre-deploy command (12.11). The repo holds no other deployment definition beyond the `Procfile` (7.9) and `runtime.txt` (19.3) |
 | 7.9 | Remove the remaining legacy deployment files: the Heroku `Procfile`, and `initdb/init.sql` with its folder | Not started | ADR-015, ADR-037. **Narrowed 2026-09-17 so each file is claimed once.** `settings/heroku.py` was deleted by **1.5**; `runtime.txt` belongs to **19.3** (ADR-025 makes the Dockerfile the single source of the Python version). Only the `Procfile` was left here. **`initdb/` added 2026-09-29** (found by 19.10, re-measured then): referenced by nothing, since compose's `postgres` service creates `simple` through `POSTGRES_DB`, and its one line, `CREATE DATABASE simple;`, would fail if ever mounted into `/docker-entrypoint-initdb.d` beside it. A one-file deletion is a line in a task, not a task (ADR-037's Traps). Pairs with Epic 12, which replaces the host |
-| 7.10 | Add a static asset build step to the release process | Blocked | **Blocked on [roadmap.md](docs/roadmap.md) 9.22** — the same question from the other side. `collectstatic` currently runs at image build time and must **not** require `DATABASE_URL`/`SECRET_KEY` there, which is directly opposed to 2.19's raise-on-unset; no ADR settles it. 1.5 left fallbacks in place precisely so the build keeps working until 9.22 is answered |
+| 7.10 | ~~Add a static asset build step to the release process~~ | **Absorbed into 2.1 + 2.19** | ADR-049, answering roadmap 9.22. The step exists: `collectstatic` runs at image build and stays there, on build-only placeholders set inline on its `RUN` line, so it needs no real `DATABASE_URL` or `SECRET_KEY`. 2.1 and 2.19 add each placeholder as they remove its fallback. The ID stays, as 7.7's did |
 | 7.11 | Add a migration release step and **remove `migrate` from the container start command**, the `Dockerfile` `CMD` | Not started | ADR-015 rule 4. Migrating on boot makes every replica race and ties the schema change to container start. **Pairs with 12.11** — do both in one pass or migrations run twice. Leave 1.12's launcher step alone: once these go, it is the only local `migrate` (ADR-043). **The compose copy is already gone** (ADR-044): 19.10 dropped `web`'s `command:` override, so compose runs the image's `CMD` and only the `Dockerfile` needs editing |
 | 7.12 | Write and test the rollback procedure, using 1.10's release tags | Not started | |
 | 7.13 | Document every environment variable per environment as a committed `.env.example` (names and example values only — never real secrets) | Not started | ADR-015 rule 8 — this file is the migration checklist; if it lives only in a host's dashboard, moving host becomes archaeology |
@@ -880,6 +888,8 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 046 — Interim dev requirements until 19.12 | 6.23 (creates `requirements-dev.txt`), 6.10 (its local `ruff` pin), 19.12 (folds it into `dev.in` and deletes it); **bridges** 029 |
 | 047 — Epic 11's slot, a correction to 041, and the repository settings the ADRs rely on | 1.22; 11.1 sequenced before 2.9, 2.15 and 2.23; **corrects** 041; clause (1)'s wording **corrected by** 048 |
 | 048 — Tasks run in a written run order, never in ADR order | No task of its own, like 012: the [Run order](#run-order), the `backlog` agent and `/next-task` step 2 carry it. **Splits** Epic 2 around Epics 19 and 3; **retires** `Unblocked` (21 rows → `Not started`); **un-blocks** 11.6, 15.1 and 16.4, which waited on tasks; **corrects** 047's clause (1) |
+| 049 — `collectstatic` keeps running at image build, on build-only placeholders | 2.1 (`SECRET_KEY`, `DATABASE_URL`), 2.19 (`ALLOWED_HOSTS`, `DEBUG`), each adding its placeholders as it removes the fallbacks; **unblocks** 2.19; **absorbs** 7.10; answers roadmap 9.22 |
+| 050 — A local release gate until Railway's release-PR environment exists | 6.26 (pulled forward: the gate's record, and `Release v0.1.0`); ends at 12.5; **amends** 014's release gate for `0.y.z` and 041's start of it; answers roadmap 9.25 |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |
@@ -894,7 +904,7 @@ isn't lost among the rest of the backlog. ✅ marks a fix that has landed.
 | Running an end-of-life runtime **and** framework — Django 3.2 (EOL April 2024) on Python 3.8/3.9 (EOL Oct 2024/Oct 2025), so no security patches reach any layer | Epic 19 |
 | A framework upgrade verified only by hand, because no test suite exists yet | 19.1, 19.8, then Epic 6 |
 | Hardcoded `SECRET_KEY` and DB credentials, kept as `default=` fallbacks in `base.py`, the *production* module (`DEBUG` is fixed: 1.5 deleted `heroku.py` and defaults it to `False`) | 2.1, 2.2 ✅, 2.19 |
-| Access control enforced in templates instead of views — measured 2026-10-23, **no `control` view requires a login**, and the user create/update views mass-assign `is_superuser` | 2.17 (the real fix), then 2.6, 2.7, 2.20; 4.7/5.19 drop the privilege fields. Exposed by the first reachable environment, which roadmap 9.25 weighs |
+| Access control enforced in templates instead of views — measured 2026-10-23, **no `control` view requires a login**, and the user create/update views mass-assign `is_superuser` | 2.17 (the real fix), then 2.6, 2.7, 2.20; 4.7/5.19 drop the privilege fields. Exposed by the first reachable environment (Epic 12) |
 | No brute-force protection on the single credential entry point for every tenant | 2.22, with 2.23 supplying the attempt record |
 | No tenant isolation in a confirmed multi-tenant product | 3.3, 3.55, 4.6, 6.9, 6.18 — plus 2.21, where a missed permission-cache invalidation is itself a cross-tenant leak |
 | Backups that have never been restored — the restore path runs for the first time on the day it matters, over records food law requires to be kept | 3.70, 3.48, 3.72 |
