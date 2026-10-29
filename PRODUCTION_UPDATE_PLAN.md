@@ -628,7 +628,7 @@ is a prerequisite to relying on any of it.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 11.1 | Complete the personal-data inventory | **Done** 2026-10-29 | ADR-047, ADR-031 · PR pending |
+| 11.1 | Complete the personal-data inventory | **Done** 2026-10-29 | ADR-047, ADR-031 · PR #43 |
 | 11.5 | DPA template usable per tenant, Bakery-the-product as processor | Not started | ADR-006. Applies to the free pilot too |
 | 11.6 | Execute DPAs with each third-party processor: Railway, Cloudflare R2, Brevo, Sentry (Databricks/AWS are 11.17) | Not started | **Runs with 12.7**, a task, not a roadmap question (ADR-048: `Blocked` is for roadmap questions only). Railway resolved as host (12.1 ✅) — execute via 12.7. Sentry by design receives whatever a traceback contains, which is why 7.23's scrubbing is part of the DPA story |
 | 11.8 | Define the breach notification process (72-hour supervisory-authority deadline) | Not started | The authority (Irish DPC) and the processor→controller path are settled inputs. Feeds runbook 8.7 |
