@@ -32,8 +32,8 @@ that don't apply.
 
 - [ ] The title and the lead line carry the task ID
 - [ ] The branch is `<epic-branch>-<task-id>` (ADR-037), cut from an updated `main` (ADR-010)
-- [ ] The premise gate ran before planning, and a premise that failed was reported, not worked around (ADR-040)
-- [ ] The diff was reviewed against `docs/decisions.md` and `docs/project_requirements.md` (ADR-038), and re-introduces no `Rejected` option
-- [ ] The task's status and Notes in `PRODUCTION_UPDATE_PLAN.md` say what was done, and anything deferred names the task that now owns it
+- [ ] The premise gate ran before planning; a small doc defect it found is corrected here and named above, and a scope-changing one was reported, not worked around (ADR-040, ADR-051)
+- [ ] The diff was reviewed against the cited ADRs and requirement sections (ADR-038), and re-introduces no `Rejected` option
+- [ ] The task's status in `PRODUCTION_UPDATE_PLAN.md` is set, its Notes are its ADRs and this PR (ADR-051), and anything deferred names the task that now owns it
 - [ ] The jobs in `.github/workflows/ci.yml` were run locally
 - [ ] No unrelated fixes (ADR-037), and no drive-by rename of the identifiers ADR-039 keeps

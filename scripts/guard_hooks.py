@@ -230,18 +230,28 @@ def task_of(branch, plan):
     if not match:
         return None
     prefix, epic, number = match.groups()
+    return f"{epic}.{number}" if epic_branches(plan).get(epic) == prefix else None
+
+
+def epic_branches(plan):
+    """Each epic's branch, keyed by epic number, from the plan's glance table."""
     glance = plan.partition("## Backlog at a glance")[2].partition("\n## ")[0]
-    epic_branches = dict(EPIC_ROW.findall(glance))
-    return f"{epic}.{number}" if epic_branches.get(epic) == prefix else None
+    return dict(EPIC_ROW.findall(glance))
+
+
+def row_cells(text, key):
+    """The stripped cells of the first table row whose first cell is `key`, or None."""
+    for line in text.splitlines():
+        if line.startswith(f"| {key} |"):
+            cells = CELL.split(line.rstrip())
+            return [cell.strip() for cell in cells[1:-1]]
+    return None
 
 
 def task_status(plan, task):
     """The Status cell of a task's row in the plan, or None if it has no row."""
-    for line in plan.splitlines():
-        if line.startswith(f"| {task} |"):
-            cells = CELL.split(line)
-            return cells[3].strip() if len(cells) > 4 else None
-    return None
+    cells = row_cells(plan, task)
+    return cells[2] if cells and len(cells) > 2 else None
 
 
 def check(event):
