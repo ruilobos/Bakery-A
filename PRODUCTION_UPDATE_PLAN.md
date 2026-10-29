@@ -63,7 +63,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 | [8](#epic-8--documentation--team-readiness) | Documentation & team readiness | `phase-8-docs` | Not started | 9 | Epics 1–7 |
 | 9 | Tech stack decisions | `stack-decisions` | **Done** 2026-08-26 | — | Closed by ADR-025 → ADR-036 |
 | 10 | Requirements discovery | `requirements-discovery` | In progress | — | Its questions live in [roadmap.md](docs/roadmap.md) `10.x` |
-| [11](#epic-11--gdpr-data-inventory--policy) | GDPR data inventory & policy | `gdpr-data-inventory` | Not started | 10 | Judgments live in [roadmap.md](docs/roadmap.md) `11.x` |
+| [11](#epic-11--gdpr-data-inventory--policy) | GDPR data inventory & policy | `gdpr-data-inventory` | In progress | 10 | Judgments live in [roadmap.md](docs/roadmap.md) `11.x` |
 | [12](#epic-12--hosting-migration) | Hosting migration | `stack-hosting-migration` | Not started | 12 | — |
 | [13](#epic-13--media-storage-for-user-uploads) | Media storage for user uploads | `feature-media-storage` | Not started | 11 | Epics 3, 19 |
 | [14](#epic-14--tenant-full-data-export) | Tenant full data export | `feature-tenant-data-export` | Not started | 6 | Epic 3 |
@@ -628,7 +628,7 @@ is a prerequisite to relying on any of it.
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 11.1 | Complete the personal-data inventory | Not started | [project_requirements.md](docs/project_requirements.md) "Personal data inventory". **Blocks 15.1** — you cannot scope a subject export without knowing which fields are personal data. Feeds roadmap 11.2. **Cover copies outside the live database too** (found by 1.12; ADR-031): backup dumps (3.70, 3.72), error-tracking payloads (7.23) and local development databases. Measured 2026-09-29, the local `bakery_pgdata` volume holds 2 developer accounts and no business data; it matters the day production data is restored to a laptop |
+| 11.1 | Complete the personal-data inventory | **Done** 2026-10-29 | ADR-047, ADR-031 · PR pending |
 | 11.5 | DPA template usable per tenant, Bakery-the-product as processor | Not started | ADR-006. Applies to the free pilot too |
 | 11.6 | Execute DPAs with each third-party processor: Railway, Cloudflare R2, Brevo, Sentry (Databricks/AWS are 11.17) | Not started | **Runs with 12.7**, a task, not a roadmap question (ADR-048: `Blocked` is for roadmap questions only). Railway resolved as host (12.1 ✅) — execute via 12.7. Sentry by design receives whatever a traceback contains, which is why 7.23's scrubbing is part of the DPA story |
 | 11.8 | Define the breach notification process (72-hour supervisory-authority deadline) | Not started | The authority (Irish DPC) and the processor→controller path are settled inputs. Feeds runbook 8.7 |

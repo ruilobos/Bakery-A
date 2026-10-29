@@ -156,16 +156,23 @@ Commission (DPC)**, since phase-1 tenants are all Irish. Three obligations follo
 
 Every place personal data is stored or processed. Personal data = anything identifying or capable of
 identifying a living person, **including B2B contacts** — a supplier's named contact counts.
-Completing this table is **11.1**; the legal-basis and retention columns are provisional until
-roadmap 11.2 and 11.4 land.
+Completed by **11.1** (2026-10-29), checked against the code. The legal-basis column, and any
+retention noted in it, stay provisional until roadmap 11.2 and 11.4 land. A row marked *not
+built* is where the data will live once its task lands.
 
 | Category | Examples | Where | Data subject | Legal basis (provisional) |
 |---|---|---|---|---|
-| App user accounts | username, email, password hash | Django `auth_user` | Staff/employee | Contract / legitimate interest |
-| Supplier contact info | `contact` name, `phone`, `email` | `control.Supplier` | Third party (supplier's employee) | Legitimate interest |
+| App user accounts | `username`, `first_name`, `last_name`, `email`, password hash, `last_login`, `date_joined` | Django `auth_user` | Staff/employee | Contract / legitimate interest |
+| Supplier records | `name` — the primary key, so a sole trader's own name, and it appears in the supplier update/delete URLs; `contact` name, `phone`, `email`; free-text `comment` | `control.Supplier` | Third party: the supplier's contact, or a sole-trader supplier | Legitimate interest |
 | Session data | Django session cookie | `django_session` | Staff/employee (indirectly) | Contract; retention is Django's session expiry |
-| Login attempt records | username, timestamp, outcome — **never the submitted password** | Structured audit log (2.23) | Staff/employee | Legitimate interest (security) |
-| CSV exports | full supplier / raw material / product / user tables | Generated on demand, not persisted | Mixed | Same as source data |
+| Admin change log | acting user, `object_repr` (a supplier's `name`, a user's `username`), change message (field names, not values) | Django `django_admin_log`, written by `/admin/`; Django never prunes it | Staff/employee; the supplier or user changed | Legitimate interest (accountability) |
+| Login attempt records *(2.23, not built)* | username, timestamp, outcome — **never the submitted password** | Structured audit log | Staff/employee | Legitimate interest (security) |
+| CSV exports | the supplier export carries `name`, `contact`, `phone`, `email`, `comment`; the raw-material, base-recipe and product exports carry none. There is no user export | Generated on demand, not persisted server-side; the downloaded file persists on the downloader's device | Supplier contact, sole-trader supplier | Same as source data |
+| Hosting platform logs *(Epic 12, not built)* | client IP address and request path per HTTP request — supplier URLs embed `Supplier.name` — plus the container's stdout/stderr | Railway's log storage | Staff/employee; supplier (through the path) | Legitimate interest (security, operations) |
+| Error reports *(7.23, not built)* | whatever a traceback carries: request data, local variables, the signed-in user | Sentry, EU region ([ADR-031](decisions.md)) | Any | Legitimate interest; minimized at source by 7.23 (`send_default_pii=False`, a `before_send` scrubber) |
+| Transactional email *(7.21, 7.22, not built)* | recipient email, display name, invitation or password-reset token | Brevo over SMTP; its processor row is 11.16 | Staff/employee | Contract |
+| Backups *(12.9, 3.70, not built)* | a full copy of every database row above | Railway volume snapshots (12.9); the nightly `pg_dump`, `age`-encrypted client-side, in a separate R2 bucket (3.70, 11.13) | All of the above | Same as source data; backup lifetime (7 daily / 4 weekly / 12 monthly) is a separate clock from record retention ([ADR-031](decisions.md)) |
+| Local development databases | developer accounts today (measured 2026-09-29: 2 accounts, no business data); a full copy the day a production dump is restored locally | the `bakery_pgdata` Docker volume on a developer's machine | Staff/employee; whatever is restored | Same as source data |
 | Traceability records *(Epic 17, not built)* | goods receipts, production runs, outbound records; may name the supplier's contact and the staff member who ran a batch | Epic 17 models, tenant-scoped | Supplier contact, staff/employee | **Legal obligation** (EU Reg. 178/2002 Art. 18) for the record; contract/legitimate interest for the staff attribution. Retention is a legal *minimum*, not ours to set |
 | Insights extract *(Epic 16, not built)* | product, date, cost, price, margin, tenant | Cloudflare R2 prefix, read by Databricks | — | **Deliberately contains no personal data** ([ADR-036](decisions.md)); confirm in 16.9/11.17 |
 | User profile pictures | uploaded photo on a `Profile` model | R2, referenced from Postgres | Staff/employee (self-uploaded) | **Deferred out of this round** ([ADR-024](decisions.md)); 11.3 must resolve before it ever ships |
