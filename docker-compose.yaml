@@ -1,17 +1,33 @@
-version: '3.8'
+# Local dev/test environment (ADR-014): the app built from the Dockerfile Railway
+# deploys (ADR-004), beside PostgreSQL 17 as its own service (ADR-007, ADR-026).
+name: bakery
 
 services:
-  web:
-    image: ruilobos/bakery-a-web:latest
-    command: sh -c "python manage.py migrate && gunicorn bakery.wsgi:application --bind 0.0.0.0:8000"
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: simple
+      POSTGRES_PASSWORD: r1l2_postgre  # the dev credential base.py already defaults to; 2.1 removes both
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     ports:
-      - "9001:8000"
+      - "5432:5432"  # host-side `runserver` reaches it too, through the hosts entry for `postgres`
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d simple"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  web:
+    build: .  # runs the image's own CMD, the start command Railway runs; no override here
+    ports:
+      - "8000:8000"
     environment:
       DATABASE_URL: postgres://postgres:r1l2_postgre@postgres:5432/simple
-    networks:
-      - my_network
-    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-networks:
-  bakery_simple:
-    external: true
+volumes:
+  pgdata:
+    name: bakery_pgdata  # fixed name, whatever the checkout folder is called

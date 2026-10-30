@@ -7,6 +7,13 @@ build/
 dist/
 *.egg-info/
 
+# Test and coverage output (6.23)
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Django
 *.log
 local_settings.py

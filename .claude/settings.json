@@ -24,6 +24,7 @@
       "Bash(python manage.py check:*)",
       "Bash(python manage.py makemigrations --check --dry-run:*)",
       "Bash(python manage.py showmigrations:*)",
+      "Bash(python -m scripts.docs_lookup:*)",
       "Bash(pip list:*)",
       "Bash(pip check:*)",
       "Bash(grep:*)",
@@ -33,6 +34,19 @@
       "Bash(tail:*)",
       "Bash(wc:*)",
       "Bash(ls:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/scripts/guard_hooks.py\""
+          }
+        ]
+      }
     ]
   }
 }

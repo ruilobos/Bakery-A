@@ -5,11 +5,24 @@ description: Execute one backlog task from PRODUCTION_UPDATE_PLAN.md end to end 
 
 # Execute one backlog task
 
-The sanctioned way to execute a task ([ADR-038](../../../docs/decisions.md)). Scope is **exactly
-one task = one feature = one PR** ([ADR-037](../../../docs/decisions.md)).
+The sanctioned way to execute a task ([ADR-038](../../../docs/decisions.md), as amended by
+[ADR-051](../../../docs/decisions.md)). Scope is **exactly one task = one feature = one PR**
+([ADR-037](../../../docs/decisions.md)).
 
-**Three human gates: the plan, each commit's diff, the merge.** You own the work between them.
-You never merge to `main` and never promote to `production`.
+**The PR review is the gate that always applies; plan approval applies only to risky tasks
+(step 5).** You own the work in between. You never merge to `main` and never promote to
+`production`.
+
+**Never load a planning doc whole.** Every lookup is one command, well under a second:
+
+```bash
+python -m scripts.docs_lookup next            # the first Run-order entry not Done, with its row
+python -m scripts.docs_lookup task 2.1        # a task's row verbatim, with its branch name
+python -m scripts.docs_lookup adr 37 41       # ADRs in full, following supersession
+python -m scripts.docs_lookup roadmap 11.1    # an open question
+python -m scripts.docs_lookup req "User roles"   # a project_requirements.md section
+python -m scripts.docs_lookup stack Runtime      # a tech_stack.md section
+```
 
 ## 1 · Sync and confirm a clean base
 
@@ -24,53 +37,54 @@ this task needs, finish that one first or pick a different task.
 
 ## 2 · Select the task
 
-Ask the **`backlog`** subagent for the next actionable task, or for the specific ID requested.
-Take from it: the task text, its status, its branch name, and the **Notes column verbatim**.
+`docs_lookup next`, or `task <id>` for a task the human names. It prints the task text, status,
+branch name and **Notes verbatim**, and flags the two stops below.
+
+**The run order is the sequence** ([ADR-048](../../../docs/decisions.md)): take its first entry
+not `Done`. Never pick by ADR number, by the ADR just merged, or by size or risk. A task the human
+names may run out of order; say so in the plan.
 
 Refuse and stop if:
 
-- **Status is `Blocked`** — confirm the blocker with **`roadmap`** and report it. The way
-  forward is a human decision → ADR → tasks, never an implementation.
-- **The Notes cite no ADR** — that is a defect in the backlog, not a task to start. Fix the
-  Notes first. *(ADR-038: the loop is only as good as the Notes column.)*
+- **The current step has no written run order** (`next` says so) — writing one is a backlog PR,
+  not part of a task.
+- **Status is `Blocked`** — confirm the blocker with `docs_lookup roadmap <id>` and report it. The
+  way forward is a human decision → ADR → tasks, never an implementation.
+- **The Notes cite no ADR** — that is a defect in the backlog, not a task to start.
 
 ## 3 · Read only what the Notes cite
 
-Fetch **only** the referenced material, via the subagent that owns each file:
-
-| Need | Subagent |
-|---|---|
-| An ADR the Notes cite | `decisions` |
-| A requirement or the personal-data inventory | `requirements` |
-| A decided version, library or infra fact | `tech-stack` |
-| What an open question is waiting on | `roadmap` |
-
-They exist to keep the planning docs out of this session's context (ADR-038). Do not read a doc
-directly when a subagent owns it.
+`docs_lookup adr …` for every ADR the Notes cite, plus `req` / `stack` sections they name. Read
+the **Rejected** part of each ADR: it is what stops a dead option coming back.
 
 ## 4 · Verify the task's premises — **before planning**
 
-The Notes and the ADRs record what was *believed* when they were written. Before planning against
-them, re-derive the four kinds of claim that decide scope. Ask **`codecheck`**; it reports the
-code, never the docs ([ADR-040](../../../docs/decisions.md)).
+Notes and ADRs record what was *believed* when written ([ADR-040](../../../docs/decisions.md)).
+Re-derive the claims that decide scope from the code:
 
 | Claim | What to verify |
 |---|---|
-| **A number** — "137 sites", "16 CSS files", "60 files" | Re-measure it, and report the command. A scope-driving number that cannot be reproduced is a defect in the doc, not a constraint on you |
-| **"Superseded by / absorbed into task N"** | Confirm N actually produces the end state. **A task that still spells the old name does not rename it.** Search for the *target* state, not the current one — if the target appears nowhere, no task delivers it |
-| **A constraint** — "never X", "must use Y" | It must cite an ADR **and** name the condition it guards. Then confirm that condition exists **in this repo today** — a host, live traffic, a second tenant, a deployed branch. A constraint guarding a situation that does not exist is not binding |
-| **The task's purpose** | Confirm the outcome is still something `project_requirements.md` or an ADR wants. A task can be accurate, unblocked and pointless |
+| **A number** — "137 sites", "16 CSS files" | Re-measure it with `git grep -w` (word boundaries, exclusions stated) and keep the command. For a wide, multi-layer count, ask the **`codecheck`** agent |
+| **"Superseded by / absorbed into task N"** | Search for the *target* state, not the current one — if the target appears nowhere, no task delivers it |
+| **A constraint** — "never X", "must use Y" | It must cite an ADR **and** the condition it guards must exist in this repo today |
+| **The task's purpose** | The outcome is still something `project_requirements.md` or an ADR wants |
 
-A failed premise **stops the loop and gets reported** — the same gate as `Blocked` and as a Notes
-cell citing no ADR. The repair is an ADR and a corrected doc, on its own PR; it is never a licence
-to widen this task, and never something to quietly work around.
+**A failed premise is handled by its size** ([ADR-051](../../../docs/decisions.md)):
 
-## 5 · Plan — **human gate 1**
+- **Small** — a wrong count or a stale sentence that does not change what the task does: correct
+  the doc line **in this task's PR** and name the correction in the PR body. Carry on.
+- **Scope-changing** — the task would do something different, more, or nothing: **stop and
+  report**. The repair is an ADR on its own PR, never a widened task.
 
-Enter **Plan Mode** and get the plan approved before writing anything.
+## 5 · Plan — gate only when risky
 
-**1.5 and 1.7 must always route through plan mode** — they are refactors, not mechanical edits.
-ADR-039 rescoped 1.7 and corrected the site count ADR-038's traps still quote.
+**Enter Plan Mode and wait for approval** when the task touches any of:
+
+- `models.py` or a migration;
+- authentication, permissions, or security settings;
+- more than about five files — when unsure, take the gate.
+
+Otherwise, state the plan in a few lines in the session and proceed.
 
 ## 6 · Branch
 
@@ -78,51 +92,41 @@ ADR-039 rescoped 1.7 and corrected the site count ADR-038's traps still quote.
 git switch -c <epic-branch>-<task-id>     # e.g. phase-1-repo-cleanup-1.1
 ```
 
-The epic branch name comes from the *Backlog at a glance* table. **An epic groups and sequences;
-it is not a branch.**
+`docs_lookup` prints the branch name. **An epic groups and sequences; it is not a branch.**
 
 ## 7 · Implement, with its tests
 
 Write the task **and its tests** together. Follow the surrounding code's conventions.
 
 Do not fix unrelated things you notice on the way. The prototype's naming and typing quirks are
-enumerated in CLAUDE.md and owned by task 1.7, which migrates them deliberately — a drive-by
-rename is a defect here, not a courtesy. File anything else you find as a new task instead.
+enumerated in CLAUDE.md and owned by Epic 3, whose 3.73 and 3.74 delete the three misspellings
+1.7 left ([ADR-039](../../../docs/decisions.md)) — a drive-by rename is a defect here, not a
+courtesy. File anything else you find as a new task instead.
 
 ## 8 · Review the diff
 
-Read `git diff` against **both**:
-
-- `decisions.md` — does this contradict a settled ADR, or re-introduce something `Rejected`?
-- `project_requirements.md` — does it satisfy the requirement it claims to?
-
-Use the `decisions` and `requirements` subagents. Re-introducing a rejected option is the single
-failure the ADR log exists to prevent.
+Read `git diff` against the ADRs fetched in step 3 — does it contradict one, or re-introduce
+something it `Rejected`? — and against the requirement section it claims to satisfy. Fetch more
+with `docs_lookup` if the diff reaches past them.
 
 ## 9 · Run the verification gates
 
-Today's gates:
-
-```bash
-python manage.py check
-python manage.py makemigrations --check --dry-run
-```
-
-Plus whatever the task itself can be proven by — run the thing, don't assume it.
-
-**Task 1.11 owns the CI gate list and 6.23 the test runner.** When those land, they are the
-source of truth; this file follows them rather than competing with them.
+The gates are the jobs in [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml). Run the
+same commands locally before committing; the PR's own run is the one that counts. Plus whatever
+the task itself can be proven by — run the thing, don't assume it.
 
 ## 10 · Update the task's status
 
-In `PRODUCTION_UPDATE_PLAN.md`, set the task's status and record what was done in its Notes.
-A task is `Done` when its own PR merges. If part of it was deferred, say `In progress` and name
-the task that now owns the remainder — a green checkmark over unfinished work is worse than an
-honest status.
+In `PRODUCTION_UPDATE_PLAN.md`, edit only the task's row (find its line with
+`grep -n "^| <id> |"`). Set the status and make the Notes **its ADRs and its PR**:
+`**Done** YYYY-MM-DD` · `ADR-0NN · PR #N`. The PR number is known once the PR exists; set it in a
+follow-up commit on the same branch. If part of the task was deferred, say `In progress` and name
+the task that now owns the remainder. The narrative — what changed, what was deferred, how it was
+verified — goes in the PR body, not the row.
 
 Keep the *Backlog at a glance* counts consistent with the rows.
 
-## 11 · Commit — **human gate 2**
+## 11 · Commit
 
 Reference the task ID. Say what changed, and why, including anything deliberately left out.
 
@@ -131,21 +135,24 @@ Reference the task ID. Say what changed, and why, including anything deliberatel
 
 <What changed, what was deferred and to which task, how it was verified.>
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ```
 
 ## 12 · Open the PR
 
 ```bash
 git push -u origin <branch>
-gh pr create --base main --title "<task-id>: <summary>" --body "..."
+gh pr create --base main --title "<task-id>: <summary>" --body-file <scratchpad>/pr-body.md
 ```
 
-The body carries the task ID, what changed, what was deferred, and how it was verified.
+The body fills in [`.github/pull_request_template.md`](../../../.github/pull_request_template.md)'s
+sections and checklist. Write it to the scratchpad first: `--body` and `--body-file` skip the
+template, so it never fills itself in.
 
-## 13 · Stop — **human gate 3**
+## 13 · Stop — **the PR review is the human gate**
 
-**Do not merge. Do not promote to `production`.** Report the PR URL and stop.
+**Do not merge. Do not promote to `production`.** Report the PR URL and stop. Tell the human to
+`/clear` before the next task, so it does not carry this one's context.
 
 Merging is the human's call; ADR-037 squash-merges task PRs to `main`, and promotion to
 `production` is its own tagged release.

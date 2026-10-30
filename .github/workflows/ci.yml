@@ -1,0 +1,125 @@
+# Minimal CI — tasks 1.11, 1.13, 1.21 and 6.10 (ADR-011, as amended by ADR-044
+# and ADR-045).
+#
+# Every PR into `main` or `production` gets the Django system check, a check for
+# missing migrations, a check that template static references resolve, ruff's
+# lint and format checks, a `docker build` of the deploy image (ADR-004) and the
+# `scripts/` tooling tests. Each job is its own check, advisory until 6.13 makes
+# them required.
+#
+# No app test run and no deploy step: 6.12 extends this workflow with the test
+# suite rather than replacing it, and there is no host yet. When there is, deploys
+# will come from Railway watching `production` (ADR-031), never from CI.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, production]
+
+# A new push to the PR supersedes the run still in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# The repository default hands workflows a write token; each job asks for only
+# what it uses instead.
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  django:
+    name: Django checks
+    # 3.9 matches the Dockerfile's base image, and setup-python has no 3.9 build
+    # past Ubuntu 24.04. 19.9 moves both to 3.13.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      DJANGO_SETTINGS_MODULE: bakery.settings.test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: System check
+        run: python manage.py check
+
+      - name: No missing migrations
+        # There is no database here, so Django warns that it cannot check the
+        # migration history. That check needs applied migrations to mean anything.
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Template static references
+        # collectstatic in Docker build never reads templates; this fails a template
+        # that names a static file the finders cannot find (1.13, ADR-045).
+        run: python -m scripts.check_static_refs
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install ruff
+        # At requirements-dev.txt's pin, so CI and local runs cannot drift apart;
+        # 6.12 replaces this with the install from the lock.
+        run: |
+          spec="$(grep -E '^ruff==' requirements-dev.txt | cut -d ' ' -f 1)"
+          pipx install "${spec:?requirements-dev.txt pins no ruff}"
+
+      # The rule set, target version and exclusions are pyproject.toml's [tool.ruff]
+      # (6.10, ADR-034).
+      - name: ruff check
+        run: ruff check --output-format github .
+
+      - name: ruff format --check
+        run: ruff format --check --output-format github .
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the deploy image
+        run: docker build --tag bakery:ci .
+
+  tooling:
+    name: Tooling tests
+    # Standard library only, so no setup-python and no install: the runner's own
+    # python3, the one release.yml runs release_version.py with. On 3.12+ a run
+    # that collects no tests fails, so this check cannot go quietly green.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: scripts/ tests
+        # When 6.23 swaps the runner, scripts/ must stay collected (ADR-044).
+        run: python3 -m unittest discover -s scripts -t .

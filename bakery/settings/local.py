@@ -15,11 +15,12 @@ setting leaves you in the safe configuration rather than a permissive one:
 
 Task 1.12 replaces that with a one-command launcher.
 """
-from bakery.settings.base import *  # noqa: F401,F403
+
+from bakery.settings.base import *
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 
 # The local database is the postgres:17 container (ADR-026 pins the major
 # version across every environment). Override with DATABASE_URL if yours differs.
