@@ -1,7 +1,8 @@
 <!--
 Title: `<task-id>: <summary>`. The repository is public, so the title becomes release-note text:
 keep production data out of it (ADR-042).
-A release PR into `production` is titled `Release vX.Y.Z` (ADR-042) and replaces this body.
+A release PR into `production` is titled `Release vX.Y.Z` (ADR-042) and uses
+`.github/PULL_REQUEST_TEMPLATE/release.md` instead of this body (ADR-050).
 A doc or ADR PR with no task names the ADR it logs in the lead line, and drops the checklist lines
 that don't apply.
 -->
