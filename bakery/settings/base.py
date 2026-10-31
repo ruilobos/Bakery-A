@@ -5,17 +5,18 @@ Three modules, no `production.py`: this one, plus `local.py` and `test.py`, whic
 import from here and opt *into* convenient or unsafe behaviour. The accident
 therefore lands on the safe side.
 
-Every environment-sensitive value is read from the environment. The `default=`
-fallbacks below reproduce the previous hardcoded values so that behaviour is
-unchanged by the split:
+Every environment-sensitive value is read from the environment. A variable
+declared with no default raises `ImproperlyConfigured` at boot when unset;
+`django-environ` does this itself, so no validator is needed:
 
-  * task 2.1  removes the fallbacks for the secrets,
-  * task 2.19 removes them entirely, at which point a missing variable raises
-    `ImproperlyConfigured` at boot — `django-environ` already does this for a
-    variable declared with no default, so no validator is needed.
+  * task 2.1  removed the fallbacks for the secrets, `SECRET_KEY` and
+    `DATABASE_URL`;
+  * task 2.19 removes the remaining two, for `ALLOWED_HOSTS` and `DEBUG`.
 
-2.19 is `Blocked` on roadmap question 9.22 (a raising module breaks
-`collectstatic` at image build), which is why the fallbacks are still here.
+The image build's `collectstatic` runs on build-only placeholders, set inline on
+the Dockerfile's `RUN` line and never through `ENV`, so the running image still
+fails loudly (ADR-049). Locally, the values come from a `.env` file: copy
+`.env.example`.
 
 See https://docs.djangoproject.com/en/3.2/ref/settings/
 """
@@ -33,11 +34,9 @@ env = environ.Env()
 environ.Env.read_env(os.path.join(os.path.dirname(BASE_DIR), ".env"))
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# The fallback is the prototype's committed key and is removed by task 2.1.
-SECRET_KEY = env(
-    "SECRET_KEY",
-    default="django-insecure-ix12cqf%&1zw#a+cx_&%2wx)1n%7u^ocwp4j3=)9%qr8bu42s%",
-)
+# No default (task 2.1): the prototype's key is public in this repository's history
+# and must never be used again.
+SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Defaults to False here because this module is production; `local.py` turns it on.
@@ -100,15 +99,9 @@ WSGI_APPLICATION = "bakery.wsgi.application"
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 #
 # DATABASE_URL is the database contract (ADR-015 rule 2), so the same image runs
-# on any host that can supply one. The fallback reproduces the previous hardcoded
-# credentials and is removed by task 2.1.
+# on any host that can supply one. No default (task 2.1).
 
-DATABASES = {
-    "default": env.db(
-        "DATABASE_URL",
-        default="postgres://postgres:r1l2_postgre@postgres:5432/simple",
-    )
-}
+DATABASES = {"default": env.db("DATABASE_URL")}
 
 
 # Password validation

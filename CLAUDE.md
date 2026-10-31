@@ -44,10 +44,11 @@ python -m scripts.docs_lookup req "User roles"  # a requirements section (`stack
 ```bash
 pip install -r requirements.txt       # UTF-8; keep it out of Word, which re-encodes it
 pip install -r requirements-dev.txt   # pytest, ruff; never in the image (ADR-046)
+cp .env.example .env                  # then fill it in: secrets come only from the environment (2.1)
 
 python scripts/launch_local.py        # pull main, rebuild, migrate, serve :8000 beside postgres:17
                                       # --no-pull launches the checkout as it is
-# Host-side dev server (needs hosts entry `127.0.0.1 postgres`, or DATABASE_URL to localhost):
+# Host-side dev server (reaches compose's postgres through .env's localhost DATABASE_URL):
 DJANGO_SETTINGS_MODULE=bakery.settings.local python manage.py runserver            # bash
 $env:DJANGO_SETTINGS_MODULE="bakery.settings.local"; python manage.py runserver    # PowerShell
 
@@ -70,10 +71,11 @@ CI: `.github/workflows/ci.yml` on every PR into `main`/`production` (no `pytest`
   to `False`**. There is no `production.py`.
 - `local.py` — `DEBUG = True`; must be requested via `DJANGO_SETTINGS_MODULE`.
 - `test.py` — fast hasher, plain static storage; `pytest` uses it (`pyproject.toml`).
-- Secrets still have `default=` fallbacks: 2.1 and 2.19 remove them. `collectstatic` runs at image
-  build on placeholders set **inline on the `Dockerfile`'s `RUN` line, never `ENV`** (ADR-049).
-- Database: PostgreSQL 17 (compose `postgres` service); `base.py` falls back to `postgres`/`simple`
-  dev credentials until 2.1.
+- `SECRET_KEY` and `DATABASE_URL` have **no default** (2.1): locally they come from `.env`; CI and
+  the image build use public placeholders. `ALLOWED_HOSTS`/`DEBUG` keep fallbacks until 2.19.
+  `collectstatic` runs at image build on placeholders set **inline on the `Dockerfile`'s `RUN`
+  line, never `ENV`** (ADR-049).
+- Database: PostgreSQL 17 (compose `postgres` service, published on `127.0.0.1` only).
 
 ## Code map and known quirks
 

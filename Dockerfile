@@ -19,8 +19,15 @@ RUN pip install -r requirements.txt
 # Copy project
 COPY . /code/
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
+# Collect static files. base.py requires these variables, so the build supplies
+# placeholders for this one command (ADR-049). Keep them inline on this RUN line:
+# through ENV they would persist into the running image, and a host that forgot a
+# real value would boot on a placeholder instead of failing. They are public
+# (`docker history`), so each is useless outside the build: a fake key, an
+# .invalid host. 2.19 adds ALLOWED_HOSTS and DEBUG here.
+RUN SECRET_KEY=build-only-placeholder \
+    DATABASE_URL=postgres://build:build@build.invalid:5432/build \
+    python manage.py collectstatic --noinput
 
 # Expose the port the app runs on
 EXPOSE 8000
