@@ -18,6 +18,12 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
+# Fixed here rather than read like base.py's (task 2.3), so a developer's `.env`
+# cannot change what the suite tests.
+CSRF_TRUSTED_ORIGINS = []
+SESSION_COOKIE_DOMAIN = None
+CSRF_COOKIE_DOMAIN = None
+
 # The default PBKDF2 hasher dominates the runtime of any test that logs a user in.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
