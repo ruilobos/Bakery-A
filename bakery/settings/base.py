@@ -13,6 +13,9 @@ declared with no default raises `ImproperlyConfigured` at boot when unset;
     `DATABASE_URL`;
   * task 2.19 removes the remaining two, for `ALLOWED_HOSTS` and `DEBUG`.
 
+The domain-specific values task 2.3 added keep defaults, because Django's own
+default for each is already the restrictive one.
+
 The image build's `collectstatic` runs on build-only placeholders, set inline on
 the Dockerfile's `RUN` line and never through `ENV`, so the running image still
 fails loudly (ADR-049). Locally, the values come from a `.env` file: copy
@@ -46,6 +49,19 @@ ALLOWED_HOSTS = env.list(
     "ALLOWED_HOSTS",
     default=["localhost", "127.0.0.1", "192.168.0.191", "bakery.loboserver.com"],
 )
+
+# Only for a host that serves the app on its own domain (task 2.3). Unset, Django
+# trusts no origin beyond the serving host and keeps both cookies host-only.
+#
+# Bare hosts, as Django 3.2 compares them: `bakery.example.com`, or `.example.com`
+# for a domain and its subdomains. Django 4.0 requires the scheme instead
+# (`https://bakery.example.com`), so 19.4's upgrade changes the format.
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+# An empty value means unset. Django 3.2 would take "" as the domain, stop matching
+# the request's own host, and fail every HTTPS form post on its CSRF check.
+SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default=None) or None
+CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN", default=None) or None
 
 
 # Application definition
