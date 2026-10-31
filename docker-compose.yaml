@@ -31,6 +31,9 @@ services:
       # Not .env's DATABASE_URL: that one names localhost for host-side commands,
       # and inside the network the database is the `postgres` service.
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (copy .env.example)}@postgres:5432/simple
+      # base.py is HTTPS-only (task 2.4), but this serves http://localhost, which the
+      # launcher polls. Set here and nowhere else: no host runs this file (ADR-014).
+      INSECURE_LOCAL_HTTP: "true"
     depends_on:
       postgres:
         condition: service_healthy

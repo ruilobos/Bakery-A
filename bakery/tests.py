@@ -21,6 +21,8 @@ HOST = {
     "SESSION_COOKIE_DOMAIN": ".example.com",
     "CSRF_COOKIE_DOMAIN": ".example.com",
 }
+# The switch only compose's `web` sets (task 2.4).
+PLAIN_HTTP = {"INSECURE_LOCAL_HTTP": "true"}
 
 
 def load_base(environment):
@@ -95,3 +97,46 @@ def test_overlays_keep_their_own_host_settings(overlay):
     assert settings.CSRF_TRUSTED_ORIGINS == []
     assert settings.SESSION_COOKIE_DOMAIN is None
     assert settings.CSRF_COOKIE_DOMAIN is None
+
+
+def https_only(settings):
+    return (
+        settings.SECURE_SSL_REDIRECT,
+        settings.SESSION_COOKIE_SECURE,
+        settings.CSRF_COOKIE_SECURE,
+        settings.SECURE_HSTS_SECONDS,
+    )
+
+
+def test_base_is_https_only_by_default():
+    # Task 2.4: the secure values are base.py's, so a forgotten variable is safe.
+    settings = load_base(SECRETS)
+    assert https_only(settings) == (True, True, True, 31536000)
+    assert settings.SECURE_HSTS_INCLUDE_SUBDOMAINS is True
+    assert settings.SECURE_HSTS_PRELOAD is True
+    assert settings.X_FRAME_OPTIONS == "DENY"
+
+
+def test_the_local_switch_serves_plain_http():
+    settings = load_base({**SECRETS, **PLAIN_HTTP})
+    assert https_only(settings) == (False, False, False, 0)
+    assert settings.X_FRAME_OPTIONS == "DENY"
+
+
+@pytest.mark.parametrize("value", ["false", "0", ""])
+def test_only_a_true_switch_relaxes_anything(value):
+    # A blank or negative `.env` line must not open production up.
+    settings = load_base({**SECRETS, "INSECURE_LOCAL_HTTP": value})
+    assert https_only(settings) == (True, True, True, 31536000)
+
+
+@pytest.mark.parametrize("environment", [{}, PLAIN_HTTP], ids=["unset", "set"])
+@pytest.mark.parametrize(
+    "overlay, expected",
+    [("local", (False, False, False, 0)), ("test", (False, True, True, 31536000))],
+)
+def test_overlays_fix_their_own_https_settings(overlay, expected, environment):
+    # Whatever `.env` says: runserver and the test client both speak plain HTTP,
+    # and the suite keeps production's cookie and HSTS values.
+    settings = load_overlay(overlay, {**SECRETS, **environment})
+    assert https_only(settings) == expected

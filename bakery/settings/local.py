@@ -28,6 +28,13 @@ CSRF_TRUSTED_ORIGINS = []
 SESSION_COOKIE_DOMAIN = None
 CSRF_COOKIE_DOMAIN = None
 
+# runserver speaks plain HTTP, so base.py's HTTPS-only values (task 2.4) are turned
+# off here, fixed rather than left to `.env` like the values above.
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_HSTS_SECONDS = 0
+
 # The local database is the postgres:17 container (ADR-026 pins the major
 # version across every environment), reached through `.env`'s DATABASE_URL:
 # copy `.env.example`.

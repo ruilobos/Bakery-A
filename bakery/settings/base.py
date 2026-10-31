@@ -14,7 +14,8 @@ declared with no default raises `ImproperlyConfigured` at boot when unset;
   * task 2.19 removes the remaining two, for `ALLOWED_HOSTS` and `DEBUG`.
 
 The domain-specific values task 2.3 added keep defaults, because Django's own
-default for each is already the restrictive one.
+default for each is already the restrictive one. Task 2.4's HTTPS-only values are
+fixed here, and only compose's `web` sets the one variable that relaxes them.
 
 The image build's `collectstatic` runs on build-only placeholders, set inline on
 the Dockerfile's `RUN` line and never through `ENV`, so the running image still
@@ -62,6 +63,32 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 # the request's own host, and fail every HTTPS form post on its CSRF check.
 SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default=None) or None
 CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN", default=None) or None
+
+# HTTPS only (task 2.4). A host terminates TLS in front of gunicorn, so Django also
+# needs to trust the proxy's forwarded scheme before it can tell HTTPS from HTTP:
+# until 2.24 sets SECURE_PROXY_SSL_HEADER, the redirect loops behind such a proxy.
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+# One year, as the preload list requires. The `preload` directive alone enrols
+# nothing: submitting the domain to hstspreload.org is a separate step, and one that
+# is slow to undo, which this task does not take.
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# Django's default since 3.0, stated so the choice is on file.
+X_FRAME_OPTIONS = "DENY"
+
+# Compose's `web` runs this module over plain http://localhost (ADR-043), where the
+# redirect would break the launcher and Secure-only cookies would break login. It
+# alone sets this; no host ever does, and neither should `.env`.
+if env.bool("INSECURE_LOCAL_HTTP", default=False):
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0  # no header at all, so the other two HSTS flags are moot
 
 
 # Application definition
