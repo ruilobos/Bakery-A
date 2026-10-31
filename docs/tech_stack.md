@@ -64,6 +64,7 @@ Version facts verified 2026-08-10.
 | Caching | none | **None in the first release.** Query design is the lever: batch costing (4.19), `select_related`/`prefetch_related`, the connection pool. The batch API carries a per-tenant version stamp from day one so a cache bolts on at that seam (4.20, trigger 7.20) | [028](decisions.md) |
 | Email | none | **Brevo over SMTP** via Django's built-in `smtp.EmailBackend` — no dependency. Covers invitations **and** password reset, which becomes email-only (7.21, 7.22, 5.24, 11.16) | [028](decisions.md) |
 | Connection pooling | none | **Django's native psycopg pool** (`DATABASES["OPTIONS"]["pool"]`) plus `CONN_HEALTH_CHECKS`. In-process — no PgBouncer (7.19) | [027](decisions.md) |
+| Audit logging | none | **One stdlib logger, `bakery.audit`: one JSON object per line on stdout**, no table and no dependency. Events name actor and target by primary key, never field values; emitted in the view, after the write, until Epic 4 moves it into services (2.9; 2.15, 2.23, 11.10, 14.4, 15.4 write into it) | [052](decisions.md) |
 
 ### Data model
 
