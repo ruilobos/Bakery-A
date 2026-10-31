@@ -1,5 +1,9 @@
 # Local dev/test environment (ADR-014): the app built from the Dockerfile Railway
 # deploys (ADR-004), beside PostgreSQL 17 as its own service (ADR-007, ADR-026).
+#
+# Secrets come from `.env` beside this file, which compose reads for the ${...}
+# below and which is never committed: copy `.env.example` (task 2.1). Ports are
+# published on 127.0.0.1 only.
 name: bakery
 
 services:
@@ -7,11 +11,11 @@ services:
     image: postgres:17
     environment:
       POSTGRES_DB: simple
-      POSTGRES_PASSWORD: r1l2_postgre  # the dev credential base.py already defaults to; 2.1 removes both
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (copy .env.example)}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"  # host-side `runserver` reaches it too, through the hosts entry for `postgres`
+      - "127.0.0.1:5432:5432"  # host-side runserver and pytest reach it via .env's DATABASE_URL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d simple"]
       interval: 5s
@@ -21,9 +25,12 @@ services:
   web:
     build: .  # runs the image's own CMD, the start command Railway runs; no override here
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      DATABASE_URL: postgres://postgres:r1l2_postgre@postgres:5432/simple
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env (copy .env.example)}
+      # Not .env's DATABASE_URL: that one names localhost for host-side commands,
+      # and inside the network the database is the `postgres` service.
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (copy .env.example)}@postgres:5432/simple
     depends_on:
       postgres:
         condition: service_healthy

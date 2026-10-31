@@ -23,4 +23,5 @@ DEBUG = True
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 
 # The local database is the postgres:17 container (ADR-026 pins the major
-# version across every environment). Override with DATABASE_URL if yours differs.
+# version across every environment), reached through `.env`'s DATABASE_URL:
+# copy `.env.example`.

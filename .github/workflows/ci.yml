@@ -41,6 +41,10 @@ jobs:
       contents: read
     env:
       DJANGO_SETTINGS_MODULE: bakery.settings.test
+      # test.py imports base.py, which has no defaults for these (2.1). The same
+      # build-only placeholders as the Dockerfile's collectstatic line (ADR-049).
+      SECRET_KEY: build-only-placeholder
+      DATABASE_URL: postgres://build:build@build.invalid:5432/build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
