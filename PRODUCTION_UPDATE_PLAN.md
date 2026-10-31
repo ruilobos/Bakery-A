@@ -54,7 +54,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 | Epic | Name | Branch | Status | Tasks | Blocked by |
 |---|---|---|---|---|---|
 | [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | **Done** 2026-10-22 | 22 | — |
-| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | In progress | 23 | 11.1 (for 2.9, 2.15, 2.23); Epic 19 and 3.58 for its later tasks — [Run order](#run-order) |
+| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | In progress | 24 | 11.1 (for 2.9, 2.15, 2.23); Epic 19 and 3.58 for its later tasks — [Run order](#run-order) |
 | [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
 | [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | Not started | 25 | Epics 3, 19 |
@@ -159,7 +159,8 @@ before its first task starts. Until then the loop stops there, as it does at `Bl
   2.7 is reshaped by 2.20, 2.8's role lives on the membership, and 2.12 checks 2.20's capability
   codenames, since ADR-028 rejects a second permission vocabulary.
 - **Elsewhere:** **2.14** after Epic 12 provides a TLS endpoint, since end-to-end HTTPS cannot be
-  confirmed without one. **2.5** with 13.3, its pair.
+  confirmed without one. **2.24** before Epic 12 serves traffic: without it, 2.4's redirect loops
+  behind Railway's proxy. **2.5** with 13.3, its pair.
 
 ## Milestone: first production release scope
 
@@ -245,9 +246,10 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | 2.1 | Move all secrets to environment variables or a secret manager; remove the hardcoded `SECRET_KEY` and database credentials from source | **Done** 2026-10-30 | ADR-028, ADR-049, ADR-015 · PR #47 |
 | 2.2 | Set `DEBUG = False` everywhere outside local development | **Done** 2026-10-10 (verified; delivered by 1.5) | ADR-028 · no PR of its own: delivered by 1.5 (PR #11), verified against the code |
 | 2.3 | Environment-specific `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and cookie settings | **Done** 2026-10-31 | ADR-028, ADR-015, ADR-043 · PR #48 |
-| 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | Not started | ADR-028 rule 1: the secure values are `base.py`'s, and an overlay opts out, so the accident lands on the safe side. **Trap (Epic 1's close-out, 2026-10-23):** compose's `web` runs `base.py` over plain HTTP (ADR-043's Traps), and 1.12's launcher polls `http://localhost:8000/`. A fixed `SECURE_SSL_REDIRECT` breaks the launcher and local login, secure-only cookies break local login, and HSTS on `localhost` sticks in the browser. The local stack needs an explicit opt-out that no host ever sets |
+| 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | **Done** 2026-10-31 | ADR-028, ADR-043 · PR #N |
 | 2.5 | Hold object-storage (R2) access keys as environment variables — never hardcoded | Not started | ADR-005; pairs with 13.3 |
 | 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | Not started | ADR-028, ADR-049. **Unblocked 2026-10-24 by ADR-049:** `collectstatic` keeps running at image build, on placeholders set inline on its `RUN` line. This task adds `ALLOWED_HOSTS` and `DEBUG=False` there, and to CI's `Django checks` env, as it deletes their fallbacks; 2.1 adds the other two. **Absorbed 7.10**, whose static build step already exists. After 1.5 this is "delete the fallbacks", not "write a validator": `django-environ` already raises `ImproperlyConfigured` for a var with no default (measured 2026-10-24 for all four). Compose's `web` runs `base.py` (ADR-043's Traps), so it must supply both too. Pairs with 1.5, 2.1 |
+| 2.24 | Trust the host's TLS-terminating proxy for the request scheme: `SECURE_PROXY_SSL_HEADER` from the environment, unset by default | Not started | ADR-015, ADR-013, ADR-028 rule 1. **Found by 2.4:** the image's gunicorn speaks plain HTTP, so on Railway every request reaches Django as `http`, 2.4's `SECURE_SSL_REDIRECT` redirects forever, and HSTS is never sent. Trusting the header is safe only where the proxy overwrites a client-sent `X-Forwarded-Proto`: confirm Railway does before setting it. **Before Epic 12 serves traffic** |
 
 ### Authentication and authorization
 

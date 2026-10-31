@@ -75,6 +75,8 @@ CI: `.github/workflows/ci.yml` on every PR into `main`/`production` (no `pytest`
   the image build use public placeholders. `ALLOWED_HOSTS`/`DEBUG` keep fallbacks until 2.19.
   `collectstatic` runs at image build on placeholders set **inline on the `Dockerfile`'s `RUN`
   line, never `ENV`** (ADR-049).
+- `base.py` is **HTTPS-only** (2.4): it redirects plain HTTP and sets Secure cookies and HSTS.
+  `local.py` and `test.py` turn the redirect off; compose's `web` alone sets `INSECURE_LOCAL_HTTP`.
 - Database: PostgreSQL 17 (compose `postgres` service, published on `127.0.0.1` only).
 
 ## Code map and known quirks

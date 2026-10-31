@@ -24,6 +24,15 @@ CSRF_TRUSTED_ORIGINS = []
 SESSION_COOKIE_DOMAIN = None
 CSRF_COOKIE_DOMAIN = None
 
+# The test client speaks plain HTTP, so base.py's redirect (task 2.4) would answer
+# every request with a 301. The rest stays production's, fixed so `.env` cannot opt
+# the suite out: the client ignores the Secure flag, and Django sends HSTS over
+# HTTPS only.
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_HSTS_SECONDS = 31536000
+
 # The default PBKDF2 hasher dominates the runtime of any test that logs a user in.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
