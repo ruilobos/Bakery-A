@@ -162,7 +162,7 @@ built* is where the data will live once its task lands.
 
 | Category | Examples | Where | Data subject | Legal basis (provisional) |
 |---|---|---|---|---|
-| App user accounts | `username`, `first_name`, `last_name`, `email`, password hash, `last_login`, `date_joined` | Django `auth_user` | Staff/employee | Contract / legitimate interest |
+| App user accounts | `username`, `first_name`, `last_name`, `email`, password hash — **the raw password**, for an account created or edited through `control`'s user views, until 2.25 ([ADR-053](decisions.md)) — `last_login`, `date_joined` | Django `auth_user` | Staff/employee | Contract / legitimate interest |
 | Supplier records | `name` — the primary key, so a sole trader's own name, and it appears in the supplier update/delete URLs; `contact` name, `phone`, `email`; free-text `comment` | `control.Supplier` | Third party: the supplier's contact, or a sole-trader supplier | Legitimate interest |
 | Session data | Django session cookie | `django_session` | Staff/employee (indirectly) | Contract; retention is Django's session expiry |
 | Admin change log | acting user, `object_repr` (a supplier's `name`, a user's `username`), change message (field names, not values) | Django `django_admin_log`, written by `/admin/`; Django never prunes it | Staff/employee; the supplier or user changed | Legitimate interest (accountability) |
