@@ -202,3 +202,23 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Redirect to home URL after login (Default redirects to /accounts/profile/)
 LOGIN_REDIRECT_URL = "/control/dashboard/"
+
+# Audit events (ADR-052): `bakery.audit` writes one JSON object per line to
+# stdout, kept wherever the host keeps stdout. The line is the whole message, and
+# the logger does not propagate, so a root handler added later (7.1) cannot print
+# an event twice.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"audit": {"format": "%(message)s"}},
+    "handlers": {
+        "audit": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "audit",
+        },
+    },
+    "loggers": {
+        "bakery.audit": {"handlers": ["audit"], "level": "INFO", "propagate": False},
+    },
+}
