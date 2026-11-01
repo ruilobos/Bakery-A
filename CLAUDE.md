@@ -94,5 +94,6 @@ CI: `.github/workflows/ci.yml` on every PR into `main`/`production` (no `pytest`
   `Supplier.phone` is an `IntegerField`, `RawMaterial.quantity` a `CharField`.
 - Views are generic CBVs with `fields = '__all__'`, no ModelForms; CSV exports are hand-built in
   views. **No `control` view requires login**, and `User_Create`/`User_Update` expose
-  `is_superuser` — owned by 2.17, 2.7, 4.7; don't patch as a drive-by.
+  `is_superuser` — owned by 2.17, 2.7, 4.7; don't patch as a drive-by. They also store the
+  submitted password unhashed (2.25), and the CSV exports write formulas verbatim (2.26).
 - Templates per app (`APP_DIRS = True`); shared static in `bakery/static/`, no bundler.

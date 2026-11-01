@@ -54,7 +54,7 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 | Epic | Name | Branch | Status | Tasks | Blocked by |
 |---|---|---|---|---|---|
 | [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | **Done** 2026-10-22 | 22 | — |
-| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | In progress | 24 | 11.1 (for 2.9, 2.15, 2.23); Epic 19 and 3.58 for its later tasks — [Run order](#run-order) |
+| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | In progress | 26 | 11.1 (for 2.9, 2.15, 2.23); Epic 19 and 3.58 for its later tasks — [Run order](#run-order) |
 | [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
 | [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | Not started | 25 | Epics 3, 19 |
@@ -137,11 +137,12 @@ before its first task starts. Until then the loop stops there, as it does at `Bl
 | 4 | 2.3 | |
 | 5 | 2.4 | |
 | 6 | 2.9 | After 11.1 |
-| 7 | 2.11 | Its Notes cite no ADR, so the loop stops here until they do (ADR-038) |
-| 8 | 2.15 | After 11.1 |
-| 9 | 2.19 | Unblocked by ADR-049; after 2.1, its pair |
-| 10 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
-| 11 | 2.22 | After 2.23 |
+| 7 | 2.25 | In 2.11's slot, which ADR-053 supersedes: plaintext passwords first, before anything is hosted |
+| 8 | 2.26 | ADR-053's other gap |
+| 9 | 2.15 | After 11.1 |
+| 10 | 2.19 | Unblocked by ADR-049; after 2.1, its pair |
+| 11 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
+| 12 | 2.22 | After 2.23 |
 
 **Owed, with what the Notes already fix:**
 
@@ -271,12 +272,14 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | ID | Task | Status | Notes |
 |---|---|---|---|
 | 2.10 | ~~Replace the `print()` login diagnostics in `accounts/views.py` with structured logging~~ | **Superseded** by 4.5 + 2.23 | Verified 2026-08-13 (ADR-028): `accounts.urls` is never included and no template reverses `user_login`, so the password-logging `print()` is **unreachable dead code, not a live leak**. Deleted by 4.5; the real requirement is 2.23. Recorded in [project_requirements.md](docs/project_requirements.md) "Personal data inventory"/§6 |
-| 2.11 | Validate and sanitize all form input server-side | Not started | Business-rule validation is 4.8 |
+| 2.11 | ~~Validate and sanitize all form input server-side~~ | **Superseded** by 2.25, 2.26 + 4.7, 4.8 | ADR-053. Django's forms already validate on the server, and nothing renders unescaped or runs raw SQL; the two gaps measured instead are 2.25 and 2.26 |
 | 2.12 | Server-side authorization on every export endpoint | Not started | ADR-020, ADR-028 rule 4: the checks use 2.20's capability codenames, since ADR-028 rejects a second permission vocabulary, so this follows 2.20; the login half arrives with 2.17. **All four bulk exports answer anonymous requests today** (found by 1.17), and `export_suppliers` carries supplier contacts, which are personal data ([project_requirements.md](docs/project_requirements.md) "Personal data inventory") |
 | 2.13 | Remove the broken leftover `MEDIA_ROOT` path (`bluebiulding/media`) | Not started | Real media handling is Epic 13; cleaned up under `STORAGES` in 19.14 |
 | 2.14 | Confirm encryption in transit (HTTPS enforced end-to-end) once the settings work lands | Not started | Art. 32 — [project_requirements.md](docs/project_requirements.md) "Security measures". **Needs a host:** end-to-end HTTPS cannot be confirmed without a TLS endpoint, which Epic 12 provides ([Run order](#run-order)) |
 | 2.22 | Brute-force protection on the login endpoint (attempt throttling with lockout/backoff) | Not started | **Gap surfaced by ADR-028** — no epic covered it. Django's auth views ship no rate limiting, and 4.5 makes this the single credential entry point for every tenant |
 | 2.23 | Structured audit events for failed and successful logins that record the attempt but **never** the submitted credentials | Not started | **Replaces 2.10.** [project_requirements.md](docs/project_requirements.md) "Security measures". Pairs with 2.22 (throttling needs the record); feeds 11.7, since login history is personal data with its own retention question. **Sequenced after 11.1** by ADR-047. Writes ADR-052's stream |
+| 2.25 | Hash the password the user views receive: `User_Create` and `User_Update` store it verbatim today | Not started | ADR-053. `set_password` whenever the form's `password` changed; no `fields` change, which is 4.7's. **Measured:** a user created through the app held its password in plaintext and could not log in |
+| 2.26 | Neutralize spreadsheet formulas in the four bulk CSV exports | Not started | ADR-053. Prefix `'` to a text cell starting with `=`, `+`, `-`, `@`, tab or CR; numbers as they are. Not the tenant export (ADR-035). Pairs with 6.25, whose tests read these exports |
 
 ---
 
@@ -900,6 +903,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 050 — A local release gate until Railway's release-PR environment exists | 6.26 (pulled forward: the gate's record, and `Release v0.1.0`); ends at 12.5; **amends** 014's release gate for `0.y.z` and 041's start of it; answers roadmap 9.25 |
 | 051 — The task loop looks up the docs with a script, and gates by risk | No task of its own, like 012 and 048: `scripts/docs_lookup.py`, `/next-task` and the trimmed `Done` rows carry it. **Retires** the `backlog`, `decisions`, `requirements`, `roadmap` and `tech-stack` agents; **amends** 038's gates and 040's repair route |
 | 052 — Audit events are one structured log stream, keyed by ids, never values | 2.9 (creates the stream); 2.15, 2.23, 11.10, 14.4 and 15.4 write into it |
+| 053 — 2.11 gives way to the two input gaps measured in the code | 2.25, 2.26; **supersedes** 2.11 (into those two plus 4.7 and 4.8) |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |

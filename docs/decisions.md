@@ -71,6 +71,7 @@ supersede it, or note the amendment on its Status line.
 | [050](#adr-050-a-local-release-gate-until-railways-release-pr-environment-exists) | Local release gate | Accepted (amends 014, 041) | Until 12.5, a `0.y.z` release PR is gated by local verification of the `main` it promotes; `1.0.0` waits for 12.5; `Release v0.1.0` runs now (6.26) |
 | [051](#adr-051-the-task-loop-looks-up-the-docs-with-a-script-and-gates-by-risk) | Script lookups, risk-based gates | Accepted (amends 038, 040) | `scripts/docs_lookup.py` replaces the five doc agents; plan approval only for risky tasks, PR review always; small doc defects fixed in the task's PR; `Done` Notes are ADRs + PR |
 | [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values) | Audit event stream | Accepted | One `bakery.audit` logger, JSON lines on stdout, no table; events name actor and target by id, never values; emitted where the actor is known, after the write |
+| [053](#adr-053-211-gives-way-to-the-two-input-gaps-measured-in-the-code) | 2.11 rescoped | Accepted | 2.11 superseded: Django's forms already validate on the server; 2.25 hashes the password the user views store raw, 2.26 neutralizes formulas in the bulk CSV exports |
 
 ---
 
@@ -518,7 +519,32 @@ survive and now live in ADR-010; nothing else here is in force.
 - **Rejected:** **An `AuditEvent` table** — a migration and a new personal-data table ahead of Epic 3's schema and tenant model, kept forever by default while 11.4 sets no retention. Revisit when a tenant-facing audit view is wanted, or when 11.4 asks for longer than the host keeps logs. **Django's `LogEntry` (`django_admin_log`)** — its `user` is a non-null `CASCADE` foreign key (Django 3.2, measured). So it cannot record the anonymous actors every `control` view has until 2.17, and deleting a user deletes their trail. **Model signals** — `post_delete` and `post_save` carry no request, so no actor; recovering one through thread-local middleware is global state for nine call sites. **`django-auditlog` or `django-simple-history`** — both store field values in the database, the opposite of clause 2, and add a dependency. **Logging usernames where an id exists, or field values** — the id resolves to the username while the account exists; the values are exactly what minimization keeps out.
 - **Traps:** **Retention is the host's until 11.4 sets one.** Railway's plan, not this repo, decides how long stdout is kept, and an event older than that is gone. Check that period before relying on the stream for an investigation. **A supplier's primary key is its `name` until 3.5**, so a supplier event can name a sole trader; the inventory says so. **`User_Delete` deletes a `RawMaterial` (6.7).** Its event records `control.rawmaterial`, what was actually deleted, so the stream tells the truth about the bug rather than the URL. **Until 2.17, nearly every actor is `null`.** That is a finding, not a defect of the stream: it is 2.7's anonymous-write problem, now on record. **019's soft delete turns four deletes into archives (3.22)**: their action becomes `archive`, while ingredient lines keep `delete`. **Deletions outside the app's views are not in this stream.** The Django admin writes `django_admin_log`, and logging its access is 2.15; a shell session is beyond any app log. **Once tenants exist (3.2), every event carries the tenant id**, or the stream cannot be split per controller. **A failing handler drops the event:** stdlib logging reports the error and carries on, so an event can be lost without failing the request. Accepted, since failing a delete because stdout failed is worse. **7.1 may restyle the application log**, but an audit event keeps clause 2's fields.
 
-## ADR-053: &lt;next decision goes here&gt;
+## ADR-053: 2.11 gives way to the two input gaps measured in the code
+
+- **2026-11-01 · Accepted** — rescopes 2.11, which the loop could not start: its Notes cited no ADR ([038](#adr-038-agent-assisted-task-loop)'s Traps), and its text came from the 2026-05-01 plan's checklist, not from a measured gap. Changes no rule of [028](#adr-028-backend-architecture) or [035](#adr-035-tenant-full-data-export-format).
+- **Decision:** Three clauses. **(1) 2.11 is superseded**, as 2.10 was. Measured 2026-11-01:
+  - Every write goes through the `ModelForm` a generic view builds, which already checks type, length, required, email and choice on the server.
+  - There is no raw SQL (`.raw(`, `.extra(`, `cursor(`, `RawSQL`), no `|safe`, `mark_safe` or `autoescape off`, and no upload field.
+  - The one direct `request.POST` read is the dead `accounts` login, which 4.5 deletes.
+
+  Django escapes output as it renders and parameterizes every query, so "sanitize all input" leaves no layer to own. What remains already has a task: the fields a form exposes (4.7), business rules (4.8, 3.35, 3.65), uploads (4.9, 13.7), and the type quirks (Epic 3).
+
+  **(2) The user views stop storing a raw password: task 2.25.** `fields = "__all__"` puts `password` on the form as a plain text field, so `User_Create` writes whatever was typed straight into `auth_user.password`. Measured on compose: a user created through the app held `'Secret-123'`, and `check_password` failed. `User_Update` exposes the same field. In 2.25, both views hash a new password through `set_password` whenever the form's `password` changed. 4.7's explicit forms replace both forms later, and 5.19 the flow.
+
+  **(3) The bulk CSV exports stop writing live formulas: task 2.26.** Each value is written verbatim, so a supplier named `=HYPERLINK(…)` came out as a working formula (measured). In the four exports 15.5 keeps for spreadsheet users, 2.26 prefixes `'` to every **text** cell that begins with `=`, `+`, `-`, `@`, a tab or a carriage return. Numbers are written as they are.
+- **Rejected:**
+  - **Narrowing 2.11 in place** — its text is about input, and neither gap is: one is how a field is stored, the other how output is written. A task whose title misleads gets mis-planned.
+  - **Folding (2) into 4.7 or 2.7** — 4.7 is Epic 4 and 2.7 waits for 3.58, while plaintext credentials reach every backup (3.70) from the first hosted day. The fix is small and stands alone.
+  - **Sanitizing input with middleware or `bleach`** — it rewrites data on the way in and adds nothing that autoescaping does not already do.
+  - **Escaping formulas in the tenant export (Epic 14)** — 035's CSVs are a data set described by a manifest, for re-import, and a prefixed `'` would silently change a value.
+- **Traps:**
+  - **No local database holds a raw password** (measured: 2 users, 0 unhashed), so 2.25 needs no data repair. An account created through the app before 2.25 lands holds one, and its password is reset by hand.
+  - **Until 2.25, an anonymous request can create a user whose password is stored in plaintext**, since no `control` view needs a login (2.17). Nothing is hosted, so nothing is exposed yet.
+  - **The `'` prefix is visible** in a spreadsheet and in the raw file; the stored value is unchanged.
+  - **`-` is a trigger**, so a text cell such as `-5%` gains the prefix. Numeric columns are never touched, because only text cells are checked.
+  - **The tenant export passes a formula through unchanged**, so whoever opens its CSVs in a spreadsheet runs it. Accepted, for 035's fidelity.
+
+## ADR-054: &lt;next decision goes here&gt;
 
 - **Date / Status:**
 - **Decision:**
