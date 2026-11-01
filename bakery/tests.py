@@ -1,4 +1,5 @@
 import importlib.util
+import logging
 import os
 import sys
 from pathlib import Path
@@ -140,3 +141,15 @@ def test_overlays_fix_their_own_https_settings(overlay, expected, environment):
     # and the suite keeps production's cookie and HSTS values.
     settings = load_overlay(overlay, {**SECRETS, **environment})
     assert https_only(settings) == expected
+
+
+def test_an_audit_event_is_one_bare_line_that_does_not_propagate():
+    # ADR-052: the JSON object is the whole line, written once, by its own handler.
+    logger = logging.getLogger("bakery.audit")
+    [handler] = logger.handlers
+    line = '{"action": "delete"}'
+    record = logger.makeRecord(logger.name, logging.INFO, __file__, 0, line, None, None)
+
+    assert isinstance(handler, logging.StreamHandler)
+    assert handler.format(record) == line
+    assert logger.propagate is False

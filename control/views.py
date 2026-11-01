@@ -8,6 +8,8 @@ from django.urls import reverse_lazy
 from django.views.generic.edit import CreateView, DeleteView, UpdateView
 from django.views.generic.list import ListView
 
+from bakery.audit import AuditedDeleteMixin, AuditedSaveMixin
+
 from .models import (
     BaseRecipe,
     Bs_Ingredients,
@@ -169,7 +171,7 @@ class Raw_material_Update(UpdateView):
 
 
 # Delete a Raw Material
-class Raw_material_Delete(DeleteView):
+class Raw_material_Delete(AuditedDeleteMixin, DeleteView):
     model = RawMaterial
     template_name = "delete_raw_material.html"
     success_url = reverse_lazy("control:rw_categories")
@@ -203,7 +205,7 @@ class Supplier_Update(UpdateView):
 
 
 # Delete a Supplier
-class Supplier_Delete(DeleteView):
+class Supplier_Delete(AuditedDeleteMixin, DeleteView):
     model = Supplier
     template_name = "delete_supplier.html"
     success_url = reverse_lazy("control:suppliers")
@@ -303,7 +305,7 @@ class Base_recipes_Update(UpdateView):
 
 
 # Delete a Base Recipe
-class Base_recipes_Delete(DeleteView):
+class Base_recipes_Delete(AuditedDeleteMixin, DeleteView):
     model = BaseRecipe
     template_name = "delete_base_recipe.html"
     success_url = reverse_lazy("control:base_recipes")
@@ -328,7 +330,7 @@ class Br_Ingre_Update(UpdateView):
 
 
 # Delete ingredient in Base Recipe
-class Br_Ingre_Delete(DeleteView):
+class Br_Ingre_Delete(AuditedDeleteMixin, DeleteView):
     model = Bs_Ingredients
     template_name = "delete_ingredient.html"
 
@@ -362,7 +364,7 @@ class Pro_Ingre_Update(UpdateView):
 
 
 # Delete a Product
-class Pro_Ingre_Delete(DeleteView):
+class Pro_Ingre_Delete(AuditedDeleteMixin, DeleteView):
     model = Recipe_Ingredients
     template_name = "delete_ingredient.html"
     success_url = reverse_lazy("control:products_categories")
@@ -518,7 +520,7 @@ class Product_Update(UpdateView):
 
 
 # Delete a ingredient in Product
-class Product_Delete(DeleteView):
+class Product_Delete(AuditedDeleteMixin, DeleteView):
     model = Product
     template_name = "delete_product.html"
     success_url = reverse_lazy("control:products_categories")
@@ -625,7 +627,7 @@ def userslist(request):
 
 
 # Create a new user
-class User_Create(CreateView):
+class User_Create(AuditedSaveMixin, CreateView):
     model = get_user_model()
     fields = "__all__"
     template_name = "new_user.html"
@@ -633,7 +635,7 @@ class User_Create(CreateView):
 
 
 # Update a User
-class User_Update(UpdateView):
+class User_Update(AuditedSaveMixin, UpdateView):
     model = get_user_model()
     fields = "__all__"
     template_name = "user.html"
@@ -641,7 +643,7 @@ class User_Update(UpdateView):
 
 
 # Delete a User
-class User_Delete(DeleteView):
+class User_Delete(AuditedDeleteMixin, DeleteView):
     model = RawMaterial
     template_name = "delete_user.html"
     success_url = reverse_lazy("control:users")
