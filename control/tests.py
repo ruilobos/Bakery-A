@@ -309,3 +309,62 @@ def test_a_failed_write_logs_nothing(post, audit_events):
     assert post("raw_materials_delete", 999).status_code == 404
 
     assert audit_events() == []
+
+
+# 2.25: the user views store a hash, never what was typed (ADR-053).
+
+
+def user_update_data(user, password):
+    # date_joined's callable default renders a hidden initial the browser posts.
+    return {
+        "username": user.username,
+        "password": password,
+        "date_joined": "2026-11-01 08:00",
+        "initial-date_joined": "2026-11-01 08:00",
+        "is_active": "on",
+    }
+
+
+def test_user_create_stores_a_password_the_user_can_log_in_with(client, post):
+    data = {
+        "username": "baker",
+        "password": "Secret-123",
+        "date_joined": "2026-11-01 08:00",
+        "is_active": "on",
+    }
+
+    assert post("users_create", data=data).status_code == 302
+
+    assert get_user_model().objects.get(username="baker").password != "Secret-123"
+    assert client.login(username="baker", password="Secret-123")
+
+
+def test_user_update_hashes_a_changed_password(client, post, baker):
+    data = user_update_data(baker, "Secret-123")
+
+    assert post("users_update", baker.pk, data=data).status_code == 302
+
+    baker.refresh_from_db()
+    assert baker.password != "Secret-123"
+    assert client.login(username="baker", password="Secret-123")
+    assert not client.login(username="baker", password="x")
+
+
+def test_user_update_leaves_an_unchanged_password_alone(post, baker):
+    # The form shows the stored hash, so leaving it alone posts the hash back.
+    stored = baker.password
+    data = user_update_data(baker, stored)
+
+    assert post("users_update", baker.pk, data=data).status_code == 302
+
+    baker.refresh_from_db()
+    assert baker.password == stored
+
+
+def test_a_password_change_is_logged_by_name_never_by_value(
+    post, audit_events, caplog, baker
+):
+    post("users_update", baker.pk, data=user_update_data(baker, "Secret-123"))
+
+    assert [event["changed"] for event in audit_events()] == [["password"]]
+    assert "Secret-123" not in caplog.text

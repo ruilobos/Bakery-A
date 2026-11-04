@@ -626,8 +626,22 @@ def userslist(request):
     return render(request, template_name, context)
 
 
+class HashedPasswordMixin:
+    """
+    Hash a password the form changed (ADR-053).
+
+    An untouched form posts the stored hash back, so `password` is not in
+    `changed_data` and that hash is left alone.
+    """
+
+    def form_valid(self, form):
+        if "password" in form.changed_data:
+            form.instance.set_password(form.cleaned_data["password"])
+        return super().form_valid(form)
+
+
 # Create a new user
-class User_Create(AuditedSaveMixin, CreateView):
+class User_Create(HashedPasswordMixin, AuditedSaveMixin, CreateView):
     model = get_user_model()
     fields = "__all__"
     template_name = "new_user.html"
@@ -635,7 +649,7 @@ class User_Create(AuditedSaveMixin, CreateView):
 
 
 # Update a User
-class User_Update(AuditedSaveMixin, UpdateView):
+class User_Update(HashedPasswordMixin, AuditedSaveMixin, UpdateView):
     model = get_user_model()
     fields = "__all__"
     template_name = "user.html"
