@@ -368,3 +368,123 @@ def test_a_password_change_is_logged_by_name_never_by_value(
 
     assert [event["changed"] for event in audit_events()] == [["password"]]
     assert "Secret-123" not in caplog.text
+
+
+# 2.26: a text cell a spreadsheet would run gains a leading `'`, and a number is
+# written as it is (ADR-053). The negative numbers are there because `-` is a
+# trigger: only the cell's type keeps them out.
+
+
+@pytest.mark.parametrize("trigger", ["=", "+", "-", "@", "\t", "\r"])
+def test_a_text_cell_starting_with_a_trigger_gains_the_prefix(client, trigger):
+    Supplier.objects.create(name=f"{trigger}1+1", phone=12345678)
+
+    rows = export_rows(client, "export_suppliers", "suppliers.csv")
+
+    assert rows[1][0] == f"'{trigger}1+1"
+
+
+def test_a_trigger_past_the_first_character_changes_nothing(client):
+    Supplier.objects.create(
+        name="Mill = Co",
+        accNumber="AB-12",
+        contact="Ana + Rui",
+        phone=12345678,
+        email="sales@mill.test",
+        comment="5-10 bags",
+    )
+
+    assert export_rows(client, "export_suppliers", "suppliers.csv")[1] == [
+        "Mill = Co",
+        "AB-12",
+        "Ana + Rui",
+        "12345678",
+        "sales@mill.test",
+        "5-10 bags",
+    ]
+
+
+def test_supplier_export_neutralizes_text_and_leaves_numbers(client):
+    Supplier.objects.create(
+        name="=1+1",
+        accNumber="+1+1",
+        contact="-1+1",
+        phone=-5,
+        email="@SUM",
+        comment="\t=1+1",
+    )
+
+    assert export_rows(client, "export_suppliers", "suppliers.csv")[1] == [
+        "'=1+1",
+        "'+1+1",
+        "'-1+1",
+        "-5",
+        "'@SUM",
+        "'\t=1+1",
+    ]
+
+
+def test_raw_material_export_neutralizes_text_and_leaves_numbers(client):
+    RawMaterial.objects.create(
+        description="+1+1",
+        code="-1+1",
+        supplier=Supplier.objects.create(name="=1+1", phone=12345678),
+        categorie="@SUM",
+        price=Decimal("-1.20"),
+        quantity="=2",
+        unit="\r=1",
+    )
+
+    assert export_rows(client, "export_raw_materials", "raw_materials.csv")[1] == [
+        "'+1+1",
+        "'-1+1",
+        "'=1+1",
+        "'@SUM",
+        "-1.20",
+        "'=2",
+        "'\r=1",
+    ]
+
+
+def test_base_recipe_export_neutralizes_text_and_leaves_numbers(client):
+    BaseRecipe.objects.create(name="=1+1", recipe_yield=-2, yield_unit="@KG")
+
+    assert export_rows(client, "export_base_recipes", "base_recipes.csv")[1] == [
+        "'=1+1",
+        "-2",
+        "'@KG",
+    ]
+
+
+def test_product_export_neutralizes_text_and_leaves_numbers(client):
+    Product.objects.create(
+        name="=1+1",
+        categorie="+1",
+        recipe_yield=Decimal("-4.00"),
+        yield_unit="-KG",
+        price=Decimal("-10.00"),
+        vat=Decimal("-0.23"),
+    )
+
+    assert export_rows(client, "export_products", "products.csv")[1] == [
+        "'=1+1",
+        "'+1",
+        "-4.00",
+        "'-KG",
+        "-10.00",
+        "-0.23",
+    ]
+
+
+def test_a_raw_material_without_a_supplier_keeps_an_empty_cell(client):
+    RawMaterial.objects.create(
+        description="Flour",
+        categorie="DRY GOODS",
+        price=Decimal("1.20"),
+        quantity="25",
+        unit="KG",
+    )
+
+    rows = export_rows(client, "export_raw_materials", "raw_materials.csv")
+
+    assert rows[1][2] == ""

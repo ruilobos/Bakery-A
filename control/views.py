@@ -541,6 +541,17 @@ def export_to_csv(request):
     return render(request, "export_to_csv.html")
 
 
+# A spreadsheet runs a text cell that starts with one of these (ADR-053)
+FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+# Numbers and empty cells are not text, so they stay as they are
+def neutralize_formula(cell):
+    if isinstance(cell, str) and cell.startswith(FORMULA_TRIGGERS):
+        return f"'{cell}"
+    return cell
+
+
 # Export Supplier DB to CSV
 def export_suppliers(request):
     response = HttpResponse(content_type="text/csv")
@@ -553,7 +564,7 @@ def export_suppliers(request):
         "name", "accNumber", "contact", "phone", "email", "comment"
     )
     for supplier in suppliers:
-        writer.writerow(supplier)
+        writer.writerow(map(neutralize_formula, supplier))
     return response
 
 
@@ -571,7 +582,7 @@ def export_raw_materials(request):
         "description", "code", "supplier", "categorie", "price", "quantity", "unit"
     )
     for raw_material in raw_materials:
-        writer.writerow(raw_material)
+        writer.writerow(map(neutralize_formula, raw_material))
     return response
 
 
@@ -587,7 +598,7 @@ def export_base_recipes(request):
         "name", "recipe_yield", "yield_unit"
     )
     for base_recipe in base_recipes:
-        writer.writerow(base_recipe)
+        writer.writerow(map(neutralize_formula, base_recipe))
     return response
 
 
@@ -612,7 +623,7 @@ def export_products(request):
         "name", "categorie", "recipe_yield", "yield_unit", "price", "vat"
     )
     for product in products:
-        writer.writerow(product)
+        writer.writerow(map(neutralize_formula, product))
     return response
 
 
