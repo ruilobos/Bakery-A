@@ -2,11 +2,17 @@ import csv
 import io
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
+from django.contrib import admin
+from django.contrib.admin.models import LogEntry
+from django.contrib.admin.utils import quote
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse
 from pytest_django.asserts import assertContains
@@ -488,3 +494,169 @@ def test_a_raw_material_without_a_supplier_keeps_an_empty_cell(client):
     rows = export_rows(client, "export_raw_materials", "raw_materials.csv")
 
     assert rows[1][2] == ""
+
+
+# 2.15: the Django admin is superuser-only, and each page showing a model's rows
+# logs who opened it (ADR-019, ADR-052).
+
+SUPPLIER = "Mill & Co"  # The name raw_materials gives it; the admin escapes the &.
+
+
+@pytest.fixture
+def on_commit(django_capture_on_commit_callbacks):
+    # Events are logged on commit, and each test runs inside a transaction.
+    return lambda: django_capture_on_commit_callbacks(execute=True)
+
+
+@pytest.fixture
+def get(on_commit):
+    def get(client, url, **query):
+        with on_commit():
+            return client.get(url, query)
+
+    return get
+
+
+def admin_view_event(actor, model, pk):
+    target = {"model": model, "pk": pk}
+    return {"action": "admin_view", "actor": actor.pk, "target": target}
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [None, {"is_staff": True}, {"is_superuser": True}],
+    ids=["anonymous", "staff", "superuser-not-staff"],
+)
+def test_the_admin_refuses_all_but_a_superuser(client, get, audit_events, baker, flags):
+    if flags:
+        # Every permission, so that only the site's own check can refuse it.
+        baker.user_permissions.set(Permission.objects.all())
+        get_user_model().objects.filter(pk=baker.pk).update(**flags)
+        client.force_login(baker)
+
+    response = get(client, reverse("admin:control_supplier_changelist"))
+
+    assert response.status_code == 302
+    assert response.url.startswith(reverse("admin:login"))
+    assert audit_events() == []
+
+
+def test_the_admin_admits_a_superuser(admin_client):
+    assert admin_client.get(reverse("admin:index")).status_code == 200
+
+
+def test_every_registered_model_logs_its_list(
+    admin_client, admin_user, get, audit_events
+):
+    metas = [model._meta for model in admin.site._registry]
+
+    for meta in metas:
+        get(
+            admin_client,
+            reverse(f"admin:{meta.app_label}_{meta.model_name}_changelist"),
+        )
+
+    assert [without_time(event) for event in audit_events()] == [
+        admin_view_event(admin_user, meta.label_lower, None) for meta in metas
+    ]
+
+
+@pytest.mark.parametrize("page", ["change", "delete", "history"])
+def test_a_row_page_logs_the_row_under_its_real_primary_key(
+    admin_client, admin_user, get, audit_events, raw_materials, page
+):
+    url = reverse(f"admin:control_supplier_{page}", args=[quote(SUPPLIER)])
+
+    assert get(admin_client, url).status_code == 200
+
+    assert [without_time(event) for event in audit_events()] == [
+        admin_view_event(admin_user, "control.supplier", SUPPLIER)
+    ]
+
+
+@pytest.mark.parametrize("url_name", ["change", "password_change"])
+def test_a_user_page_logs_the_integer_primary_key(
+    admin_client, admin_user, get, audit_events, baker, url_name
+):
+    url = reverse(f"admin:auth_user_{url_name}", args=[baker.pk])
+
+    assert get(admin_client, url).status_code == 200
+
+    assert [without_time(event) for event in audit_events()] == [
+        admin_view_event(admin_user, "auth.user", baker.pk)
+    ]
+
+
+def test_a_history_page_is_logged_on_a_model_the_inventory_does_not_name(
+    admin_client, admin_user, get, audit_events
+):
+    cake = product([])
+
+    get(admin_client, reverse("admin:control_product_history", args=[cake.pk]))
+
+    assert [without_time(event) for event in audit_events()] == [
+        admin_view_event(admin_user, "control.product", cake.pk)
+    ]
+
+
+def test_a_search_term_stays_out_of_the_event(
+    admin_client, admin_user, get, audit_events, baker
+):
+    get(admin_client, reverse("admin:auth_user_changelist"), q=baker.username)
+
+    assert [without_time(event) for event in audit_events()] == [
+        admin_view_event(admin_user, "auth.user", None)
+    ]
+
+
+def test_a_delete_selected_confirmation_is_logged(
+    admin_client, admin_user, on_commit, audit_events, raw_materials
+):
+    with on_commit():
+        response = admin_client.post(
+            reverse("admin:control_supplier_changelist"),
+            {"action": "delete_selected", "_selected_action": [SUPPLIER]},
+        )
+
+    assertContains(response, SUPPLIER.replace("&", "&amp;"))
+    assert [without_time(event) for event in audit_events()] == [
+        admin_view_event(admin_user, "control.supplier", None)
+    ]
+
+
+def test_a_missing_row_logs_nothing(admin_client, get, audit_events):
+    url = reverse("admin:control_supplier_change", args=["Nobody"])
+
+    assert get(admin_client, url).status_code == 302
+
+    assert audit_events() == []
+
+
+def test_a_save_stays_in_the_admin_log_and_out_of_the_stream(
+    admin_client, on_commit, audit_events, raw_materials
+):
+    url = reverse("admin:control_supplier_change", args=[quote(SUPPLIER)])
+
+    with on_commit():
+        response = admin_client.post(url, {"name": SUPPLIER, "phone": 12345678})
+
+    assert response.status_code == 302
+    assert LogEntry.objects.get().object_id == SUPPLIER
+    assert audit_events() == []
+
+
+def test_the_admins_own_pages_log_nothing(admin_client, get, audit_events):
+    get(admin_client, reverse("admin:index"))
+
+    assert audit_events() == []
+
+
+def test_no_template_links_to_the_admin():
+    root = Path(__file__).resolve().parent.parent
+    templates = list(root.glob("*/templates/**/*.html"))
+    link = re.compile(r"admin:|/admin")
+
+    assert templates
+    assert [
+        path for path in templates if link.search(path.read_text(encoding="utf-8"))
+    ] == []

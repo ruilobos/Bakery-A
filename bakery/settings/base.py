@@ -97,7 +97,7 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "accounts.apps.AccountsConfig",
     "control.apps.ControlConfig",
-    "django.contrib.admin",
+    "bakery.apps.BakeryAdminConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

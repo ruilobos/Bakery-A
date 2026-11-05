@@ -86,6 +86,8 @@ CI: `.github/workflows/ci.yml` on every PR into `main`/`production` (no `pytest`
   `control/views.py`, routed under `/control/`).
 - Model chain: `Supplier` (PK = `name`) → `RawMaterial` → `Bs_Ingredients` (→ `BaseRecipe`) and
   `Recipe_Ingredients` (→ `Product`).
+- The Django admin runs on `bakery/admin.py`'s `BakeryAdminSite`, installed by `bakery/apps.py`:
+  superusers only, and each page showing a model's rows logs an `admin_view` audit event (2.15).
 - Cost math lives in model `@property`s **and** is re-implemented inline with `float()` in
   `Dashboard`, `Base_recipe`, `Product_List`; margins exist only in the views. Change both until
   Epic 4's service layer consolidates them.
