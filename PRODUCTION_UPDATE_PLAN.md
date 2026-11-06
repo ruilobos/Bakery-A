@@ -268,7 +268,7 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | 2.18 | Configure `SECRET_KEY_FALLBACKS` so the signing key rotates without invalidating active sessions | Not started | ADR-027, Django 4.1 — **needs Epic 19**. Pairs with 2.1; makes 8.6's runbook something someone would actually run |
 | 2.20 | Define the capability set per role as permission codenames; implement the custom auth backend resolving `has_perm()` against the active membership | Not started | ADR-028. Keeps `PermissionRequiredMixin`, `@permission_required` and `{% if perms.… %}` working — **one** permission vocabulary. Needs 3.58 |
 | 2.21 | Middleware resolving the active bakery + membership onto the request, invalidating Django's cached permissions whenever the active tenant changes | Not started | ADR-028. The invalidation half is a **cross-tenant leak** if missed — a two-membership user would carry bakery A's capabilities into bakery B. Test it (6.9) |
-| 2.27 | Keep the admin's trail when an account goes: mirror its writes into `bakery.audit`, and refuse to delete a user in the admin | **Done** 2026-11-06 | ADR-054, ADR-052 |
+| 2.27 | Keep the admin's trail when an account goes: mirror its writes into `bakery.audit`, and refuse to delete a user in the admin | **Done** 2026-11-06 | ADR-054, ADR-052 · PR #57 |
 | 2.28 | Close the admin's unused `/admin/autocomplete/` endpoint | Not started | ADR-054. `BakeryAdminSite.autocomplete_view` raises `Http404`. Turning it back on means logging it first |
 
 ### Input and data protection
