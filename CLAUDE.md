@@ -88,6 +88,8 @@ CI: `.github/workflows/ci.yml` on every PR into `main`/`production` (no `pytest`
   `Recipe_Ingredients` (→ `Product`).
 - The Django admin runs on `bakery/admin.py`'s `BakeryAdminSite`, installed by `bakery/apps.py`:
   superusers only, and each page showing a model's rows logs an `admin_view` audit event (2.15).
+  Each admin write is mirrored into `bakery.audit`, and the admin refuses to delete a `User`:
+  until 11.9, accounts are deactivated (2.27, ADR-054).
 - Cost math lives in model `@property`s **and** is re-implemented inline with `float()` in
   `Dashboard`, `Base_recipe`, `Product_List`; margins exist only in the views. Change both until
   Epic 4's service layer consolidates them.

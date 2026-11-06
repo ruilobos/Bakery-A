@@ -6,16 +6,19 @@ import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from django.contrib import admin
-from django.contrib.admin.models import LogEntry
+from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.admin.utils import quote
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
+from django.contrib.contenttypes.models import ContentType
+from django.core import serializers
 from django.core.exceptions import ImproperlyConfigured
 from django.urls import reverse
-from pytest_django.asserts import assertContains
+from pytest_django.asserts import assertContains, assertNotContains
 
 from control.models import (
     BaseRecipe,
@@ -632,19 +635,6 @@ def test_a_missing_row_logs_nothing(admin_client, get, audit_events):
     assert audit_events() == []
 
 
-def test_a_save_stays_in_the_admin_log_and_out_of_the_stream(
-    admin_client, on_commit, audit_events, raw_materials
-):
-    url = reverse("admin:control_supplier_change", args=[quote(SUPPLIER)])
-
-    with on_commit():
-        response = admin_client.post(url, {"name": SUPPLIER, "phone": 12345678})
-
-    assert response.status_code == 302
-    assert LogEntry.objects.get().object_id == SUPPLIER
-    assert audit_events() == []
-
-
 def test_the_admins_own_pages_log_nothing(admin_client, get, audit_events):
     get(admin_client, reverse("admin:index"))
 
@@ -660,3 +650,259 @@ def test_no_template_links_to_the_admin():
     assert [
         path for path in templates if link.search(path.read_text(encoding="utf-8"))
     ] == []
+
+
+# 2.27: each admin write is mirrored into the stream, where it outlives its user,
+# and the admin deactivates an account instead of deleting it (ADR-054).
+
+
+def write_event(action, actor, model, pk, **details):
+    target = {"model": model, "pk": pk}
+    return {"action": action, "actor": actor.pk, "target": target, **details}
+
+
+def log_entry(user, change_message=""):
+    supplier = ContentType.objects.get_for_model(Supplier)
+    return LogEntry.objects.log_action(
+        user.pk, supplier.pk, SUPPLIER, SUPPLIER, CHANGE, change_message
+    )
+
+
+def user_admin_data(user):
+    # Every field UserAdmin's form requires, with the hidden initial date_joined's
+    # callable default renders. Leaving `is_active` out unticks it.
+    return {
+        "username": user.username,
+        "date_joined_0": "2026-11-01",
+        "date_joined_1": "08:00:00",
+        "initial-date_joined_0": "2026-11-01",
+        "initial-date_joined_1": "08:00:00",
+    }
+
+
+def test_an_added_row_logs_create(admin_client, admin_user, on_commit, audit_events):
+    with on_commit():
+        response = admin_client.post(
+            reverse("admin:control_supplier_add"), {"name": SUPPLIER, "phone": 1}
+        )
+
+    assert response.status_code == 302
+    assert [without_time(event) for event in audit_events()] == [
+        write_event("create", admin_user, "control.supplier", SUPPLIER)
+    ]
+
+
+def test_a_save_logs_the_labels_it_changed_never_their_values(
+    admin_client, admin_user, on_commit, audit_events, raw_materials
+):
+    url = reverse("admin:control_supplier_change", args=[quote(SUPPLIER)])
+
+    with on_commit():
+        response = admin_client.post(url, {"name": SUPPLIER, "phone": 87654321})
+
+    assert response.status_code == 302
+    assert LogEntry.objects.get().object_id == SUPPLIER
+    [event] = audit_events()
+    assert "87654321" not in json.dumps(event)
+    assert without_time(event) == write_event(
+        "update", admin_user, "control.supplier", SUPPLIER, changed=["Phone Number"]
+    )
+
+
+def test_a_deleted_row_logs_delete_under_its_integer_primary_key(
+    admin_client, admin_user, on_commit, audit_events
+):
+    pk = product([]).pk
+
+    with on_commit():
+        response = admin_client.post(
+            reverse("admin:control_product_delete", args=[pk]), {"post": "yes"}
+        )
+
+    assert response.status_code == 302
+    assert not Product.objects.filter(pk=pk).exists()
+    assert [without_time(event) for event in audit_events()] == [
+        write_event("delete", admin_user, "control.product", pk)
+    ]
+
+
+def test_delete_selected_logs_each_row(
+    admin_client, admin_user, on_commit, audit_events
+):
+    # Two rows on purpose: Django 5.2 logs one row with save(), which sends
+    # post_save, and two or more with bulk_create, which does not. Failing here at
+    # 19.4 is this test's job, so never reduce it to one row to get past it.
+    names = ["Mill & Co", "Oat & Sons"]
+    for name in names:
+        Supplier.objects.create(name=name, phone=1)
+
+    with on_commit():
+        response = admin_client.post(
+            reverse("admin:control_supplier_changelist"),
+            {"action": "delete_selected", "_selected_action": names, "post": "yes"},
+        )
+
+    assert response.status_code == 302
+    assert not Supplier.objects.exists()
+    events = [without_time(event) for event in audit_events()]
+    assert sorted(events, key=lambda event: event["target"]["pk"]) == [
+        write_event("delete", admin_user, "control.supplier", name) for name in names
+    ]
+
+
+def test_a_password_change_logs_no_hash(
+    admin_client, admin_user, on_commit, audit_events, baker
+):
+    password = "A-long-Unusual-phrase-42"
+
+    with on_commit():
+        response = admin_client.post(
+            reverse("admin:auth_user_password_change", args=[baker.pk]),
+            {"password1": password, "password2": password},
+        )
+
+    assert response.status_code == 302
+    baker.refresh_from_db()
+    assert baker.check_password(password)
+    [event] = audit_events()
+    assert baker.password not in json.dumps(event)
+    assert password not in json.dumps(event)
+    assert without_time(event) == write_event(
+        "update", admin_user, "auth.user", baker.pk, changed=["password"]
+    )
+
+
+def test_only_the_fields_lists_of_a_change_message_are_read(
+    admin_user, on_commit, audit_events, raw_materials
+):
+    # An inline's entry holds `str(obj)` beside its `fields`, and that is a value.
+    inline = {"name": "ingredient line", "object": "Jane Doe"}
+
+    with on_commit():
+        log_entry(
+            admin_user,
+            [
+                {"changed": {"fields": ["Phone Number"]}},
+                {"changed": {**inline, "fields": ["Quantity", "Phone Number"]}},
+                {"added": inline},
+                {"deleted": inline},
+            ],
+        )
+
+    [event] = audit_events()
+    assert event["changed"] == ["Phone Number", "Quantity"]
+    assert "Jane Doe" not in json.dumps(event)
+
+
+def test_a_plain_text_change_message_logs_no_labels(
+    admin_user, on_commit, audit_events, raw_materials
+):
+    # Django allows one, and a mirror must never be what fails an admin write.
+    with on_commit():
+        log_entry(admin_user, "Approved by Jane Doe")
+
+    [event] = audit_events()
+    assert event["changed"] == []
+    assert "Jane Doe" not in json.dumps(event)
+
+
+def test_a_delete_that_fails_logs_nothing(
+    admin_client, on_commit, audit_events, raw_materials
+):
+    # The admin writes its LogEntry before it deletes, and the rollback takes both.
+    url = reverse("admin:control_supplier_delete", args=[quote(SUPPLIER)])
+    delete_model = mock.patch.object(
+        admin.site._registry[Supplier], "delete_model", side_effect=RuntimeError
+    )
+
+    with on_commit(), delete_model, pytest.raises(RuntimeError):
+        admin_client.post(url, {"post": "yes"})
+
+    assert Supplier.objects.filter(pk=SUPPLIER).exists()
+    assert not LogEntry.objects.exists()
+    assert audit_events() == []
+
+
+def test_a_fixture_load_logs_nothing(
+    admin_user, on_commit, audit_events, raw_materials
+):
+    entry = log_entry(admin_user)
+    fixture = serializers.serialize("json", [entry])
+    entry.delete()
+
+    with on_commit():
+        for row in serializers.deserialize("json", fixture):
+            row.save()
+
+    assert LogEntry.objects.count() == 1
+    assert audit_events() == []
+
+
+def test_saving_an_existing_entry_logs_nothing(
+    admin_user, on_commit, audit_events, raw_materials
+):
+    entry = log_entry(admin_user)
+
+    with on_commit():
+        entry.save()
+
+    assert audit_events() == []
+
+
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_the_admin_refuses_to_delete_a_user(
+    admin_client, on_commit, audit_events, baker, method
+):
+    url = reverse("admin:auth_user_delete", args=[baker.pk])
+
+    with on_commit():
+        response = getattr(admin_client, method)(url, {"post": "yes"})
+
+    assert response.status_code == 403
+    assert get_user_model().objects.filter(pk=baker.pk).exists()
+    assert audit_events() == []
+
+
+def test_delete_selected_cannot_reach_a_user(
+    admin_client, on_commit, audit_events, baker
+):
+    url = reverse("admin:auth_user_changelist")
+
+    assertNotContains(admin_client.get(url), "delete_selected")
+    with on_commit():
+        admin_client.post(
+            url,
+            {
+                "action": "delete_selected",
+                "_selected_action": [baker.pk],
+                "post": "yes",
+            },
+        )
+
+    assert get_user_model().objects.filter(pk=baker.pk).exists()
+    assert "delete" not in [event["action"] for event in audit_events()]
+
+
+def test_a_user_page_offers_no_delete_link(admin_client, baker):
+    page = admin_client.get(reverse("admin:auth_user_change", args=[baker.pk]))
+
+    assert page.status_code == 200
+    assertNotContains(page, reverse("admin:auth_user_delete", args=[baker.pk]))
+
+
+def test_deactivating_keeps_the_account_and_stops_its_sign_in(
+    admin_client, admin_user, client, on_commit, audit_events, baker
+):
+    url = reverse("admin:auth_user_change", args=[baker.pk])
+
+    with on_commit():
+        response = admin_client.post(url, user_admin_data(baker))
+
+    assert response.status_code == 302
+    baker.refresh_from_db()
+    assert baker.is_active is False
+    assert baker.check_password("x")
+    assert not client.login(username="baker", password="x")
+    assert [without_time(event) for event in audit_events()] == [
+        write_event("update", admin_user, "auth.user", baker.pk, changed=["Active"])
+    ]
