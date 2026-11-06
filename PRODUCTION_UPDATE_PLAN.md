@@ -54,8 +54,8 @@ The flow is one-directional: **open question → decided → ADR → tasks here.
 | Epic | Name | Branch | Status | Tasks | Blocked by |
 |---|---|---|---|---|---|
 | [1](#epic-1--stabilize-the-repository) | Stabilize the repository | `phase-1-repo-cleanup` | **Done** 2026-10-22 | 22 | — |
-| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | In progress | 26 | 11.1 (for 2.9, 2.15, 2.23); Epic 19 and 3.58 for its later tasks — [Run order](#run-order) |
-| [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 74 | Epic 19 |
+| [2](#epic-2--security--configuration-hardening) | Security & configuration hardening | `phase-2-security-hardening` | In progress | 28 | 11.1 (for 2.9, 2.15, 2.23); Epic 19 and 3.58 for its later tasks — [Run order](#run-order) |
+| [3](#epic-3--database-redesign--data-governance) | Database redesign & data governance | `phase-3-db-redesign` | Not started | 75 | Epic 19 |
 | [4](#epic-4--backend-modernization) | Backend modernization | `phase-4-backend-modernization` | Not started | 20 | Epic 3 |
 | [5](#epic-5--frontend-modernization) | Frontend modernization | `phase-5-frontend-modernization` | Not started | 25 | Epics 3, 19 |
 | [6](#epic-6--testing--quality-gates) | Testing & quality gates | `phase-6-testing-ci` | In progress | 27 | Epics 1–5 |
@@ -140,9 +140,11 @@ before its first task starts. Until then the loop stops there, as it does at `Bl
 | 7 | 2.25 | In 2.11's slot, which ADR-053 supersedes: plaintext passwords first, before anything is hosted |
 | 8 | 2.26 | ADR-053's other gap |
 | 9 | 2.15 | After 11.1 |
-| 10 | 2.19 | Unblocked by ADR-049; after 2.1, its pair |
-| 11 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
-| 12 | 2.22 | After 2.23 |
+| 10 | 2.27 | ADR-054: extends 2.15's site, and is small enough to land before anything is hosted |
+| 11 | 2.28 | ADR-054's other admin fix |
+| 12 | 2.19 | Unblocked by ADR-049; after 2.1, its pair |
+| 13 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
+| 14 | 2.22 | After 2.23 |
 
 **Owed, with what the Notes already fix:**
 
@@ -266,6 +268,8 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | 2.18 | Configure `SECRET_KEY_FALLBACKS` so the signing key rotates without invalidating active sessions | Not started | ADR-027, Django 4.1 — **needs Epic 19**. Pairs with 2.1; makes 8.6's runbook something someone would actually run |
 | 2.20 | Define the capability set per role as permission codenames; implement the custom auth backend resolving `has_perm()` against the active membership | Not started | ADR-028. Keeps `PermissionRequiredMixin`, `@permission_required` and `{% if perms.… %}` working — **one** permission vocabulary. Needs 3.58 |
 | 2.21 | Middleware resolving the active bakery + membership onto the request, invalidating Django's cached permissions whenever the active tenant changes | Not started | ADR-028. The invalidation half is a **cross-tenant leak** if missed — a two-membership user would carry bakery A's capabilities into bakery B. Test it (6.9) |
+| 2.27 | Keep the admin's trail when an account goes: mirror its writes into `bakery.audit`, and refuse to delete a user in the admin | Not started | ADR-054, ADR-052. One `post_save` receiver on `LogEntry` in `bakery/apps.py`, reading only `change_message`'s `fields` lists. `is_active=False` replaces deletion until roadmap 11.9. Needs 2.15's site |
+| 2.28 | Close the admin's unused `/admin/autocomplete/` endpoint | Not started | ADR-054. `BakeryAdminSite.autocomplete_view` raises `Http404`. Turning it back on means logging it first |
 
 ### Input and data protection
 
@@ -298,7 +302,7 @@ ingredient line, categories and traceability entities before these migrations ge
 |---|---|---|---|
 | 3.1 | Add a `Bakery` model as the tenant root | Not started | ADR-006. **No plan/tier/subscription fields** (ADR-016) |
 | 3.2 | Tenant FK on every business table: `Supplier`, `RawMaterial`, `BaseRecipe`, `Product`, `RecipeLine`, future `Profile` | Not started | ADR-008 |
-| 3.3 | Enforce tenant scoping at the query layer (managers/service layer always filter by current tenant) | Not started | A missed filter is a cross-tenant leak. Tested in 6.9 |
+| 3.3 | Enforce tenant scoping at the query layer (managers/service layer always filter by current tenant) | Not started | ADR-008, ADR-054. A missed filter is a cross-tenant leak. Tested in 6.9 |
 | 3.4 | Scope user roles/permissions per tenant in the data model | Not started | Pairs with 2.8; implemented as the membership record in 3.58 |
 
 ### Supplier
@@ -400,7 +404,7 @@ ingredient line, categories and traceability entities before these migrations ge
 
 | ID | Task | Status | Notes |
 |---|---|---|---|
-| 3.55 | Combine tenant scoping and archived-state filtering into a **single** base manager applied by default | Not started | Two orthogonal correctness-critical filters: missing the archived filter resurrects deleted data; missing the tenant filter leaks across tenants. Extends 3.3; tested in 6.18 |
+| 3.55 | Combine tenant scoping and archived-state filtering into a **single** base manager applied by default | Not started | ADR-019, ADR-054. Two orthogonal correctness-critical filters: missing the archived filter resurrects deleted data; missing the tenant filter leaks across tenants. Extends 3.3; tested in 6.18 |
 | 3.56 | Give archived records a way back: an un-archive path and a way to see archived rows | Not started | A soft delete with no un-delete is just a confusing delete. The UI must say *archive* where it archives |
 | 3.57 | Assign a role to every existing user as part of the membership migration — a human decision per user, not a default | Not started | Nobody in the current database has a role |
 | 3.58 | Tenant membership model (user × bakery × role) as the home of role assignment | Not started | Django's global `Group` cannot express "Owner of bakery A". Surrogate key + `UniqueConstraint(user, bakery)` — **not** `CompositePrimaryKey`, which cannot be an FK target (ADR-027). Implements 3.4 |
@@ -432,6 +436,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 3.72 | Generate the `age` key pair, publish the **public** key to CI, store the private key outside CI with a documented recovery path | Not started | CI only ever needs the public key, so a compromised runner cannot read any backup. **The private key has no software fallback** — lose it and every dump is unrecoverable, which is why 3.48 must decrypt. Custody goes in the 8.5 and 8.6 runbooks |
 | 3.73 | Migrate `Bs_Ingredients` + `Recipe_Ingredients` into `RecipeLine`, add both XOR `CHECK` constraints, drop the old tables only after row counts reconcile | Not started | ADR-032. A merge, not a rename. Constraints ship in the same migration as the model (3.19) |
 | 3.74 | Build the tenant-scoped `Category` table (`kind` discriminator, `archived`, unique on `(bakery, kind, name)`), backfill distinct `categorie` values per tenant, drop the column | Not started | ADR-032. Mirrors 3.52. **`kind` must be validated against the referencing model** — the FK cannot stop a product being filed under a flour category, so the form and service layer must |
+| 3.75 | Give tenant-scoped models an `all_tenants` manager and read the admin through it, dropdowns included | Not started | ADR-054, ADR-019. After 3.55. The admin then shows archived rows, so mark them (3.56). Test that a superuser sees every tenant's rows with no active tenant |
 
 ---
 
@@ -506,7 +511,7 @@ All need Epic 19 landed. Each replaces something this epic would otherwise hand-
 | 5.16 | Remove every hardcoded `€`; format all money through a single currency formatter | Not started | Pairs with 3.51's rounding rule — both belong in the same formatter |
 | 5.17 | Verify against the browser matrix: current and previous major Chrome, Firefox, Safari, Edge | Not started | No IE11, no legacy Edge |
 | 5.18 | Rebuild the dashboard as an overview page: summary strip (product count, average margin, materials with no/stale pricing), worst-margin products, recent input price movements — moving the full product list to its own page | Not started | ADR-023. **Depends on Epic 3** — price movements and staleness need dated prices and receipts. Runs against the p95 < 2 s budget |
-| 5.19 | Build the tenant self-administration settings area: user invite/remove and role assignment, bakery details, reference data, exports — Owner-writable, Read-only limited to exports | Not started | ADR-023. **Replaces** the broken user-delete view rather than patching it. Needs roles (2.8/3.58) and email (7.21) |
+| 5.19 | Build the tenant self-administration settings area: user invite/remove and role assignment, bakery details, reference data, exports — Owner-writable, Read-only limited to exports | Not started | ADR-023, ADR-054. **Replaces** the broken user-delete view rather than patching it, and deactivates rather than deletes until roadmap 11.9. Needs roles (2.8/3.58) and email (7.21) |
 | 5.20 | Show cost provenance in the UI: mark estimated figures distinctly from receipt-derived ones | Not started | ADR-022, backed by 4.17 |
 | 5.21 | Supplier price comparison view for a given raw material — who supplied it, at what price per canonical unit, and when | Not started | ADR-024 rates it a **Must**. Reads receipts (Epic 17) and needs 3.63; sparse until receipts accumulate across more than one supplier, which is expected rather than a defect |
 | 5.22 | Render forms through `as_field_group()` over the div-based renderer as the default path, rather than hand-writing label/error/help markup | Not started | ADR-027, Django 5.0/4.1 — **needs Epic 19**. Supplies label association, `aria-describedby`, `aria-invalid`, `<fieldset>`/`<legend>` — a material share of 5.12 from the framework |
@@ -870,7 +875,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 016 — One free pilot, no deadline, flat pricing later | **Negative** constraints only: no plan/tier fields on 3.1, no plan gating in 2.8/3.4 |
 | 017 — Traceability in scope as its own epic | 17.1–17.14, plus the forced soft delete in 3.13/3.22 |
 | 018 — Costing & money semantics | 3.10, 3.11, 3.15, 3.16, 3.26, 3.34 ✅, 3.50–3.54, 5.16, 6.16, 6.17, 17.12, and deleting the inline `float()` costing in 4.1 |
-| 019 — Soft delete, per-tenant supplier uniqueness, admin as support tooling | 2.15, 3.6, 3.22, 3.55, 3.56, 6.18 |
+| 019 — Soft delete, per-tenant supplier uniqueness, admin as support tooling | 2.15, 3.6, 3.22, 3.55, 3.56, 3.75, 6.18 |
 | 020 — Three per-tenant roles on a membership record | 2.8, 2.16, 3.4, 3.57, 3.58, 6.19, 14.6 |
 | 021 — Non-functional targets | 5.12–5.17, 7.20 |
 | 022 — Receipts drive cost; lines accept a material or a base recipe | 3.59–3.62, 4.16, 4.17, 5.20, 6.20, 6.21, 17.1, 18.3 |
@@ -902,8 +907,9 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 049 — `collectstatic` keeps running at image build, on build-only placeholders | 2.1 (`SECRET_KEY`, `DATABASE_URL`), 2.19 (`ALLOWED_HOSTS`, `DEBUG`), each adding its placeholders as it removes the fallbacks; **unblocks** 2.19; **absorbs** 7.10; answers roadmap 9.22 |
 | 050 — A local release gate until Railway's release-PR environment exists | 6.26 (pulled forward: the gate's record, and `Release v0.1.0`); ends at 12.5; **amends** 014's release gate for `0.y.z` and 041's start of it; answers roadmap 9.25 |
 | 051 — The task loop looks up the docs with a script, and gates by risk | No task of its own, like 012 and 048: `scripts/docs_lookup.py`, `/next-task` and the trimmed `Done` rows carry it. **Retires** the `backlog`, `decisions`, `requirements`, `roadmap` and `tech-stack` agents; **amends** 038's gates and 040's repair route |
-| 052 — Audit events are one structured log stream, keyed by ids, never values | 2.9 (creates the stream); 2.15, 2.23, 11.10, 14.4 and 15.4 write into it |
+| 052 — Audit events are one structured log stream, keyed by ids, never values | 2.9 (creates the stream); 2.15, 2.23, 2.27, 11.10, 14.4 and 15.4 write into it |
 | 053 — 2.11 gives way to the two input gaps measured in the code | 2.25, 2.26; **supersedes** 2.11 (into those two plus 4.7 and 4.8) |
+| 054 — The admin reads past the tenant filter by name, and its trail outlives the account | 2.27, 2.28, 3.75; 3.3, 3.55 and 5.19 follow it; **corrects** 019's `ModelAdmin` Trap; interim rule on roadmap 11.9 |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |

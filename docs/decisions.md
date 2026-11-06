@@ -37,7 +37,7 @@ supersede it, or note the amendment on its Status line.
 | [016](#adr-016-phase-1-go-to-market) | Go-to-market | Accepted | One Irish pilot, free, no deadline, no billing epic |
 | [017](#adr-017-batchlot-food-traceability-is-in-scope-as-its-own-epic) | Traceability in scope | Accepted (entities in 033) | EU Reg. 178/2002 Art. 18, built as Epic 17 |
 | [018](#adr-018-costing-and-money-semantics) | Costing & money semantics | Accepted | Invoice-shaped prices, canonical kg/l/each, net-of-VAT, versioned history |
-| [019](#adr-019-deletion-semantics-supplier-identity-administration-surfaces) | Deletion, identity, admin surfaces | Accepted (uniqueness amended by 027) | Soft delete where records outlive; supplier name unique per tenant |
+| [019](#adr-019-deletion-semantics-supplier-identity-administration-surfaces) | Deletion, identity, admin surfaces | Accepted (uniqueness amended by 027; `ModelAdmin` Trap corrected by 054) | Soft delete where records outlive; supplier name unique per tenant |
 | [020](#adr-020-three-per-tenant-roles-on-a-membership-record) | Three per-tenant roles | Accepted (enforcement in 027/028) | Owner / Staff / Read-only on a membership record |
 | [021](#adr-021-non-functional-targets) | Non-functional targets | Accepted | p95 500 ms / 2 s, WCAG 2.2 **Level A**, responsive, `en-IE`/EUR translation-ready |
 | [022](#adr-022-goods-receipts-drive-cost-lines-accept-a-material-or-a-base-recipe) | Receipts drive cost; nested recipes | Accepted | Latest receipt sets cost, with provenance; lines may reference a base recipe |
@@ -70,8 +70,9 @@ supersede it, or note the amendment on its Status line.
 | [049](#adr-049-collectstatic-keeps-running-at-image-build-on-build-only-placeholders) | Build-time placeholders | Accepted (completes 028) | `collectstatic` stays in the image build, on placeholders set inline on its `RUN` line, never `ENV`; unblocks 2.19, absorbs 7.10 |
 | [050](#adr-050-a-local-release-gate-until-railways-release-pr-environment-exists) | Local release gate | Accepted (amends 014, 041) | Until 12.5, a `0.y.z` release PR is gated by local verification of the `main` it promotes; `1.0.0` waits for 12.5; `Release v0.1.0` runs now (6.26) |
 | [051](#adr-051-the-task-loop-looks-up-the-docs-with-a-script-and-gates-by-risk) | Script lookups, risk-based gates | Accepted (amends 038, 040) | `scripts/docs_lookup.py` replaces the five doc agents; plan approval only for risky tasks, PR review always; small doc defects fixed in the task's PR; `Done` Notes are ADRs + PR |
-| [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values) | Audit event stream | Accepted | One `bakery.audit` logger, JSON lines on stdout, no table; events name actor and target by id, never values; emitted where the actor is known, after the write |
+| [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values) | Audit event stream | Accepted (admin writes added by 054) | One `bakery.audit` logger, JSON lines on stdout, no table; events name actor and target by id, never values; emitted where the actor is known, after the write |
 | [053](#adr-053-211-gives-way-to-the-two-input-gaps-measured-in-the-code) | 2.11 rescoped | Accepted | 2.11 superseded: Django's forms already validate on the server; 2.25 hashes the password the user views store raw, 2.26 neutralizes formulas in the bulk CSV exports |
+| [054](#adr-054-the-admin-reads-past-the-tenant-filter-by-name-and-its-trail-outlives-the-account) | Admin past the filter, trail outlives the account | Accepted (corrects 019's Trap; adds to 052) | The scoped manager stays the default and `all_tenants` is the named path (3.75); admin writes join `bakery.audit` and accounts are deactivated until 11.9 (2.27); `/admin/autocomplete/` is closed (2.28) |
 
 ---
 
@@ -213,7 +214,7 @@ survive and now live in ADR-010; nothing else here is in force.
 
 ## ADR-019: Deletion semantics, supplier identity, administration surfaces
 
-- **2026-08-06 · Accepted** — the **uniqueness clause is amended by [027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks)**: case-insensitive uniqueness, declined below purely on implementation cost, is adopted once functional unique constraints remove that cost. Every other clause stands.
+- **2026-08-06 · Accepted** — the **uniqueness clause is amended by [027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks)**: case-insensitive uniqueness, declined below purely on implementation cost, is adopted once functional unique constraints remove that cost. Every other clause stands. **Its `ModelAdmin` Trap is corrected by [054](#adr-054-the-admin-reads-past-the-tenant-filter-by-name-and-its-trail-outlives-the-account).**
 - **Decision:**
   1. **Soft delete for anything referenced by a record that outlives it** — `Supplier`, `RawMaterial`, `Product`, `Base_recipes`. **Ingredient lines stay hard-deletable**, being meaningful only inside their parent.
   2. **Supplier name is unique per tenant, not globally** — two bakeries may both buy from "Odlums"; within one tenant a duplicate is almost always a data-entry error.
@@ -514,7 +515,7 @@ survive and now live in ADR-010; nothing else here is in force.
 
 ## ADR-052: Audit events are one structured log stream, keyed by ids, never values
 
-- **2026-10-31 · Accepted** — the design 2.9 needs, found missing by its premise check: its Notes cited only [047](#adr-047-epic-11s-slot-a-correction-to-041-and-the-repository-settings-the-adrs-rely-on), which sequences it. [019](#adr-019-deletion-semantics-supplier-identity-administration-surfaces) wants the tenant surface "audited" and [020](#adr-020-three-per-tenant-roles-on-a-membership-record)'s Traps make every export audit-logged; neither says where or how. Changes no rule of either. Fixes the stream that 2.15, 2.23, 11.10, 14.4 and 15.4 write into.
+- **2026-10-31 · Accepted** — the design 2.9 needs, found missing by its premise check: its Notes cited only [047](#adr-047-epic-11s-slot-a-correction-to-041-and-the-repository-settings-the-adrs-rely-on), which sequences it. [019](#adr-019-deletion-semantics-supplier-identity-administration-surfaces) wants the tenant surface "audited" and [020](#adr-020-three-per-tenant-roles-on-a-membership-record)'s Traps make every export audit-logged; neither says where or how. Changes no rule of either. Fixes the stream that 2.15, 2.23, 11.10, 14.4 and 15.4 write into. **[054](#adr-054-the-admin-reads-past-the-tenant-filter-by-name-and-its-trail-outlives-the-account) adds the admin's writes (2.27)**, which ends the Trap that left them out of it.
 - **Decision:** Three clauses. **(1) One stream.** Every audit event goes through one stdlib logger, `bakery.audit`, as **one JSON object per line on stdout**, configured in `base.py`'s `LOGGING`. No model, no migration, no dependency. It is kept wherever the host keeps stdout ([015](#adr-015-host-portability-is-a-standing-design-constraint)); a durable sink later is configuration on that logger, never a change at a call site. **(2) One shape: ids, never values.** An event names its `action` (`create`, `update`, `delete`; the later tasks add theirs), the `actor` by user primary key, or `null` when anonymous, and the `target` by model label and primary key. A user update also lists the **names** of the changed fields. An event never carries a field's value, an email or an IP address, and names a user by username only where no id exists: 2.23's failed login against an unknown account, as the inventory's login row already records. The host's request log already holds the IP and path. **(3) Emitted where the actor is known, after the write succeeds.** In the views today, through one mixin. Once Epic 4 moves the writes into `control/services/`, the call moves with them and the actor is passed in.
 - **Rejected:** **An `AuditEvent` table** — a migration and a new personal-data table ahead of Epic 3's schema and tenant model, kept forever by default while 11.4 sets no retention. Revisit when a tenant-facing audit view is wanted, or when 11.4 asks for longer than the host keeps logs. **Django's `LogEntry` (`django_admin_log`)** — its `user` is a non-null `CASCADE` foreign key (Django 3.2, measured). So it cannot record the anonymous actors every `control` view has until 2.17, and deleting a user deletes their trail. **Model signals** — `post_delete` and `post_save` carry no request, so no actor; recovering one through thread-local middleware is global state for nine call sites. **`django-auditlog` or `django-simple-history`** — both store field values in the database, the opposite of clause 2, and add a dependency. **Logging usernames where an id exists, or field values** — the id resolves to the username while the account exists; the values are exactly what minimization keeps out.
 - **Traps:** **Retention is the host's until 11.4 sets one.** Railway's plan, not this repo, decides how long stdout is kept, and an event older than that is gone. Check that period before relying on the stream for an investigation. **A supplier's primary key is its `name` until 3.5**, so a supplier event can name a sole trader; the inventory says so. **`User_Delete` deletes a `RawMaterial` (6.7).** Its event records `control.rawmaterial`, what was actually deleted, so the stream tells the truth about the bug rather than the URL. **Until 2.17, nearly every actor is `null`.** That is a finding, not a defect of the stream: it is 2.7's anonymous-write problem, now on record. **019's soft delete turns four deletes into archives (3.22)**: their action becomes `archive`, while ingredient lines keep `delete`. **Deletions outside the app's views are not in this stream.** The Django admin writes `django_admin_log`, and logging its access is 2.15; a shell session is beyond any app log. **Once tenants exist (3.2), every event carries the tenant id**, or the stream cannot be split per controller. **A failing handler drops the event:** stdlib logging reports the error and carries on, so an event can be lost without failing the request. Accepted, since failing a delete because stdout failed is worse. **7.1 may restyle the application log**, but an audit event keeps clause 2's fields.
@@ -544,7 +545,34 @@ survive and now live in ADR-010; nothing else here is in force.
   - **`-` is a trigger**, so a text cell such as `-5%` gains the prefix. Numeric columns are never touched, because only text cells are checked.
   - **The tenant export passes a formula through unchanged**, so whoever opens its CSVs in a spreadsheet runs it. Accepted, for 035's fidelity.
 
-## ADR-054: &lt;next decision goes here&gt;
+## ADR-054: The admin reads past the tenant filter by name, and its trail outlives the account
+
+- **2026-11-05 · Accepted** — three questions from 2.15's review (PR #55). **Corrects [019](#adr-019-deletion-semantics-supplier-identity-administration-surfaces)'s Trap on `ModelAdmin`**, which holds or fails depending on how 3.3 reads the current tenant. **Adds to [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values)'s stream**, whose clauses stand. Sets an interim rule for roadmap 11.9 and does not close it.
+- **Decision:** Three clauses.
+
+  **(1) A named path past the filter: task 3.75.** The scoped manager from 3.3 and 3.55 stays each model's default. Measured: `ModelAdmin.get_queryset` reads `self.model._default_manager` (`django/contrib/admin/options.py:366`, Django 3.2), so an automatic filter reaches the admin. An explicit `for_bakery()` would leave tenants alone there, but the archived filter would still apply. So each such model also declares `all_tenants = models.Manager()`, which filters neither, and a shared `ModelAdmin` base reads through it, dropdowns included. With no active tenant, the scoped manager returns nothing, never every row. How the manager learns the current tenant stays 3.3's to decide, and this clause holds either way.
+
+  **(2) The trail outlives the account: task 2.27.** `LogEntry.user` is a `CASCADE` foreign key, so deleting a superuser deletes the record of their admin writes. One `post_save` receiver on `LogEntry` mirrors each write into `bakery.audit` as `create`, `update` or `delete`. 052 rejected signals because they carry no actor; a `LogEntry` names one, so this is not that option back. **Until 11.9 sets the erasure strategy, an account is deactivated (`is_active=False`), not deleted.** The admin refuses to delete a `User`, and 5.19's rebuilt user management follows the same rule. The stream names actors by id, so the row has to stay for an id to mean anyone. 11.9 stays open, and the anonymization it names keeps the row.
+
+  **(3) Unused means closed: task 2.28.** `/admin/autocomplete/` returned usernames to a superuser with no event (measured in 2.15's review), and no page calls it, since `autocomplete_fields` appears nowhere. It returns 404.
+- **Rejected:**
+  - **A plain default manager and `.for_tenant()` by hand** — one missed call is a cross-tenant leak, 008's Trap.
+  - **`_base_manager` in the admin** — it needs no model change, but it has no name to search for, and the nightly extract (16.9) needs a named path too.
+  - **Support staff switching into one tenant** — 019 wants a cross-tenant surface, and each support user would need a membership in every bakery.
+  - **A mixin on every `ModelAdmin`** — eight classes today, `UserAdmin` and `GroupAdmin` re-registered, and a new class can forget it.
+  - **Changing `LogEntry`'s `CASCADE`** — it is Django's own model.
+  - **Deleting accounts and accepting the loss** — "who changed this row?" stops having an answer.
+  - **Logging autocomplete instead of closing it** — code for a URL nothing calls.
+  - **Settling 11.9 here** — erasure has to weigh food-law retention, and this decision does not need that answer.
+- **Traps:**
+  - **A wrong `all_tenants` call is a cross-tenant leak**, so every new call site is a review flag.
+  - **The admin will show archived rows.** 3.56 needs them, but 3.75 must mark them, or support edits a row that looks live.
+  - **A shell delete still cascades** and reaches no app log, as 052 says. Until 11.9 lands, a real erasure request means that shell session.
+  - **`LogEntry.change_message` holds `str(obj)` for inlines**, which is a value. 2.27 reads only the `fields` lists, and those hold form labels, not the field names 2.9's events carry.
+  - **A mirrored write lasts as long as the host keeps logs**, until 11.4 sets a period (052's Traps).
+  - **Turning autocomplete back on means logging it first.** A later `autocomplete_fields` fails against the 404 until then.
+
+## ADR-055: &lt;next decision goes here&gt;
 
 - **Date / Status:**
 - **Decision:**
