@@ -1,5 +1,5 @@
 """
-The Django admin's site (tasks 2.15 and 2.27, ADR-019, ADR-052, ADR-054).
+The Django admin's site (tasks 2.15, 2.27 and 2.28, ADR-019, ADR-052, ADR-054).
 
 Superuser-only support tooling: deliberately cross-tenant, and never linked from
 the tenant UI. `django_admin_log` records its writes but not its reads, so each
@@ -17,6 +17,7 @@ from functools import wraps
 from django.contrib import admin
 from django.contrib.admin.models import ADDITION, CHANGE, DELETION
 from django.contrib.admin.utils import unquote
+from django.http import Http404
 
 from bakery.audit import record
 
@@ -66,6 +67,18 @@ def mirror_admin_write(sender, instance, created, raw, **kwargs):
 class BakeryAdminSite(admin.AdminSite):
     def has_permission(self, request):
         return super().has_permission(request) and request.user.is_superuser
+
+    def autocomplete_view(self, request):
+        """
+        Closed, since no page calls it (ADR-054).
+
+        It answers from any admin's `search_fields`, so it returned usernames
+        whether or not an admin declared `autocomplete_fields`, and `admin_view`
+        logs only a `ModelAdmin`'s pages. The URL stays, so `admin:autocomplete`
+        still reverses, and the permission check still runs first. Turning it
+        back on means logging it first.
+        """
+        raise Http404
 
     def admin_view(self, view, cacheable=False):
         """
