@@ -251,7 +251,7 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | 2.3 | Environment-specific `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` and cookie settings | **Done** 2026-10-31 | ADR-028, ADR-015, ADR-043 · PR #48 |
 | 2.4 | Secure defaults: `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, `X_FRAME_OPTIONS` | **Done** 2026-10-31 | ADR-028, ADR-043 · PR #49 |
 | 2.5 | Hold object-storage (R2) access keys as environment variables — never hardcoded | Not started | ADR-005; pairs with 13.3 |
-| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | **Done** 2026-11-11 | ADR-028, ADR-049 |
+| 2.19 | Make `settings/base.py` fail loudly at boot when `SECRET_KEY`, `ALLOWED_HOSTS` or `DEBUG` is unset — no defaults for any of the three — and test it | **Done** 2026-11-11 | ADR-028, ADR-049 · PR #59 |
 | 2.24 | Trust the host's TLS-terminating proxy for the request scheme: `SECURE_PROXY_SSL_HEADER` from the environment, unset by default | Not started | ADR-015, ADR-013, ADR-028 rule 1. **Found by 2.4:** the image's gunicorn speaks plain HTTP, so on Railway every request reaches Django as `http`, 2.4's `SECURE_SSL_REDIRECT` redirects forever, and HSTS is never sent. Trusting the header is safe only where the proxy overwrites a client-sent `X-Forwarded-Proto`: confirm Railway does before setting it. **Before Epic 12 serves traffic** |
 
 ### Authentication and authorization
