@@ -24,9 +24,11 @@ COPY . /code/
 # through ENV they would persist into the running image, and a host that forgot a
 # real value would boot on a placeholder instead of failing. They are public
 # (`docker history`), so each is useless outside the build: a fake key, an
-# .invalid host. 2.19 adds ALLOWED_HOSTS and DEBUG here.
+# .invalid host. bakery/tests.py fails if one moves to ENV or ARG.
 RUN SECRET_KEY=build-only-placeholder \
     DATABASE_URL=postgres://build:build@build.invalid:5432/build \
+    ALLOWED_HOSTS=build.invalid \
+    DEBUG=False \
     python manage.py collectstatic --noinput
 
 # Expose the port the app runs on

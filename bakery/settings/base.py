@@ -11,7 +11,10 @@ declared with no default raises `ImproperlyConfigured` at boot when unset;
 
   * task 2.1  removed the fallbacks for the secrets, `SECRET_KEY` and
     `DATABASE_URL`;
-  * task 2.19 removes the remaining two, for `ALLOWED_HOSTS` and `DEBUG`.
+  * task 2.19 removed the other two, for `ALLOWED_HOSTS` and `DEBUG`.
+
+`local.py` and `test.py` set their own `ALLOWED_HOSTS` and `DEBUG`, but they import
+this module first, so host-side commands still need all four in `.env`.
 
 The domain-specific values task 2.3 added keep defaults, because Django's own
 default for each is already the restrictive one. Task 2.4's HTTPS-only values are
@@ -43,13 +46,13 @@ environ.Env.read_env(os.path.join(os.path.dirname(BASE_DIR), ".env"))
 SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-# Defaults to False here because this module is production; `local.py` turns it on.
-DEBUG = env.bool("DEBUG", default=False)
+# No default (task 2.19): a host states it. Only a true value turns it on, so a
+# blank or mistyped one lands on False. `local.py` turns it on.
+DEBUG = env.bool("DEBUG")
 
-ALLOWED_HOSTS = env.list(
-    "ALLOWED_HOSTS",
-    default=["localhost", "127.0.0.1", "192.168.0.191", "bakery.loboserver.com"],
-)
+# No default (task 2.19): each host names its own domains, comma-separated with no
+# spaces, since django-environ keeps a space as part of the name.
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
 # Only for a host that serves the app on its own domain (task 2.3). Unset, Django
 # trusts no origin beyond the serving host and keeps both cookies host-only.

@@ -67,14 +67,15 @@ CI: `.github/workflows/ci.yml` on every PR into `main`/`production` (no `pytest`
 ## Settings (ADR-028)
 
 - `bakery/settings/base.py` **is production** and the default for `manage.py`, `wsgi.py`, `asgi.py`
-  and the `Dockerfile`. Values come from the environment via `django-environ`; **`DEBUG` defaults
-  to `False`**. There is no `production.py`.
+  and the `Dockerfile`. Values come from the environment via `django-environ`. There is no
+  `production.py`.
 - `local.py` — `DEBUG = True`; must be requested via `DJANGO_SETTINGS_MODULE`.
 - `test.py` — fast hasher, plain static storage; `pytest` uses it (`pyproject.toml`).
-- `SECRET_KEY` and `DATABASE_URL` have **no default** (2.1): locally they come from `.env`; CI and
-  the image build use public placeholders. `ALLOWED_HOSTS`/`DEBUG` keep fallbacks until 2.19.
-  `collectstatic` runs at image build on placeholders set **inline on the `Dockerfile`'s `RUN`
-  line, never `ENV`** (ADR-049).
+- `SECRET_KEY`, `DATABASE_URL` (2.1), `ALLOWED_HOSTS` and `DEBUG` (2.19) have **no default**: a
+  missing one raises `ImproperlyConfigured` at boot. Locally they come from `.env`, even under
+  `local.py`/`test.py`, which import `base.py` first; compose's `web` fixes its own `DEBUG` and
+  `ALLOWED_HOSTS`; CI and the image build use public placeholders. `collectstatic` runs at image
+  build on placeholders set **inline on the `Dockerfile`'s `RUN` line, never `ENV`** (ADR-049).
 - `base.py` is **HTTPS-only** (2.4): it redirects plain HTTP and sets Secure cookies and HSTS.
   `local.py` and `test.py` turn the redirect off; compose's `web` alone sets `INSECURE_LOCAL_HTTP`.
 - Database: PostgreSQL 17 (compose `postgres` service, published on `127.0.0.1` only).
