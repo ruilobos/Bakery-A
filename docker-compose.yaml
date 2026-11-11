@@ -34,6 +34,11 @@ services:
       # base.py is HTTPS-only (task 2.4), but this serves http://localhost, which the
       # launcher polls. Set here and nowhere else: no host runs this file (ADR-014).
       INSECURE_LOCAL_HTTP: "true"
+      # base.py has no default for these (task 2.19). Fixed here rather than read
+      # from .env, like the line above: this image is production's, so it never
+      # debugs, and it answers only on the localhost port published above.
+      DEBUG: "false"
+      ALLOWED_HOSTS: localhost,127.0.0.1
     depends_on:
       postgres:
         condition: service_healthy
