@@ -906,3 +906,45 @@ def test_deactivating_keeps_the_account_and_stops_its_sign_in(
     assert [without_time(event) for event in audit_events()] == [
         write_event("update", admin_user, "auth.user", baker.pk, changed=["Active"])
     ]
+
+
+# 2.28: the admin's autocomplete endpoint is closed, since no page calls it
+# (ADR-054).
+
+# Django serves this from `UserAdmin.search_fields`, whether or not any admin
+# declares `autocomplete_fields`, and `LogEntry` needs no registration.
+USERNAME_LOOKUP = {
+    "app_label": "admin",
+    "model_name": "logentry",
+    "field_name": "user",
+    "term": "baker",
+}
+
+
+def test_autocomplete_returns_no_usernames_to_a_superuser(
+    admin_client, get, audit_events, baker
+):
+    response = get(admin_client, reverse("admin:autocomplete"), **USERNAME_LOOKUP)
+
+    # Not the JSON list of `{"id": ..., "text": username}` it used to return.
+    assert response.status_code == 404
+    assert response["Content-Type"] != "application/json"
+    assert audit_events() == []
+
+
+def test_autocomplete_still_sends_anyone_else_to_sign_in(client, get, audit_events):
+    response = get(client, reverse("admin:autocomplete"), **USERNAME_LOOKUP)
+
+    assert response.status_code == 302
+    assert response.url.startswith(reverse("admin:login"))
+    assert audit_events() == []
+
+
+def test_no_admin_declares_autocomplete_fields():
+    # Its widget would call the closed endpoint and fail only in the browser.
+    # Turning autocomplete back on means logging it first (ADR-054).
+    admins = [type(model_admin) for model_admin in admin.site._registry.values()]
+    inlines = [inline for model_admin in admins for inline in model_admin.inlines]
+
+    assert admins
+    assert [cls.__name__ for cls in admins + inlines if cls.autocomplete_fields] == []
