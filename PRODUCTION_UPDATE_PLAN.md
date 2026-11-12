@@ -281,7 +281,7 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | 2.13 | Remove the broken leftover `MEDIA_ROOT` path (`bluebiulding/media`) | Not started | Real media handling is Epic 13; cleaned up under `STORAGES` in 19.14 |
 | 2.14 | Confirm encryption in transit (HTTPS enforced end-to-end) once the settings work lands | Not started | Art. 32 — [project_requirements.md](docs/project_requirements.md) "Security measures". **Needs a host:** end-to-end HTTPS cannot be confirmed without a TLS endpoint, which Epic 12 provides ([Run order](#run-order)) |
 | 2.22 | Brute-force protection on the login endpoint (attempt throttling with lockout/backoff) | Not started | **Gap surfaced by ADR-028** — no epic covered it. Django's auth views ship no rate limiting, and 4.5 makes this the single credential entry point for every tenant |
-| 2.23 | Structured audit events for failed and successful logins that record the attempt but **never** the submitted credentials | **Done** 2026-11-12 | ADR-052, ADR-047 |
+| 2.23 | Structured audit events for failed and successful logins that record the attempt but **never** the submitted credentials | **Done** 2026-11-12 | ADR-052, ADR-047 · PR #60 |
 | 2.25 | Hash the password the user views receive: `User_Create` and `User_Update` store it verbatim today | **Done** 2026-11-04 | ADR-053 · PR #53 |
 | 2.26 | Neutralize spreadsheet formulas in the four bulk CSV exports | **Done** 2026-11-05 | ADR-053 · PR #54 |
 
