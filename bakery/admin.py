@@ -8,18 +8,21 @@ only those the personal-data inventory names: `RawMaterial` shows a supplier's
 name, and any model's history page shows the users in `django_admin_log`.
 
 That table's rows go when their user goes, so each write is mirrored into the
-stream too, where it outlives the account.
+stream too, where it outlives the account. A sign-in it refuses is logged too
+(task 2.23).
 """
 
 import json
 from functools import wraps
 
 from django.contrib import admin
+from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.admin.models import ADDITION, CHANGE, DELETION
 from django.contrib.admin.utils import unquote
+from django.core.exceptions import ValidationError
 from django.http import Http404
 
-from bakery.audit import record
+from bakery.audit import failed_login, record
 
 ACTIONS = {ADDITION: "create", CHANGE: "update", DELETION: "delete"}
 
@@ -64,7 +67,25 @@ def mirror_admin_write(sender, instance, created, raw, **kwargs):
     record(action, instance.user, model, pk, **details)
 
 
+class AuditedAdminAuthenticationForm(AdminAuthenticationForm):
+    """
+    Log a non-staff account the admin turns away after its password matched.
+
+    `authenticate()` has already succeeded by then, so `user_login_failed` never
+    fires, yet nobody is signed in: it is a failed login all the same.
+    """
+
+    def confirm_login_allowed(self, user):
+        try:
+            super().confirm_login_allowed(user)
+        except ValidationError:
+            failed_login(self.request, user.pk)
+            raise
+
+
 class BakeryAdminSite(admin.AdminSite):
+    login_form = AuditedAdminAuthenticationForm
+
     def has_permission(self, request):
         return super().has_permission(request) and request.user.is_superuser
 
