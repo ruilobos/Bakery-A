@@ -904,7 +904,8 @@ def test_deactivating_keeps_the_account_and_stops_its_sign_in(
     assert baker.check_password("x")
     assert not client.login(username="baker", password="x")
     assert [without_time(event) for event in audit_events()] == [
-        write_event("update", admin_user, "auth.user", baker.pk, changed=["Active"])
+        write_event("update", admin_user, "auth.user", baker.pk, changed=["Active"]),
+        login_event("login_failed", None, baker.pk),
     ]
 
 
@@ -948,3 +949,109 @@ def test_no_admin_declares_autocomplete_fields():
 
     assert admins
     assert [cls.__name__ for cls in admins + inlines if cls.autocomplete_fields] == []
+
+
+# 2.23: a sign-in logs `login`, a refused one `login_failed`, and neither carries
+# what was typed (ADR-052). A refusal writes nothing to wait for, so the tests
+# that expect one alone run without `on_commit`: it is logged at once.
+
+WRONG = "Wrong-Secret-456"  # Distinctive, so `caplog.text` can be searched for it.
+
+
+def sign_in(client, username, password, url_name="login"):
+    return client.post(reverse(url_name), {"username": username, "password": password})
+
+
+def login_event(action, actor_pk, pk, **details):
+    target = {"model": "auth.user", "pk": pk}
+    return {"action": action, "actor": actor_pk, "target": target, **details}
+
+
+def test_a_sign_in_logs_login(client, on_commit, audit_events, baker):
+    with on_commit():
+        response = sign_in(client, "baker", "x")
+
+    assert response.status_code == 302
+    assert [without_time(event) for event in audit_events()] == [
+        login_event("login", baker.pk, baker.pk)
+    ]
+
+
+def test_a_wrong_password_logs_the_account_never_the_password(
+    client, audit_events, caplog, baker
+):
+    response = sign_in(client, "baker", WRONG)
+
+    assert response.status_code == 200
+    assert [without_time(event) for event in audit_events()] == [
+        login_event("login_failed", None, baker.pk)
+    ]
+    assert WRONG not in caplog.text
+
+
+def test_an_unknown_account_is_named_by_its_username(client, audit_events, caplog):
+    response = sign_in(client, "nobody", WRONG)
+
+    assert response.status_code == 200
+    assert [without_time(event) for event in audit_events()] == [
+        login_event("login_failed", None, None, username="nobody")
+    ]
+    assert WRONG not in caplog.text
+
+
+def test_a_deactivated_account_logs_a_failed_login(client, audit_events, baker):
+    get_user_model().objects.filter(pk=baker.pk).update(is_active=False)
+
+    response = sign_in(client, "baker", "x")
+
+    assert response.status_code == 200
+    assert [without_time(event) for event in audit_events()] == [
+        login_event("login_failed", None, baker.pk)
+    ]
+
+
+def test_a_signed_in_actor_is_named_on_a_failed_attempt(client, audit_events, baker):
+    other = get_user_model().objects.create_user("other", password="y")
+    client.force_login(baker)
+
+    sign_in(client, "other", WRONG)
+
+    assert [without_time(event) for event in audit_events()] == [
+        login_event("login_failed", baker.pk, other.pk)
+    ]
+
+
+def test_a_blank_password_is_no_attempt(client, on_commit, audit_events, baker):
+    # The form refuses it before it calls `authenticate()`.
+    with on_commit():
+        response = sign_in(client, "baker", "")
+
+    assert response.status_code == 200
+    assert audit_events() == []
+
+
+def test_an_admin_sign_in_logs_login(client, on_commit, audit_events, admin_user):
+    with on_commit():
+        response = sign_in(client, "admin", "password", url_name="admin:login")
+
+    assert response.status_code == 302
+    assert [without_time(event) for event in audit_events()] == [
+        login_event("login", admin_user.pk, admin_user.pk)
+    ]
+
+
+@pytest.mark.parametrize(
+    "password", ["x", WRONG], ids=["right-password-not-staff", "wrong-password"]
+)
+def test_the_admin_logs_one_failed_login_for_an_account_it_refuses(
+    client, on_commit, audit_events, caplog, baker, password
+):
+    # `on_commit` too, so that a `login` waiting on commit would show up as well.
+    with on_commit():
+        response = sign_in(client, "baker", password, url_name="admin:login")
+
+    assert response.status_code == 200
+    assert [without_time(event) for event in audit_events()] == [
+        login_event("login_failed", None, baker.pk)
+    ]
+    assert WRONG not in caplog.text
