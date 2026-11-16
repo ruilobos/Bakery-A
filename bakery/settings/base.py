@@ -168,6 +168,12 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# The only backend (ADR-055): it refuses a username inside its throttle window
+# before checking the password, on both login pages. 2.20's capability backend
+# extends it; a second password backend listed beside it would bypass the
+# throttle, or check every wrong password twice.
+AUTHENTICATION_BACKENDS = ["accounts.backends.ThrottledModelBackend"]
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/

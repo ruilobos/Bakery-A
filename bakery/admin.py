@@ -9,7 +9,7 @@ name, and any model's history page shows the users in `django_admin_log`.
 
 That table's rows go when their user goes, so each write is mirrored into the
 stream too, where it outlives the account. A sign-in it refuses is logged too
-(task 2.23).
+(task 2.23), and a throttled one says when to retry (task 2.22).
 """
 
 import json
@@ -22,6 +22,7 @@ from django.contrib.admin.utils import unquote
 from django.core.exceptions import ValidationError
 from django.http import Http404
 
+from accounts.forms import ThrottleMessageMixin
 from bakery.audit import failed_login, record
 
 ACTIONS = {ADDITION: "create", CHANGE: "update", DELETION: "delete"}
@@ -67,12 +68,13 @@ def mirror_admin_write(sender, instance, created, raw, **kwargs):
     record(action, instance.user, model, pk, **details)
 
 
-class AuditedAdminAuthenticationForm(AdminAuthenticationForm):
+class AuditedAdminAuthenticationForm(ThrottleMessageMixin, AdminAuthenticationForm):
     """
     Log a non-staff account the admin turns away after its password matched.
 
     `authenticate()` has already succeeded by then, so `user_login_failed` never
-    fires, yet nobody is signed in: it is a failed login all the same.
+    fires, yet nobody is signed in: it is a failed login all the same. A
+    throttled attempt never got that far, and the mixin says when to retry.
     """
 
     def confirm_login_allowed(self, user):

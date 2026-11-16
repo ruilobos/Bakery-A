@@ -12,14 +12,18 @@ import pytest
 from django.contrib import admin
 from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.admin.utils import quote
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, hashers
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
 from django.core import serializers
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import F
 from django.urls import reverse
+from django.utils.crypto import salted_hmac
 from pytest_django.asserts import assertContains, assertNotContains
 
+from accounts import throttle
+from accounts.models import LoginThrottle
 from control.models import (
     BaseRecipe,
     Bs_Ingredients,
@@ -1055,3 +1059,228 @@ def test_the_admin_logs_one_failed_login_for_an_account_it_refuses(
         login_event("login_failed", None, baker.pk)
     ]
     assert WRONG not in caplog.text
+
+
+# 2.22: a username backs off after five failures, refused before its password is
+# checked, and a refused attempt is logged `login_throttled` (ADR-055). Time is
+# moved by setting a key's last failure back.
+
+PAUSED = "Sign-in is paused after repeated failed attempts. Try again in {}."
+
+
+@pytest.fixture
+def hashes():
+    # Counts the passwords hashed: a real account's, checked, or the dummy one
+    # `ModelBackend` hashes for an unknown username so that it takes as long.
+    base_user = "django.contrib.auth.base_user"
+    checks = mock.patch(f"{base_user}.check_password", wraps=hashers.check_password)
+    makes = mock.patch(f"{base_user}.make_password", wraps=hashers.make_password)
+    with checks as check, makes as make:
+        yield lambda: check.call_count + make.call_count
+
+
+def fail(client, username, times, url_name="login"):
+    for _ in range(times):
+        sign_in(client, username, WRONG, url_name)
+
+
+def throttle_row(username):
+    return LoginThrottle.objects.get(key=throttle.key_for(username))
+
+
+def set_back(username, by):
+    LoginThrottle.objects.filter(key=throttle.key_for(username)).update(
+        last_failure=F("last_failure") - by
+    )
+
+
+def test_the_throttle_is_the_only_authentication_backend(settings):
+    # A second password backend would bypass it or check each password twice.
+    assert settings.AUTHENTICATION_BACKENDS == [
+        "accounts.backends.ThrottledModelBackend"
+    ]
+
+
+def test_the_sixth_attempt_is_refused_unchecked_even_with_the_right_password(
+    client, audit_events, hashes, baker
+):
+    fail(client, "baker", 5)
+    checked = hashes()
+
+    response = sign_in(client, "baker", "x")
+
+    assert hashes() == checked
+    assert response.status_code == 200
+    assert "_auth_user_id" not in client.session
+    assertContains(response, PAUSED.format("1 minute"))
+    assert [without_time(event) for event in audit_events()] == [
+        *[login_event("login_failed", None, baker.pk)] * 5,
+        login_event("login_throttled", None, baker.pk),
+    ]
+
+
+def test_five_failures_are_each_checked(client, hashes, baker):
+    for attempt in range(1, 6):
+        checked = hashes()
+        response = sign_in(client, "baker", WRONG)
+        assert hashes() > checked
+        assert throttle_row("baker").failures == attempt
+
+    assertNotContains(response, "paused")
+
+
+def test_an_unknown_username_backs_off_exactly_as_a_real_one(
+    client, audit_events, hashes
+):
+    fail(client, "nobody", 5)
+    checked = hashes()
+
+    response = sign_in(client, "nobody", WRONG)
+
+    assert hashes() == checked
+    assertContains(response, PAUSED.format("1 minute"))
+    assert [without_time(event) for event in audit_events()] == [
+        *[login_event("login_failed", None, None, username="nobody")] * 5,
+        login_event("login_throttled", None, None, username="nobody"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "failures, minutes",
+    [(4, None), (5, 1), (6, 2), (7, 4), (8, 8), (9, 15), (10, 15), (200, 15)],
+)
+def test_each_failure_from_the_fifth_opens_a_longer_window(failures, minutes):
+    last = datetime(2026, 11, 16, 9, tzinfo=timezone.utc)
+    expected = None if minutes is None else last + timedelta(minutes=minutes)
+
+    assert throttle.reopens_at(failures, last) == expected
+
+
+def test_after_its_window_an_attempt_is_checked_and_opens_the_next(
+    client, hashes, baker
+):
+    fail(client, "baker", 5)
+    set_back("baker", timedelta(minutes=1))
+    checked = hashes()
+
+    response = sign_in(client, "baker", WRONG)
+
+    assert hashes() > checked
+    assertNotContains(response, "paused")
+    assert throttle_row("baker").failures == 6
+    assertContains(sign_in(client, "baker", "x"), PAUSED.format("2 minutes"))
+
+
+def test_the_page_rounds_the_wait_up_to_a_whole_minute(client, baker):
+    LoginThrottle.objects.create(
+        key=throttle.key_for("baker"),
+        failures=9,  # A 15-minute window,
+        last_failure=datetime.now(timezone.utc) - timedelta(minutes=10, seconds=30),
+    )
+
+    response = sign_in(client, "baker", "x")
+
+    # of which 4 minutes 30 seconds, less the request's own time, are left.
+    assertContains(response, PAUSED.format("5 minutes"))
+
+
+def test_a_refused_attempt_neither_counts_nor_extends_its_window(client, baker):
+    fail(client, "baker", 5)
+    before = throttle_row("baker")
+
+    fail(client, "baker", 3)
+
+    after = throttle_row("baker")
+    assert (after.failures, after.last_failure) == (5, before.last_failure)
+
+
+def test_an_attempt_is_counted_before_its_password_is_checked(client, baker):
+    # So that parallel guesses are counted, not raced between a read and a write.
+    seen = []
+
+    def check(*args, **kwargs):
+        seen.append(throttle_row("baker").failures)
+        return hashers.check_password(*args, **kwargs)
+
+    with mock.patch("django.contrib.auth.base_user.check_password", check):
+        fail(client, "baker", 2)
+
+    assert seen == [1, 2]
+
+
+def test_a_sign_in_clears_its_key(client, on_commit, baker):
+    fail(client, "baker", 4)
+
+    with on_commit():
+        response = sign_in(client, "baker", "x")
+
+    assert response.status_code == 302
+    assert not LoginThrottle.objects.exists()
+
+
+def test_a_key_a_day_past_its_last_failure_is_forgotten(client, hashes, baker):
+    now = datetime.now(timezone.utc)
+    for username, failures, age in [
+        ("baker", 12, timedelta(days=1)),
+        ("stale", 3, timedelta(days=1, minutes=1)),
+        ("recent", 2, timedelta(hours=23)),
+    ]:
+        key = throttle.key_for(username)
+        LoginThrottle.objects.create(key=key, failures=failures, last_failure=now - age)
+    checked = hashes()
+
+    sign_in(client, "baker", WRONG)
+
+    assert hashes() > checked
+    assert throttle_row("baker").failures == 1
+    # Writing a failure sweeps every other expired key too.
+    assert sorted(LoginThrottle.objects.values_list("key", flat=True)) == sorted(
+        [throttle.key_for("baker"), throttle.key_for("recent")]
+    )
+
+
+def test_the_table_holds_an_hmac_of_the_username_never_the_username(client):
+    sign_in(client, "nobody", WRONG)
+
+    [row] = LoginThrottle.objects.all()
+    assert (
+        row.key
+        == salted_hmac("accounts.throttle", "nobody", algorithm="sha256").hexdigest()
+    )
+    assert "nobody" not in row.key
+
+
+def test_the_admin_login_shares_the_count_and_is_refused_too(
+    client, audit_events, hashes, admin_user
+):
+    fail(client, "admin", 3)
+    fail(client, "admin", 2, url_name="admin:login")
+    checked = hashes()
+
+    response = sign_in(client, "admin", "password", url_name="admin:login")
+
+    assert hashes() == checked
+    assert "_auth_user_id" not in client.session
+    assertContains(response, PAUSED.format("1 minute"))
+    assert without_time(audit_events()[-1]) == login_event(
+        "login_throttled", None, admin_user.pk
+    )
+
+
+def test_a_sign_in_without_a_request_is_refused_too(client, hashes, baker):
+    # The test client's `login()` calls `authenticate()` with no request.
+    fail(client, "baker", 5)
+    checked = hashes()
+
+    assert not client.login(username="baker", password="x")
+    assert hashes() == checked
+
+
+def test_a_wrong_password_reads_as_it_did(client, baker):
+    response = sign_in(client, "baker", WRONG)
+
+    assertContains(
+        response,
+        "<p>Your username and password didn't match. Please try again.</p>",
+        html=True,
+    )

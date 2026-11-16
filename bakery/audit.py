@@ -16,6 +16,8 @@ from django.contrib.auth.models import AnonymousUser
 from django.db import transaction
 from django.utils import timezone
 
+from accounts.backends import refused_until
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,7 +44,8 @@ def log_login(sender, request, user, **kwargs):
 
 def log_failed_login(sender, credentials, request=None, **kwargs):
     """
-    Log `login_failed` for each attempt `authenticate()` rejects (task 2.23).
+    Log `login_failed` for each attempt `authenticate()` rejects (task 2.23), or
+    `login_throttled` for one the throttle refused before its password (2.22).
 
     `credentials` is what was submitted, its password already masked. Only the
     username is read, to find the account's id; nothing else from it reaches the
@@ -62,10 +65,15 @@ def failed_login(request, pk, username=None):
     attempt must stay on record even if the request's transaction rolls back. The
     actor is whoever was already signed in, usually nobody. Only an unknown
     account is named by its username, since no id exists (ADR-052).
+
+    Django fires `user_login_failed` for an attempt the throttle refused too, so
+    the backend's mark on the request is what makes it `login_throttled`, with
+    the same target, in place of `login_failed` (ADR-055).
     """
     actor = getattr(request, "user", AnonymousUser())
     details = {"username": username} if pk is None else {}
-    record("login_failed", actor, get_user_model(), pk, on_commit=False, **details)
+    action = "login_throttled" if refused_until(request) else "login_failed"
+    record(action, actor, get_user_model(), pk, on_commit=False, **details)
 
 
 class AuditedSaveMixin:
