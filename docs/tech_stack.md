@@ -35,7 +35,7 @@ only in the generated lock files**, never here.
 
 | Package | Current | Decision | ADR |
 |---|---|---|---|
-| `psycopg2-binary` | 2.9.6 | → **`psycopg[binary]` 3** (19.6) | [025](decisions.md) |
+| `psycopg2-binary` | 2.9.6 | → **`psycopg[binary]` 3** (19.4) | [025](decisions.md) |
 | `whitenoise` | 5.2.0 | Latest compatible at lock time | [025](decisions.md) |
 | `django-environ` | 0.4.5 | Latest compatible. **Stays** — it owns `env.db()`, the `DATABASE_URL` contract | [025](decisions.md) |
 | `Pillow` | 10.4.0 | **Removed until Epic 13**, then latest compatible (13.1) | [025](decisions.md)/[029](decisions.md) |
@@ -122,7 +122,7 @@ Current column measured 2026-08-16.
 | Dev/test environment | `docker-compose.yaml` (19.10), refreshed and launched by `python scripts/launch_local.py`: pull `main`, rebuild, migrate, `up` (1.12) | **Local `docker-compose`** — same Dockerfile as production, app and DB separate. **No persistent hosted staging** | [014](decisions.md) |
 | Release preview | none. Until 12.5, a `0.y.z` release PR is gated by local verification of the `main` it promotes, recorded in the PR (6.26) | A **Railway PR environment on the `main` → `production` PR only**, open a day or two, <$1/mo. Local Docker covers feature branches; what it cannot cover is whether merged code runs on Railway (12.5). **`1.0.0` waits for it** | [014](decisions.md), [050](decisions.md) |
 | Containerization | `Dockerfile`; `docker-compose.yaml` builds `web` from it beside `postgres:17` (19.10) | **Custom Dockerfile** as the deploy artifact, never the platform buildpack | [004](decisions.md) |
-| Static storage | whitenoise | whitenoise unchanged, but configured through `STORAGES`' `"staticfiles"` key — `STATICFILES_STORAGE` was **removed in Django 5.1** and removed settings are *ignored, not rejected*, so compression and cache-busting fail silently (19.14) | [027](decisions.md) |
+| Static storage | whitenoise | whitenoise unchanged, but configured through `STORAGES`' `"staticfiles"` key — `STATICFILES_STORAGE` was **removed in Django 5.1** and removed settings are *ignored, not rejected*, so compression and cache-busting fail silently (19.4) | [027](decisions.md) |
 | Media storage | `MEDIA_ROOT` points at a broken leftover path nothing uses | **Cloudflare R2** via `django-storages` on `STORAGES`' `"default"` key — zero egress, 10 GB free tier, provider-agnostic. **Product photos only this round**; an `ImageField` on `Product`, credentials from env (2.5), type/size validated in a real `ModelForm` (4.9, 13.7, 13.11) | [005](decisions.md) |
 | CI/CD | `ci.yml` on every PR into `main`/`production` (1.11): `check`, migrations check, template static-reference check (1.13), `ruff check` + `ruff format --check` (6.10), `docker build`, plus the `scripts/` `unittest` tests (1.21); advisory until 6.13 | **GitHub Actions extending the Epic 1 workflow, behind a 70% repo-wide coverage floor.** Merge gate: test suite, `ruff` + `djlint`, the migration/`collectstatic`/`docker build` checks from 1.11 (`collectstatic` runs inside `docker build`) and 1.13's static-reference check, `pip-audit` against the hashed lock, Dependabot raising dependency PRs. **No SAST or image scanning** this release | [031](decisions.md)/[045](decisions.md) |
 | Deploy trigger | manual, on the home server | **Railway git-watch on `production`**, `migrate` as the **pre-deploy command**. 6.14 is satisfied by **branch protection**: failing checks block the merge, and only a merge deploys | [031](decisions.md) |
