@@ -143,7 +143,7 @@ before its first task starts. Until then the loop stops there, as it does at `Bl
 | 10 | 2.27 | ADR-054: extends 2.15's site, and is small enough to land before anything is hosted |
 | 11 | 2.28 | ADR-054's other admin fix |
 | 12 | 2.19 | Unblocked by ADR-049; after 2.1, its pair |
-| 13 | 2.23 | After 11.1, and **before 2.22**: throttling needs its attempt record (2.23's Notes) |
+| 13 | 2.23 | After 11.1, and **before 2.22**, whose refusals its receiver logs (ADR-055) |
 | 14 | 2.22 | After 2.23 |
 
 **Owed, with what the Notes already fix:**
@@ -266,7 +266,7 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | 2.16 | Express every permission check as a named capability (`can_manage_users`, `can_edit_pricing`, `can_record_receipt`), never `role == "owner"` | Not started | ADR-020. Costs nothing with three roles; keeps adding Manager a table row rather than a rewrite |
 | 2.17 | Enable `LoginRequiredMiddleware`; mark deliberate exceptions with `@login_not_required` (the `core` cover page, the login view, 16.10's callback) | Not started | ADR-027, Django 5.1 — **needs Epic 19**. Inverts the default so a forgotten view fails closed. The real fix for "access control enforced in templates" |
 | 2.18 | Configure `SECRET_KEY_FALLBACKS` so the signing key rotates without invalidating active sessions | Not started | ADR-027, Django 4.1 — **needs Epic 19**. Pairs with 2.1; makes 8.6's runbook something someone would actually run |
-| 2.20 | Define the capability set per role as permission codenames; implement the custom auth backend resolving `has_perm()` against the active membership | Not started | ADR-028. Keeps `PermissionRequiredMixin`, `@permission_required` and `{% if perms.… %}` working — **one** permission vocabulary. Needs 3.58 |
+| 2.20 | Define the capability set per role as permission codenames; implement the custom auth backend resolving `has_perm()` against the active membership | Not started | ADR-028, ADR-055. Keeps `PermissionRequiredMixin`, `@permission_required` and `{% if perms.… %}` working — **one** permission vocabulary. Needs 3.58. **Extends 2.22's throttle backend, never sits beside it:** a second password backend bypasses or doubles the check (055's Traps) |
 | 2.21 | Middleware resolving the active bakery + membership onto the request, invalidating Django's cached permissions whenever the active tenant changes | Not started | ADR-028. The invalidation half is a **cross-tenant leak** if missed — a two-membership user would carry bakery A's capabilities into bakery B. Test it (6.9) |
 | 2.27 | Keep the admin's trail when an account goes: mirror its writes into `bakery.audit`, and refuse to delete a user in the admin | **Done** 2026-11-06 | ADR-054, ADR-052 · PR #57 |
 | 2.28 | Close the admin's unused `/admin/autocomplete/` endpoint | **Done** 2026-11-11 | ADR-054 · PR #58 |
@@ -280,7 +280,7 @@ the epic closes inside Epic 3's step ([Run order](#run-order), ADR-048).
 | 2.12 | Server-side authorization on every export endpoint | Not started | ADR-020, ADR-028 rule 4: the checks use 2.20's capability codenames, since ADR-028 rejects a second permission vocabulary, so this follows 2.20; the login half arrives with 2.17. **All four bulk exports answer anonymous requests today** (found by 1.17), and `export_suppliers` carries supplier contacts, which are personal data ([project_requirements.md](docs/project_requirements.md) "Personal data inventory") |
 | 2.13 | Remove the broken leftover `MEDIA_ROOT` path (`bluebiulding/media`) | Not started | Real media handling is Epic 13; cleaned up under `STORAGES` in 19.14 |
 | 2.14 | Confirm encryption in transit (HTTPS enforced end-to-end) once the settings work lands | Not started | Art. 32 — [project_requirements.md](docs/project_requirements.md) "Security measures". **Needs a host:** end-to-end HTTPS cannot be confirmed without a TLS endpoint, which Epic 12 provides ([Run order](#run-order)) |
-| 2.22 | Brute-force protection on the login endpoint (attempt throttling with lockout/backoff) | Not started | **Gap surfaced by ADR-028** — no epic covered it. Django's auth views ship no rate limiting, and 4.5 makes this the single credential entry point for every tenant |
+| 2.22 | Brute-force protection on the login pages: a per-username backoff, checked by an authentication backend before the password | Not started | ADR-055, ADR-028. **Gap surfaced by ADR-028**: Django's auth views ship no rate limiting, and 4.5 makes them the single credential entry point for every tenant. A `ModelBackend` subclass, the only `AUTHENTICATION_BACKENDS` entry, covers `/accounts/login/` and `/admin/login/`. One `accounts` model and migration: HMAC key, consecutive failures, time of the last. 2.23's receiver logs `login_throttled` in place of `login_failed`, and both login forms say when to retry. No IP address (2.24) |
 | 2.23 | Structured audit events for failed and successful logins that record the attempt but **never** the submitted credentials | **Done** 2026-11-12 | ADR-052, ADR-047 · PR #60 |
 | 2.25 | Hash the password the user views receive: `User_Create` and `User_Update` store it verbatim today | **Done** 2026-11-04 | ADR-053 · PR #53 |
 | 2.26 | Neutralize spreadsheet formulas in the four bulk CSV exports | **Done** 2026-11-05 | ADR-053 · PR #54 |
@@ -910,6 +910,7 @@ are not in this file are open decisions in [roadmap.md](docs/roadmap.md).
 | 052 — Audit events are one structured log stream, keyed by ids, never values | 2.9 (creates the stream); 2.15, 2.23, 2.27, 11.10, 14.4 and 15.4 write into it |
 | 053 — 2.11 gives way to the two input gaps measured in the code | 2.25, 2.26; **supersedes** 2.11 (into those two plus 4.7 and 4.8) |
 | 054 — The admin reads past the tenant filter by name, and its trail outlives the account | 2.27, 2.28, 3.75; 3.3, 3.55 and 5.19 follow it; **corrects** 019's `ModelAdmin` Trap; interim rule on roadmap 11.9 |
+| 055 — Login throttling backs off per username, in one Postgres table keyed by a hash | 2.22; 2.20 extends its backend, and 2.23's receiver logs its refusals; **adds to** 028's clause 4 |
 | [project_requirements.md](docs/project_requirements.md) — Ireland first, then wider EU | 11.8, 12.8 |
 | [project_requirements.md](docs/project_requirements.md) — bulk CSV exports stay an admin feature | 15.5 |
 | [tech_stack.md](docs/tech_stack.md) — static assets stay on whitenoise | 7.16 |
@@ -925,7 +926,7 @@ isn't lost among the rest of the backlog. ✅ marks a fix that has landed.
 | A framework upgrade verified only by hand, because no test suite exists yet | 19.1, 19.8, then Epic 6 |
 | Hardcoded `SECRET_KEY` and DB credentials, kept as `default=` fallbacks in `base.py`, the *production* module (`DEBUG` is fixed: 1.5 deleted `heroku.py` and defaults it to `False`) | 2.1, 2.2 ✅, 2.19 |
 | Access control enforced in templates instead of views — measured 2026-10-23, **no `control` view requires a login**, and the user create/update views mass-assign `is_superuser` | 2.17 (the real fix), then 2.6, 2.7, 2.20; 4.7/5.19 drop the privilege fields. Exposed by the first reachable environment (Epic 12) |
-| No brute-force protection on the single credential entry point for every tenant | 2.22, with 2.23 supplying the attempt record |
+| No brute-force protection on the single credential entry point for every tenant | 2.22 (ADR-055), its refusals logged in 2.23's stream |
 | No tenant isolation in a confirmed multi-tenant product | 3.3, 3.55, 4.6, 6.9, 6.18 — plus 2.21, where a missed permission-cache invalidation is itself a cross-tenant leak |
 | Backups that have never been restored — the restore path runs for the first time on the day it matters, over records food law requires to be kept | 3.70, 3.48, 3.72 |
 | Switching templates to `{% static %}` activates manifest storage for the first time, turning any missing asset into a render-time 500 | 1.3 ✅ before 5.3, plus 1.13 ✅ |
