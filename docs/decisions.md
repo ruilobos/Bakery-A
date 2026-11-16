@@ -46,7 +46,7 @@ supersede it, or note the amendment on its Status line.
 | [025](#adr-025-runtime-baseline--django-52-lts-on-python-313) | Runtime baseline | Accepted (amended by 029) | Django 5.2 LTS on Python 3.13, direct from 3.2; creates Epic 19 |
 | [026](#adr-026-pin-postgresql-17-across-every-environment) | PostgreSQL 17 | Accepted | Pinned identically everywhere; majors must match |
 | [027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks) | Adopt unlocked capabilities | Accepted (amends 019) | Twelve Django 5.2 / PG 17 features adopted instead of hand-built |
-| [028](#adr-028-backend-architecture) | Backend architecture | Accepted (build-time half in 049) | Three settings modules, batch-first services, no API, no cache, Brevo |
+| [028](#adr-028-backend-architecture) | Backend architecture | Accepted (build-time half in 049; first auth backend in 055) | Three settings modules, batch-first services, no API, no cache, Brevo |
 | [029](#adr-029-dependency-management) | Dependency management | Accepted (amends 025; bridged by 046 until 19.12) | `uv pip compile` over `requirements/{base,dev,prod}.in` |
 | [030](#adr-030-frontend) | Frontend | Accepted (Traps count corrected by 045) | Shared `base.html`, Bootstrap 5.3, HTMX, **no Node build step** |
 | [031](#adr-031-operations) | Operations | Accepted | Coverage-gated CI, git-watch deploys, Sentry EU, UptimeRobot, two backup tracks |
@@ -73,6 +73,7 @@ supersede it, or note the amendment on its Status line.
 | [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values) | Audit event stream | Accepted (admin writes added by 054) | One `bakery.audit` logger, JSON lines on stdout, no table; events name actor and target by id, never values; emitted where the actor is known, after the write |
 | [053](#adr-053-211-gives-way-to-the-two-input-gaps-measured-in-the-code) | 2.11 rescoped | Accepted | 2.11 superseded: Django's forms already validate on the server; 2.25 hashes the password the user views store raw, 2.26 neutralizes formulas in the bulk CSV exports |
 | [054](#adr-054-the-admin-reads-past-the-tenant-filter-by-name-and-its-trail-outlives-the-account) | Admin past the filter, trail outlives the account | Accepted (corrects 019's Trap; adds to 052) | The scoped manager stays the default and `all_tenants` is the named path (3.75); admin writes join `bakery.audit` and accounts are deactivated until 11.9 (2.27); `/admin/autocomplete/` is closed (2.28) |
+| [055](#adr-055-login-throttling-backs-off-per-username-in-one-postgres-table-keyed-by-a-hash) | Login throttling | Accepted (adds to 028's clause 4) | Five free failures, then a refusal window doubling from 1 to 15 minutes, per username; one `accounts` table keyed by an HMAC of the username, no IP until 2.24; enforced by an authentication backend before the password is checked (2.22) |
 
 ---
 
@@ -305,7 +306,7 @@ survive and now live in ADR-010; nothing else here is in force.
 
 ## ADR-028: Backend architecture
 
-- **2026-08-13 · Accepted** — completes [020](#adr-020-three-per-tenant-roles-on-a-membership-record)/[027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks) on auth, closes the caching question. Provider facts verified 2026-08-13. **Rule 1's build-time half is [049](#adr-049-collectstatic-keeps-running-at-image-build-on-build-only-placeholders):** `collectstatic` runs at image build on inline placeholders, so the fail-loud rule holds at boot.
+- **2026-08-13 · Accepted** — completes [020](#adr-020-three-per-tenant-roles-on-a-membership-record)/[027](#adr-027-adopt-the-capabilities-the-upgrade-unlocks) on auth, closes the caching question. Provider facts verified 2026-08-13. **Rule 1's build-time half is [049](#adr-049-collectstatic-keeps-running-at-image-build-on-build-only-placeholders):** `collectstatic` runs at image build on inline placeholders, so the fail-loud rule holds at boot. **Clause 4's first custom backend is [055](#adr-055-login-throttling-backs-off-per-username-in-one-postgres-table-keyed-by-a-hash)'s login throttle,** which 2.20's builds on.
 - **Decision:** Six rows decided together because they are not independent — the service layer is where caching would attach, the permission mechanism determines whether that layer takes a user or a membership, and adopting Django's auth views is what makes email a first-release requirement.
   1. **Settings — `base.py` + `local.py` + `test.py`, no `production.py`.** `base.py` *is* production: all config from the environment, **no default at all** for `SECRET_KEY`/`ALLOWED_HOSTS`/`DEBUG`, so a missing variable raises `ImproperlyConfigured` at boot. Overlays opt *into* unsafe or convenient behaviour, so **the accident lands on the safe side** — the inverse of today, where a forgotten `DJANGO_SETTINGS_MODULE` yields hardcoded secrets and `DEBUG = True`.
   2. **Business logic — `control/services/`, plain functions, batch-first.** Explicit arguments, frozen dataclass returns carrying amount, canonical unit, provenance and as-of date together. **The batch entrypoint is the primary API**; single-object costing wraps it. Models lose costing entirely — the `@property` methods are **deleted, not left as delegators**.
@@ -572,7 +573,37 @@ survive and now live in ADR-010; nothing else here is in force.
   - **A mirrored write lasts as long as the host keeps logs**, until 11.4 sets a period (052's Traps).
   - **Turning autocomplete back on means logging it first.** A later `autocomplete_fields` fails against the 404 until then.
 
-## ADR-055: &lt;next decision goes here&gt;
+## ADR-055: Login throttling backs off per username, in one Postgres table keyed by a hash
+
+- **2026-11-16 · Accepted** — the design 2.22 needs, found missing by its premise check. Its Notes cite only [028](#adr-028-backend-architecture), which surfaced the gap and decides nothing on it, and the run order's premise that throttling reads 2.23's attempt record failed: [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values) keeps that record on stdout, where nothing reads it back. **Adds to 028's clause 4:** the throttle is the first custom authentication backend, and 2.20's builds on it. Adds the `login_throttled` action to 052's stream, whose clauses stand.
+- **Decision:** Three clauses.
+
+  **(1) One authentication backend checks the throttle before the password.** A `ModelBackend` subclass, the only entry in `AUTHENTICATION_BACKENDS`, refuses an attempt while its username is in a delay window. It raises `PermissionDenied` without hashing the password, so a right password tried inside the window tells the guesser nothing. `/accounts/login/` and `/admin/login/` both call `authenticate()`, so one backend covers both, as 2.23's signals do. A refused attempt is one `login_throttled` event in place of `login_failed`, with the same target. Both login forms say that sign-in is paused after repeated failures, and when to retry, rather than "wrong password". The form reaches `/accounts/login/` through `LoginView.as_view(authentication_form=…)` and the admin through `BakeryAdminSite.login_form`, so this is not 028's rejected `LoginView` subclass.
+
+  **(2) Backoff per username, keyed by a hash, the same for unknown names.** The key is an HMAC of the submitted username under `SECRET_KEY` (`salted_hmac`), as the backend receives it. The table therefore holds no username, and an unknown name backs off exactly as a real one does, so the throttle never shows which accounts exist. Five consecutive failures go unthrottled. From the fifth on, each failure opens a window, 1 minute doubling to at most 15, in which every attempt is refused. A refused attempt is not counted and does not extend the window, so an owner retrying inside it does not lengthen their own wait. A success clears the key, and a key with no failure for 24 hours is forgotten. **No IP address** until 2.24 settles which proxy to trust.
+
+  **(3) The counts live in one Postgres table, counted before the password is checked.** One model in `accounts` (the key, the consecutive failures, the time of the last) and one migration. It is Postgres because every worker must see the same count, a deploy must not reset it, and persistent state lives only there ([015](#adr-015-host-portability-is-a-standing-design-constraint)). The attempt is counted atomically, under the key's row lock, *before* the password is checked, and a success then clears it, so a parallel burst of guesses is counted rather than racing between a read and a write. Expired keys are deleted whenever a failure is written, so no key outlives its last failure by more than a day, and no scheduled job is needed. **This is not 052's rejected `AuditEvent` table**, which was a record of people, kept forever by default. This one holds no id and no username, keeps nothing past a day, and is not tenant-scoped: a login comes before a bakery is chosen, and [020](#adr-020-three-per-tenant-roles-on-a-membership-record) puts roles on memberships, not on accounts. The audit record stays on stdout.
+- **Rejected:**
+  - **`django-axes`** — the tested library, measured on 8.0.0. It requires Django ≥ 4.2, so it cannot install before Epic 19. By default it locks by IP address alone, which behind the proxy is one address for everyone until 2.24, and with no `AXES_COOLOFF_TIME` a lockout never lifts. Its tables keep the user agent, IP address, username, and GET and POST data in plain text, and it logs every successful login by default: the values 052's clause 2 keeps out.
+  - **`django-ratelimit`** — measured on 4.1.0, its system check (`django_ratelimit.E003`) refuses the local-memory, file and database caches, so it needs memcached or Redis: a second service, which 028's ladder admits only for cache coherence.
+  - **Django's database cache as the counter** — `DatabaseCache` inherits `BaseCache.incr`, a `get` then a `set` (`django/core/cache/backends/base.py:186`, Django 3.2), so parallel guesses race past the count. Its table comes from `createcachetable`, which no deploy step runs.
+  - **The default local-memory cache** — per process, and emptied by every deploy. 028 already rejected it for figures, and the worker count is the host's: the image's gunicorn sets no `--workers`, so `WEB_CONCURRENCY` decides.
+  - **Keying on the account's id, with the typed username where none matches** — mistyped usernames, sometimes an email or a password typed into the wrong field, would sit in plain text in a table whose dumps are kept up to a year ([031](#adr-031-operations)). Two code paths also risk treating unknown names differently, which clause 2 rules out.
+  - **Throttling only real accounts** — the delay itself would reveal which usernames exist.
+  - **A hard lockout until reset** — anyone who knows a username could lock its owner out, and recovery is by email (5.24, 7.21), which is not built.
+  - **Sleeping in the request** — a sync gunicorn worker is blocked for the whole delay, so a few parallel attempts stall the site for everyone.
+  - **Per-IP throttling now** — `REMOTE_ADDR` is the proxy's address until 2.24, so one attacker would throttle every user, and trusting `X-Forwarded-For` unchecked lets each request choose its own address.
+  - **Rate limiting at the host or an edge proxy** — a host-specific control, which 015 makes argue against portability, and it sees requests, not usernames.
+  - **A CAPTCHA after repeated failures** — a new processor receiving every visitor's browser data, for one free pilot ([016](#adr-016-phase-1-go-to-market)).
+- **Traps:**
+  - **Someone who knows a username can keep its owner out**, by spending each window's one guess as it opens: a backoff per username cannot tell the owner from the attacker. Accepted for one pilot. The revisit is adding the client address once 2.24 settles the proxy.
+  - **The cap is a budget, not a wall:** about a hundred guesses per username a day. The password validators (`bakery/settings/base.py:156`) keep the commonest passwords out, and nothing more.
+  - **2.20's capability backend builds on this one, not beside it.** A second password backend listed first bypasses the throttle; listed after it, it checks every wrong password twice.
+  - **Django fires `user_login_failed` for a refused attempt too** (`django/contrib/auth/__init__.py:77`, Django 3.2), so 2.23's receiver must tell the two apart, or a throttled attempt is logged twice.
+  - **Rotating `SECRET_KEY` resets every count**, since the keys are its HMACs: harmless, except mid-attack.
+  - **Password reset is not a password check**, so this does not throttle it. Its form is already routed at `/accounts/password_reset/`, and will send one email per POST once 7.21 configures email.
+
+## ADR-056: &lt;next decision goes here&gt;
 
 - **Date / Status:**
 - **Decision:**
