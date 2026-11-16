@@ -52,9 +52,9 @@
             <div class="form-signin text-center">
               <img class="mb-4" src="../../static/img/Logo1.png" alt="" width="90" height="">
               <h1 class="h3 mb-3 fw-normal">Please Sign In</h1>
-              {% if form.errors %}
-                <p>Your username and password didn't match. Please try again.</p>
-              {% endif %}
+              {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+              {% endfor %}
 
               {% if next %}
                 {% if user.is_authenticated %}

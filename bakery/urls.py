@@ -17,12 +17,22 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth.views import LoginView
 from django.urls import include, path
+
+from accounts.forms import ThrottledAuthenticationForm
 
 # URL path for different apps
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("core.urls", namespace="core")),
+    # Ahead of Django's own `login`, which reverses to the same path, so that the
+    # page can say when a throttled sign-in may retry (task 2.22).
+    path(
+        "accounts/login/",
+        LoginView.as_view(authentication_form=ThrottledAuthenticationForm),
+        name="login",
+    ),
     path("accounts/", include("django.contrib.auth.urls")),
     path("control/", include("control.urls", namespace="control")),
 ]
