@@ -25,7 +25,7 @@ the Dockerfile's `RUN` line and never through `ENV`, so the running image still
 fails loudly (ADR-049). Locally, the values come from a `.env` file: copy
 `.env.example`.
 
-See https://docs.djangoproject.com/en/3.2/ref/settings/
+See https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
@@ -57,13 +57,14 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 # Only for a host that serves the app on its own domain (task 2.3). Unset, Django
 # trusts no origin beyond the serving host and keeps both cookies host-only.
 #
-# Bare hosts, as Django 3.2 compares them: `bakery.example.com`, or `.example.com`
-# for a domain and its subdomains. Django 4.0 requires the scheme instead
-# (`https://bakery.example.com`), so 19.4's upgrade changes the format.
+# Origins, scheme included, as Django has required since 4.0 (system check
+# 4_0.E001 fails a bare host): `https://bakery.example.com`, or
+# `https://*.example.com` for a domain's subdomains.
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
-# An empty value means unset. Django 3.2 would take "" as the domain, stop matching
-# the request's own host, and fail every HTTPS form post on its CSRF check.
+# An empty value means unset. Django would take "" as the domain and stop matching
+# the request's own host, so an HTTPS form post that sends no Origin header would
+# fail its CSRF Referer check.
 SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default=None) or None
 CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN", default=None) or None
 
@@ -141,7 +142,7 @@ WSGI_APPLICATION = "bakery.wsgi.application"
 
 
 # Database - PostgreSQL
-# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
+# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 #
 # DATABASE_URL is the database contract (ADR-015 rule 2), so the same image runs
 # on any host that can supply one. No default (task 2.1).
@@ -150,7 +151,7 @@ DATABASES = {"default": env.db("DATABASE_URL")}
 
 
 # Password validation
-# https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
+# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -175,7 +176,7 @@ AUTHENTICATION_BACKENDS = ["accounts.backends.ThrottledModelBackend"]
 
 
 # Internationalization
-# https://docs.djangoproject.com/en/3.2/topics/i18n/
+# https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
 
@@ -183,30 +184,37 @@ TIME_ZONE = "UTC"
 
 USE_I18N = True
 
-USE_L10N = True
-
+# Django's default since 5.0, stated anyway, like TIME_ZONE above. Datetimes are
+# aware, and time zones are the standard library's zoneinfo: pytz is gone (19.4).
 USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.2/howto/static-files/
+# https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 STATIC_URL = "/static/"
 
-MEDIA_ROOT = os.path.join(BASE_DIR, "bluebiulding", "media")
-MEDIA_URL = "/media/"
-
 # Extra places for collectstatic to find static files.
 STATICFILES_DIRS = (os.path.join(BASE_DIR, "static"),)
 
+# The only storage setting Django 5.1+ reads (ADR-027). It ignores a leftover
+# STATICFILES_STORAGE without a word, and compression and cache-busting quietly
+# stop, so that name must not come back.
+STORAGES = {
+    # Nothing uploads a file yet: no FileField or ImageField exists, and no
+    # MEDIA_ROOT is set. 13.11 puts Cloudflare R2 here (ADR-005).
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
+# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Redirect to home URL after login (Default redirects to /accounts/profile/)
 LOGIN_REDIRECT_URL = "/control/dashboard/"

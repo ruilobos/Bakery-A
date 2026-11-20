@@ -33,9 +33,7 @@ defaults:
 jobs:
   django:
     name: Django checks
-    # 3.9 matches the Dockerfile's base image, and setup-python has no 3.9 build
-    # past Ubuntu 24.04. 19.9 moves both to 3.13.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
@@ -54,7 +52,9 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: '3.9'
+          # The Dockerfile's base image, python:3.13-slim, the one source of the
+          # version (ADR-025): change the two together.
+          python-version: '3.13'
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt

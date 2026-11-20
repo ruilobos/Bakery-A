@@ -1,5 +1,6 @@
-# Use the official Python image from the Docker Hub
-FROM python:3.9-slim
+# Use the official Python image from the Docker Hub. The only place the Python
+# version is set (ADR-025): CI's Django checks follow it.
+FROM python:3.13-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1

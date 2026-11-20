@@ -1,5 +1,6 @@
 """
-The Django admin's site (tasks 2.15, 2.27 and 2.28, ADR-019, ADR-052, ADR-054).
+The Django admin's site (tasks 2.15, 2.27, 2.28 and 19.4; ADR-019, ADR-052,
+ADR-054, ADR-056).
 
 Superuser-only support tooling: deliberately cross-tenant, and never linked from
 the tenant UI. `django_admin_log` records its writes but not its reads, so each
@@ -46,26 +47,54 @@ def changed_labels(entry):
     return sorted(labels)
 
 
+# Set on each `LogEntry` once it is mirrored, so `MirrorBulkDeletions` can tell
+# which of the rows it is handed the receiver never saw.
+MIRRORED = "_mirrored_to_audit"
+
+
+def mirror(entry):
+    """Copy one `LogEntry` into `bakery.audit`, and mark it as copied."""
+    action = ACTIONS[entry.action_flag]
+    model = entry.content_type.model_class()
+    pk = model._meta.pk.to_python(entry.object_id)
+    details = {"changed": changed_labels(entry)} if action == "update" else {}
+    record(action, entry.user, model, pk, **details)
+    setattr(entry, MIRRORED, True)
+
+
 def mirror_admin_write(sender, instance, created, raw, **kwargs):
     """
-    Copy a new `LogEntry` into `bakery.audit`, connected in `bakery/apps.py`.
+    Mirror each `LogEntry` the admin saves, connected in `bakery/apps.py`.
 
     The admin logs a delete before it runs it, so `record`'s `on_commit` is what
     keeps a rolled-back write out of the stream. `delete_selected` runs outside a
     transaction, so if its delete fails the event stays, as Django's `LogEntry`
     does. A fixture's rows are `raw`: nobody made those writes here.
 
-    On Django 5.2, `delete_selected` logs two or more rows through `bulk_create`,
-    which sends no `post_save`, so they would go unmirrored after 19.4.
-    `test_delete_selected_logs_each_row` fails there rather than let that pass.
+    Rows the admin writes with `bulk_create` send no `post_save`, so they reach
+    the stream through `MirrorBulkDeletions` instead (ADR-056).
     """
-    if not created or raw:
-        return
-    action = ACTIONS[instance.action_flag]
-    model = instance.content_type.model_class()
-    pk = model._meta.pk.to_python(instance.object_id)
-    details = {"changed": changed_labels(instance)} if action == "update" else {}
-    record(action, instance.user, model, pk, **details)
+    if created and not raw:
+        mirror(instance)
+
+
+class MirrorBulkDeletions:
+    """
+    Mirror the `LogEntry` rows `delete_selected` writes without a `post_save`.
+
+    From Django 5.1, `log_deletions` logs two or more rows with `bulk_create`,
+    which sends no signal, so the receiver never sees them. A row the receiver
+    did see carries its mark, so none is mirrored twice, however many rows Django
+    chooses to save one by one. `BakeryAdminSite.register` mixes this into every
+    admin (ADR-056).
+    """
+
+    def log_deletions(self, request, queryset):
+        entries = super().log_deletions(request, queryset)
+        for entry in entries:
+            if not getattr(entry, MIRRORED, False):
+                mirror(entry)
+        return entries
 
 
 class AuditedAdminAuthenticationForm(ThrottleMessageMixin, AdminAuthenticationForm):
@@ -90,6 +119,26 @@ class BakeryAdminSite(admin.AdminSite):
 
     def has_permission(self, request):
         return super().has_permission(request) and request.user.is_superuser
+
+    def register(self, model_or_iterable, admin_class=None, **options):
+        """
+        Mix `MirrorBulkDeletions` into every admin registered here.
+
+        That includes Django's own `GroupAdmin` and the re-registered `UserAdmin`,
+        and a class added later cannot forget it, which is why 054 rejected a
+        mixin written into each class by hand (ADR-056).
+        """
+        admin_class = admin_class or admin.ModelAdmin
+        if not issubclass(admin_class, MirrorBulkDeletions):
+            admin_class = type(
+                admin_class.__name__,
+                (MirrorBulkDeletions, admin_class),
+                {
+                    "__module__": admin_class.__module__,
+                    "__qualname__": admin_class.__qualname__,
+                },
+            )
+        super().register(model_or_iterable, admin_class, **options)
 
     def autocomplete_view(self, request):
         """
