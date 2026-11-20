@@ -1,5 +1,4 @@
 <!doctype html>
-{% load mathfilters %}
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -195,7 +194,7 @@
                       </tr>
                       <tr>
                         <td>VAT (%)</td>
-                        <td>{{ iten.vat|mul:100 }}</td>
+                        <td>{{ vat_percent|get_item:iten.pk }}</td>
                       </tr>
                       <tr>
                         <td>Net Price (€)</td>
