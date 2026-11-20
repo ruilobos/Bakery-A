@@ -23,7 +23,7 @@ REQUIRED = {**SECRETS, "ALLOWED_HOSTS": "app.invalid", "DEBUG": "false"}
 # What a host serving the app on its own domain would set (task 2.3).
 HOST = {
     "ALLOWED_HOSTS": "bakery.example.com",
-    "CSRF_TRUSTED_ORIGINS": "bakery.example.com,.example.org",
+    "CSRF_TRUSTED_ORIGINS": "https://bakery.example.com,https://*.example.org",
     "SESSION_COOKIE_DOMAIN": ".example.com",
     "CSRF_COOKIE_DOMAIN": ".example.com",
 }
@@ -96,15 +96,18 @@ def test_base_trusts_nothing_extra_by_default():
 
 def test_base_reads_the_host_settings_from_the_environment():
     settings = load_base({**REQUIRED, **HOST})
-    assert settings.CSRF_TRUSTED_ORIGINS == ["bakery.example.com", ".example.org"]
+    assert settings.CSRF_TRUSTED_ORIGINS == [
+        "https://bakery.example.com",
+        "https://*.example.org",
+    ]
     assert settings.SESSION_COOKIE_DOMAIN == ".example.com"
     assert settings.CSRF_COOKIE_DOMAIN == ".example.com"
 
 
 @pytest.mark.parametrize("name", ["SESSION_COOKIE_DOMAIN", "CSRF_COOKIE_DOMAIN"])
 def test_an_empty_cookie_domain_means_unset(name):
-    # A blank `.env` line yields "", which Django 3.2 would take as the domain,
-    # failing every HTTPS form post on its CSRF check.
+    # A blank `.env` line yields "", which Django would take as the domain, failing
+    # an HTTPS form post that sends no Origin header on its CSRF Referer check.
     settings = load_base({**REQUIRED, name: ""})
     assert getattr(settings, name) is None
 
@@ -168,6 +171,31 @@ def test_overlays_fix_their_own_https_settings(overlay, expected, environment):
     # and the suite keeps production's cookie and HSTS values.
     settings = load_overlay(overlay, {**REQUIRED, **environment})
     assert https_only(settings) == expected
+
+
+def test_base_keeps_whitenoise_on_the_storages_dict():
+    # ADR-027: Django 5.1+ reads only STORAGES and ignores the settings it replaced,
+    # so a leftover one would quietly stop compression and cache-busting. 2.13's
+    # broken MEDIA_ROOT went with them (19.4).
+    settings = load_base(REQUIRED)
+    removed = ["STATICFILES_STORAGE", "DEFAULT_FILE_STORAGE", "MEDIA_ROOT"]
+
+    assert settings.STORAGES["staticfiles"]["BACKEND"] == (
+        "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    )
+    assert "default" in settings.STORAGES
+    assert [name for name in removed if hasattr(settings, name)] == []
+
+
+def test_the_test_overlay_swaps_only_the_static_storage():
+    base = load_base(REQUIRED)
+    settings = load_overlay("test", REQUIRED)
+
+    assert settings.STORAGES["staticfiles"]["BACKEND"] == (
+        "django.contrib.staticfiles.storage.StaticFilesStorage"
+    )
+    assert settings.STORAGES["default"] == base.STORAGES["default"]
+    assert not hasattr(settings, "STATICFILES_STORAGE")
 
 
 def dockerfile_instructions():

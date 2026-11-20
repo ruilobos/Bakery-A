@@ -3,7 +3,7 @@ import io
 import json
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
@@ -13,8 +13,7 @@ from django.contrib import admin
 from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.admin.utils import quote
 from django.contrib.auth import get_user_model, hashers
-from django.contrib.auth.models import Permission
-from django.contrib.contenttypes.models import ContentType
+from django.contrib.auth.models import Group, Permission
 from django.core import serializers
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import F
@@ -24,6 +23,7 @@ from pytest_django.asserts import assertContains, assertNotContains
 
 from accounts import throttle
 from accounts.models import LoginThrottle
+from bakery.admin import MirrorBulkDeletions
 from control.models import (
     BaseRecipe,
     Bs_Ingredients,
@@ -209,7 +209,7 @@ def post(client, django_capture_on_commit_callbacks):
 @pytest.fixture
 def baker():
     return get_user_model().objects.create_user(
-        "baker", password="x", date_joined=datetime(2026, 11, 1, 8, tzinfo=timezone.utc)
+        "baker", password="x", date_joined=datetime(2026, 11, 1, 8, tzinfo=UTC)
     )
 
 
@@ -693,6 +693,39 @@ def test_no_template_links_to_the_admin():
     ] == []
 
 
+# 19.4: Django 5.0 logs out by POST only, answering a GET with 405, so each
+# template's Logout is a form (ADR-056).
+
+LOGOUT = "{% url 'logout' %}"
+
+
+def test_every_logout_is_a_post_form():
+    root = Path(__file__).resolve().parent.parent
+    form = f'<form method="post" action="{LOGOUT}">'
+    texts = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in root.glob("*/templates/**/*.html")
+    }
+
+    assert any(LOGOUT in text for text in texts.values())
+    assert [
+        name for name, text in texts.items() if text.count(LOGOUT) != text.count(form)
+    ] == []
+
+
+def test_a_signed_in_page_logs_out_by_post(client, baker):
+    client.force_login(baker)
+    page = client.get(reverse("control:dashboard"))
+
+    assertContains(page, f'<form method="post" action="{reverse("logout")}">')
+    assertContains(page, 'name="csrfmiddlewaretoken"')
+    assert client.get(reverse("logout")).status_code == 405
+    assert "_auth_user_id" in client.session
+
+    assert client.post(reverse("logout")).status_code == 200
+    assert "_auth_user_id" not in client.session
+
+
 # 2.27: each admin write is mirrored into the stream, where it outlives its user,
 # and the admin deactivates an account instead of deleting it (ADR-054).
 
@@ -703,9 +736,13 @@ def write_event(action, actor, model, pk, **details):
 
 
 def log_entry(user, change_message=""):
-    supplier = ContentType.objects.get_for_model(Supplier)
-    return LogEntry.objects.log_action(
-        user.pk, supplier.pk, SUPPLIER, SUPPLIER, CHANGE, change_message
+    # One row, saved as the admin's own log_change saves it, so post_save fires.
+    return LogEntry.objects.log_actions(
+        user.pk,
+        [Supplier.objects.get(pk=SUPPLIER)],
+        CHANGE,
+        change_message,
+        single_object=True,
     )
 
 
@@ -789,6 +826,37 @@ def test_delete_selected_logs_each_row(
     assert sorted(events, key=lambda event: event["target"]["pk"]) == [
         write_event("delete", admin_user, "control.supplier", name) for name in names
     ]
+
+
+def test_delete_selected_on_one_row_logs_it_once(
+    admin_client, admin_user, on_commit, audit_events
+):
+    # Django saves a lone row with save(), so post_save has mirrored it already,
+    # and the bulk path must not mirror it again (ADR-056).
+    name = "Oat & Sons"
+    Supplier.objects.create(name=name, phone=1)
+
+    with on_commit():
+        response = admin_client.post(
+            reverse("admin:control_supplier_changelist"),
+            {"action": "delete_selected", "_selected_action": [name], "post": "yes"},
+        )
+
+    assert response.status_code == 302
+    assert [without_time(event) for event in audit_events()] == [
+        write_event("delete", admin_user, "control.supplier", name)
+    ]
+
+
+def test_every_admin_mirrors_bulk_deletions():
+    # The site mixes it in as each admin registers, so Django's own GroupAdmin and
+    # a class added later cannot go without it (ADR-056).
+    assert Group in admin.site._registry
+    assert [
+        model
+        for model, model_admin in admin.site._registry.items()
+        if not isinstance(model_admin, MirrorBulkDeletions)
+    ] == []
 
 
 def test_a_password_change_logs_no_hash(
@@ -1187,7 +1255,7 @@ def test_an_unknown_username_backs_off_exactly_as_a_real_one(
     [(4, None), (5, 1), (6, 2), (7, 4), (8, 8), (9, 15), (10, 15), (200, 15)],
 )
 def test_each_failure_from_the_fifth_opens_a_longer_window(failures, minutes):
-    last = datetime(2026, 11, 16, 9, tzinfo=timezone.utc)
+    last = datetime(2026, 11, 16, 9, tzinfo=UTC)
     expected = None if minutes is None else last + timedelta(minutes=minutes)
 
     assert throttle.reopens_at(failures, last) == expected
@@ -1212,7 +1280,7 @@ def test_the_page_rounds_the_wait_up_to_a_whole_minute(client, baker):
     LoginThrottle.objects.create(
         key=throttle.key_for("baker"),
         failures=9,  # A 15-minute window,
-        last_failure=datetime.now(timezone.utc) - timedelta(minutes=10, seconds=30),
+        last_failure=datetime.now(UTC) - timedelta(minutes=10, seconds=30),
     )
 
     response = sign_in(client, "baker", "x")
@@ -1256,7 +1324,7 @@ def test_a_sign_in_clears_its_key(client, on_commit, baker):
 
 
 def test_a_key_a_day_past_its_last_failure_is_forgotten(client, hashes, baker):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for username, failures, age in [
         ("baker", 12, timedelta(days=1)),
         ("stale", 3, timedelta(days=1, minutes=1)),

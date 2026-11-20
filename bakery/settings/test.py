@@ -37,5 +37,9 @@ SECURE_HSTS_SECONDS = 31536000
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
 # Static files are not the subject of these tests, and the manifest storage in
-# base.py would require `collectstatic` to have run first.
-STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+# base.py would require `collectstatic` to have run first. Only that key changes:
+# "default" stays base.py's.
+STORAGES = {
+    **STORAGES,
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}

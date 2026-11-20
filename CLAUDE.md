@@ -42,6 +42,7 @@ python -m scripts.docs_lookup req "User roles"  # a requirements section (`stack
 ## Commands
 
 ```bash
+# Host-side commands need Python 3.13, the image's (ADR-025): Django 5.2 will not install on 3.9
 pip install -r requirements.txt       # UTF-8; keep it out of Word, which re-encodes it
 pip install -r requirements-dev.txt   # pytest, ruff; never in the image (ADR-046)
 cp .env.example .env                  # then fill it in: secrets come only from the environment (2.1)

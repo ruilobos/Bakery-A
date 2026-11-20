@@ -19,12 +19,12 @@ deliberately not repeated here.
 
 | Layer | Current | Decision | ADR |
 |---|---|---|---|
-| Python | 3.8 (`runtime.txt`), Dockerfile 3.9-slim — **both EOL** | **3.13** — spans Django 5.2 and 6.2. `python:3.13-slim` is the single source; `runtime.txt` deleted | [025](decisions.md) |
-| Django | 3.2 — **EOL since April 2024** | **5.2 LTS, direct from 3.2** (no 4.2 stop), supported to April 2028. Next hop 6.2 LTS, H2 2027 | [025](decisions.md) |
+| Python | 3.13: the `Dockerfile`'s `python:3.13-slim`, which CI's `Django checks` follows; `runtime.txt` deleted (19.4) | **3.13** — spans Django 5.2 and 6.2. `python:3.13-slim` is the single source; `runtime.txt` deleted | [025](decisions.md) |
+| Django | 5.2 LTS (19.4) | **5.2 LTS, direct from 3.2** (no 4.2 stop), supported to April 2028. Next hop 6.2 LTS, H2 2027 | [025](decisions.md) |
 | Database | PostgreSQL; `postgres:17` in `docker-compose.yaml` (19.10); the home-server production database unpinned (Railway's pin is 19.11) | **PostgreSQL 17**, pinned identically local and production. Majors must match | [026](decisions.md) |
 | DB topology | Separate Postgres container from the app | **Always separate services** — never bundled in one image | [007](decisions.md) |
 | Multi-tenancy | None — single-bakery schema | **Shared database, row-level tenant isolation** via a `Bakery` FK on every business table | [006](decisions.md)/[008](decisions.md) |
-| WSGI/ASGI server | gunicorn 20.1.0 (WSGI) | **gunicorn, WSGI, sync workers**, latest pinned at lock time (7.14) | [036](decisions.md) |
+| WSGI/ASGI server | gunicorn (WSGI), latest pinned by 19.4 | **gunicorn, WSGI, sync workers**, latest pinned at lock time (7.14) | [036](decisions.md) |
 
 ## Dependencies
 
@@ -35,13 +35,13 @@ only in the generated lock files**, never here.
 
 | Package | Current | Decision | ADR |
 |---|---|---|---|
-| `psycopg2-binary` | 2.9.6 | → **`psycopg[binary]` 3** (19.4) | [025](decisions.md) |
-| `whitenoise` | 5.2.0 | Latest compatible at lock time | [025](decisions.md) |
-| `django-environ` | 0.4.5 | Latest compatible. **Stays** — it owns `env.db()`, the `DATABASE_URL` contract | [025](decisions.md) |
-| `Pillow` | 10.4.0 | **Removed until Epic 13**, then latest compatible (13.1) | [025](decisions.md)/[029](decisions.md) |
-| `django-mathfilters` | 1.0.0 | **Dropped** — classifiers stop at Django 3.x, a hard upgrade blocker (19.5) | [025](decisions.md) |
-| `asgiref` / `sqlparse` / `pytz` | pinned to Django 3.2's requirements | **Removed from the hand-written file** — the first two are transitive; `pytz` goes entirely | [025](decisions.md) |
-| `environ` 1.0 / `dj-database-url` 0.5.0 | both present | **Both removed** — a module-name collision and an unused duplicate of `env.db()` | [025](decisions.md) |
+| `psycopg2-binary` | Replaced by `psycopg[binary]` 3 (19.4) | → **`psycopg[binary]` 3** (19.4) | [025](decisions.md) |
+| `whitenoise` | Latest pinned by 19.4, on `STORAGES`' `"staticfiles"` | Latest compatible at lock time | [025](decisions.md) |
+| `django-environ` | Latest pinned by 19.4 | Latest compatible. **Stays** — it owns `env.db()`, the `DATABASE_URL` contract | [025](decisions.md) |
+| `Pillow` | Removed (19.4) | **Removed until Epic 13**, then latest compatible (13.1) | [025](decisions.md)/[029](decisions.md) |
+| `django-mathfilters` | Removed: from `INSTALLED_APPS` by 19.5, from `requirements.txt` by 19.4 | **Dropped** — classifiers stop at Django 3.x, a hard upgrade blocker (19.5) | [025](decisions.md) |
+| `asgiref` / `sqlparse` / `pytz` | Removed from `requirements.txt` (19.4) | **Removed from the hand-written file** — the first two are transitive; `pytz` goes entirely | [025](decisions.md) |
+| `environ` 1.0 / `dj-database-url` 0.5.0 | Both removed: `environ` before 19.4, `dj-database-url` by it | **Both removed** — a module-name collision and an unused duplicate of `env.db()` | [025](decisions.md) |
 | `sentry-sdk[django]` | none | **Added** to `base.in` | [031](decisions.md) |
 | Media storage | none | `django-storages[s3]` + `boto3` against Cloudflare R2, entering in Epic 13 | [005](decisions.md) |
 | Management | single hand-pinned `requirements.txt`, UTF-8 since 1.4 | **`uv pip compile` over `requirements/{base,dev,prod}.in` → pinned, hashed `.txt`.** Requirements-file mode, not `pyproject.toml`. `--generate-hashes` + `--require-hashes`, `--python-version 3.13`; `dev`/`prod` compiled against `-c base.txt`. `uv` is build tooling, never an app dependency (19.12, 19.16). **Until 19.12**, dev tooling sits in an interim root `requirements-dev.txt` the `Dockerfile` never installs, pinned to the installed runtime (6.23) | [029](decisions.md)/[046](decisions.md) |

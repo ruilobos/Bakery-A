@@ -72,8 +72,9 @@ supersede it, or note the amendment on its Status line.
 | [051](#adr-051-the-task-loop-looks-up-the-docs-with-a-script-and-gates-by-risk) | Script lookups, risk-based gates | Accepted (amends 038, 040) | `scripts/docs_lookup.py` replaces the five doc agents; plan approval only for risky tasks, PR review always; small doc defects fixed in the task's PR; `Done` Notes are ADRs + PR |
 | [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values) | Audit event stream | Accepted (admin writes added by 054) | One `bakery.audit` logger, JSON lines on stdout, no table; events name actor and target by id, never values; emitted where the actor is known, after the write |
 | [053](#adr-053-211-gives-way-to-the-two-input-gaps-measured-in-the-code) | 2.11 rescoped | Accepted | 2.11 superseded: Django's forms already validate on the server; 2.25 hashes the password the user views store raw, 2.26 neutralizes formulas in the bulk CSV exports |
-| [054](#adr-054-the-admin-reads-past-the-tenant-filter-by-name-and-its-trail-outlives-the-account) | Admin past the filter, trail outlives the account | Accepted (corrects 019's Trap; adds to 052) | The scoped manager stays the default and `all_tenants` is the named path (3.75); admin writes join `bakery.audit` and accounts are deactivated until 11.9 (2.27); `/admin/autocomplete/` is closed (2.28) |
+| [054](#adr-054-the-admin-reads-past-the-tenant-filter-by-name-and-its-trail-outlives-the-account) | Admin past the filter, trail outlives the account | Accepted (corrects 019's Trap; adds to 052; clause 2 amended by 056) | The scoped manager stays the default and `all_tenants` is the named path (3.75); admin writes join `bakery.audit` and accounts are deactivated until 11.9 (2.27); `/admin/autocomplete/` is closed (2.28) |
 | [055](#adr-055-login-throttling-backs-off-per-username-in-one-postgres-table-keyed-by-a-hash) | Login throttling | Accepted (adds to 028's clause 4) | Five free failures, then a refusal window doubling from 1 to 15 minutes, per username; one `accounts` table keyed by an HMAC of the username, no IP until 2.24; enforced by an authentication backend before the password is checked (2.22) |
+| [056](#adr-056-logout-is-a-post-form-and-the-admin-mirror-gains-a-bulk-path) | Logout by POST, bulk admin mirror | Accepted (amends 054) | Every template logs out through a POST form; `BakeryAdminSite` mixes a bulk path into each admin, so `delete_selected`'s `bulk_create` rows reach `bakery.audit` (19.4) |
 
 ---
 
@@ -548,7 +549,7 @@ survive and now live in ADR-010; nothing else here is in force.
 
 ## ADR-054: The admin reads past the tenant filter by name, and its trail outlives the account
 
-- **2026-11-05 · Accepted** — three questions from 2.15's review (PR #55). **Corrects [019](#adr-019-deletion-semantics-supplier-identity-administration-surfaces)'s Trap on `ModelAdmin`**, which holds or fails depending on how 3.3 reads the current tenant. **Adds to [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values)'s stream**, whose clauses stand. Sets an interim rule for roadmap 11.9 and does not close it.
+- **2026-11-05 · Accepted** — three questions from 2.15's review (PR #55). **Clause (2)'s single receiver amended by [056](#adr-056-logout-is-a-post-form-and-the-admin-mirror-gains-a-bulk-path)**, which adds the bulk path Django 5.1 opened. **Corrects [019](#adr-019-deletion-semantics-supplier-identity-administration-surfaces)'s Trap on `ModelAdmin`**, which holds or fails depending on how 3.3 reads the current tenant. **Adds to [052](#adr-052-audit-events-are-one-structured-log-stream-keyed-by-ids-never-values)'s stream**, whose clauses stand. Sets an interim rule for roadmap 11.9 and does not close it.
 - **Decision:** Three clauses.
 
   **(1) A named path past the filter: task 3.75.** The scoped manager from 3.3 and 3.55 stays each model's default. Measured: `ModelAdmin.get_queryset` reads `self.model._default_manager` (`django/contrib/admin/options.py:366`, Django 3.2), so an automatic filter reaches the admin. An explicit `for_bakery()` would leave tenants alone there, but the archived filter would still apply. So each such model also declares `all_tenants = models.Manager()`, which filters neither, and a shared `ModelAdmin` base reads through it, dropdowns included. With no active tenant, the scoped manager returns nothing, never every row. How the manager learns the current tenant stays 3.3's to decide, and this clause holds either way.
@@ -603,7 +604,28 @@ survive and now live in ADR-010; nothing else here is in force.
   - **Rotating `SECRET_KEY` resets every count**, since the keys are its HMACs: harmless, except mid-attack.
   - **Password reset is not a password check**, so this does not throttle it. Its form is already routed at `/accounts/password_reset/`, and will send one email per POST once 7.21 configures email.
 
-## ADR-056: &lt;next decision goes here&gt;
+## ADR-056: Logout is a POST form, and the admin mirror gains a bulk path
+
+- **2026-11-20 · Accepted** — two breakages Django 5.2 brings that 19.4's row did not name, found by its premise check. **Amends [054](#adr-054-the-admin-reads-past-the-tenant-filter-by-name-and-its-trail-outlives-the-account)'s clause (2):** one `post_save` receiver no longer sees every admin write. Logged inside 19.4's PR, at the human's call, rather than on its own PR as [051](#adr-051-the-task-loop-looks-up-the-docs-with-a-script-and-gates-by-risk)'s clause 3 routes a scope change: the bulk path exists only on 5.2, so it could not land ahead of the upgrade.
+- **Decision:** Two clauses.
+
+  **(1) Logout is a POST form.** Django 5.0 removed logout by GET, and `LogoutView` answers one with 405 (measured on 5.2.19). Each template's Logout link (32 of them, `git grep -l "{% url 'logout' %}" -- '*.html'`) becomes a `<form method="post">` carrying `{% csrf_token %}`, its button styled as the `nav-link` it replaces. 030's shared `base.html` will hold the one form.
+
+  **(2) The admin mirror gains a bulk path.** From Django 5.1, `ModelAdmin.log_deletions` writes two or more `LogEntry` rows with `bulk_create`, which sends no `post_save`, so `delete_selected` on several rows went unmirrored (`LogEntryManager.log_actions`, `django/contrib/admin/models.py`, Django 5.2). The receiver stays, still mirrors every row the admin saves one by one, and marks each. A `MirrorBulkDeletions` mixin's `log_deletions` mirrors each returned row the receiver did not mark, and `BakeryAdminSite.register` mixes it into every admin it registers, Django's own `GroupAdmin` included. `log_addition` and `log_change` pass `single_object=True`, so `log_deletions` is the only bulk writer in Django 5.2's admin.
+- **Rejected:**
+  - **A logout view of our own that accepts GET** — why Django removed it: any page can then sign a user out with an `<img>` tag, the cross-site request a POST's CSRF check stops.
+  - **Logging out through JavaScript** — the templates load no script of their own before HTMX (030), and a form needs none.
+  - **Replacing the receiver with the admin's three logging hooks** — a rewrite of the raw-fixture and re-save rules the receiver already gets right, for the one path it misses.
+  - **Patching `LogEntryManager.log_actions`, or `LogEntry`'s manager** — Django's own model, as 054 found for its `CASCADE`.
+  - **The mixin written into each `ModelAdmin` by hand** — 054's reason stands: `GroupAdmin` is Django's, and a new class can forget it. The site installs it instead.
+  - **Mirroring whenever `log_deletions` returns two or more rows** — that copies Django's one-row `save()` rule, an internal detail. The receiver's mark holds whatever count Django saves one by one.
+- **Traps:**
+  - **Another bulk writer would go unmirrored.** A custom admin action calling `LogEntry.objects.log_actions` on two or more rows outside `log_deletions` sends no signal and passes no hook. The tests pin `delete_selected` only.
+  - **The mark lives on the instance**, so a `LogEntry` re-read from the database carries none: the bulk path must mirror the instances `log_deletions` returns, never a fresh query.
+  - **`register` builds a subclass named after the admin it wraps**, so `type()` of a registered admin is not the class its module declares: `isinstance` holds, `is` does not.
+  - **Django 6.0 removes `log_deletion` and `log_action`**, and keeps `log_deletions`, the hook this overrides (19.13's upgrade).
+
+## ADR-057: &lt;next decision goes here&gt;
 
 - **Date / Status:**
 - **Decision:**
