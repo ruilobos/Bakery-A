@@ -490,6 +490,9 @@ class Product_List(ListView):
             margin = net_price - cost
             margin_percent[product] = f"{(margin / net_price) * 100:.2f}"
 
+        # VAT is stored as a fraction; the page shows it as a percentage
+        vat_percent = {product.pk: product.vat * 100 for product in queryset3}
+
         context = {
             "categorie": queryset2,
             "ingre_list": queryset,
@@ -499,6 +502,7 @@ class Product_List(ListView):
             "margin_value": margin_value,
             "margin_percent": margin_percent,
             "net_value": net_value,
+            "vat_percent": vat_percent,
         }
         return context
 

@@ -142,6 +142,43 @@ def test_products_page_renders_its_recipe_lines(client, raw_materials):
     assertContains(response, "<td>0.30</td>", count=2)
 
 
+# 19.5 takes mathfilters out of INSTALLED_APPS (ADR-025), so a template still
+# loading it fails to render. The VAT row's percentage now comes from the view,
+# keyed by primary key because two products may share a name.
+
+
+def test_products_page_shows_each_products_vat_as_a_percentage(client):
+    for vat in (Decimal("0.23"), Decimal("0.06")):
+        Product.objects.create(
+            name="Cake",
+            categorie="CAKES",
+            recipe_yield=Decimal("4.00"),
+            yield_unit="UNIT",
+            price=Decimal("10.00"),
+            vat=vat,
+        )
+
+    response = client.get(reverse("control:products", args=["CAKES"]))
+
+    assertContains(response, "<td>23.00</td>", count=1)
+    assertContains(response, "<td>6.00</td>", count=1)
+
+
+def test_base_recipe_page_renders_its_cost(client, raw_materials):
+    recipe = BaseRecipe.objects.create(name="Dough", recipe_yield=2, yield_unit="KG")
+    for material in raw_materials:
+        Bs_Ingredients.objects.create(
+            ingredient=material,
+            base_recipe=recipe,
+            quantity=Decimal("1.500"),
+            unit="KG",
+        )
+
+    response = client.get(reverse("control:base_recipe", args=[recipe.pk]))
+
+    assertContains(response, "<td>3.60</td>", count=1)
+
+
 # 2.9: every user-management and delete view logs one audit event (ADR-052),
 # naming actor and target by primary key and never a field's value.
 
